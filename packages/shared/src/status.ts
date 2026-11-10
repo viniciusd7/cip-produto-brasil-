@@ -27,6 +27,7 @@ export const TIPO_RESPOSTA_VIABILIDADE = [
   "SELECAO",
   "DATA",
   "NUMERO",
+  "TEXTO",
   "ANEXO_REF",
   "CONDICAO_FECHADA",
 ] as const;

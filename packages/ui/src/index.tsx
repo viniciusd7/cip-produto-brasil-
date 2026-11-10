@@ -13,44 +13,44 @@ export function Badge({
 }) {
   const colors: Record<string, CSSProperties> = {
     neutral: {
-      background: "rgba(255,255,255,0.06)",
+      background: "var(--cip-surface-soft)",
       color: "var(--cip-ink)",
       border: "1px solid var(--cip-border)",
     },
     success: {
-      background: "rgba(180, 228, 160, 0.16)",
-      color: "#b4e4a0",
-      border: "1px solid rgba(180, 228, 160, 0.4)",
+      background: "color-mix(in srgb, var(--cip-success) 18%, transparent)",
+      color: "var(--cip-success-ink)",
+      border: "1px solid color-mix(in srgb, var(--cip-success) 40%, transparent)",
     },
     warning: {
-      background: "rgba(234, 199, 140, 0.14)",
-      color: "#eac78c",
-      border: "1px solid rgba(234, 199, 140, 0.4)",
+      background: "var(--cip-gold-soft)",
+      color: "var(--cip-warning-ink)",
+      border: "1px solid color-mix(in srgb, var(--cip-warning) 40%, transparent)",
     },
     danger: {
       background: "var(--cip-rose-soft)",
       color: "var(--cip-danger)",
-      border: "1px solid rgba(255, 89, 130, 0.42)",
+      border: "1px solid color-mix(in srgb, var(--cip-danger) 42%, transparent)",
     },
     info: {
       background: "var(--cip-sky)",
       color: "var(--cip-blue)",
-      border: "1px solid rgba(124, 156, 255, 0.35)",
+      border: "1px solid color-mix(in srgb, var(--cip-blue) 35%, transparent)",
     },
     gold: {
-      background: "rgba(234, 199, 140, 0.16)",
-      color: "#eac78c",
-      border: "1px solid rgba(234, 199, 140, 0.42)",
+      background: "var(--cip-gold-soft)",
+      color: "var(--cip-gold)",
+      border: "1px solid color-mix(in srgb, var(--cip-gold) 42%, transparent)",
     },
     rose: {
-      background: "rgba(255, 89, 130, 0.16)",
-      color: "#ff779a",
-      border: "1px solid rgba(255, 89, 130, 0.42)",
+      background: "var(--cip-rose-soft)",
+      color: "var(--cip-rose)",
+      border: "1px solid color-mix(in srgb, var(--cip-rose) 42%, transparent)",
     },
     violet: {
-      background: "rgba(185, 160, 255, 0.16)",
-      color: "#b9a0ff",
-      border: "1px solid rgba(185, 160, 255, 0.45)",
+      background: "color-mix(in srgb, var(--cip-lavender) 18%, transparent)",
+      color: "var(--cip-lavender)",
+      border: "1px solid color-mix(in srgb, var(--cip-lavender) 45%, transparent)",
     },
   };
   return (

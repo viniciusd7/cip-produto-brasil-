@@ -1,24 +1,26 @@
 .shell {
-  background: #10121b;
-  color: #f1f3fc;
+  background: var(--cip-bg);
+  color: var(--cip-ink);
 }
 .shell .app-main {
   background:
-    radial-gradient(ellipse at 50% -10%, rgba(124, 156, 255, 0.14), transparent 42%),
-    radial-gradient(ellipse at 80% 20%, rgba(255, 89, 130, 0.08), transparent 35%),
-    linear-gradient(180deg, #171923 0%, #10121b 55%);
-  padding: 28px 30px 40px;
-  color: #f1f3fc;
+    radial-gradient(ellipse at 50% -10%, var(--cip-sky), transparent 42%),
+    radial-gradient(ellipse at 80% 20%, var(--cip-rose-soft), transparent 35%),
+    linear-gradient(180deg, var(--cip-bg-elevated) 0%, var(--cip-bg) 55%);
+  padding: 28px clamp(16px, 3vw, 28px) 40px;
+  color: var(--cip-ink);
 }
 .shell .app-rail {
   background: linear-gradient(165deg, #1c1f2c, #12141d 70%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 24px;
-  margin: 18px 0 18px 18px;
-  top: 18px;
-  height: calc(100vh - 36px);
-  padding: 28px 16px 18px;
-  box-shadow: 0 18px 48px #00000055;
+  border: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0;
+  margin: 0;
+  top: 0;
+  height: 100vh;
+  padding: 22px 14px 16px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  box-shadow: none;
   color: #e8eaf6;
 }
 .shell .app-topbar { background: #151722; color: #e8eaf6; }
@@ -276,8 +278,7 @@
   .headerActions .button { display: none; }
 }
 @media (max-width: 900px) {
-  .shell .app-rail { margin: 0; border-radius: 20px 0 0 20px; height: 100dvh; top: 0; padding-top: max(72px, calc(env(safe-area-inset-top) + 56px)); }
-  .shell .app-main { padding: 22px 16px 36px; }
+  /* Drawer/padding do chrome ficam em globals.css — aqui só offsets do painel. */
   .heroGrid { grid-template-columns: minmax(230px, .8fr) minmax(0, 1.4fr); }
   .healthSection { scroll-margin-top: 90px; }
   .criteria { scroll-margin-top: 90px; }

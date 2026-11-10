@@ -1,5 +1,5 @@
 import { prisma } from "@cip/db";
-import type { ModeloSnapshot, TreeNode } from "@cip/shared";
+import { buildCatalogoPerguntas, etapasFromGrupos, type ModeloSnapshot, type TreeNode } from "@cip/shared";
 
 export async function loadModeloSnapshot(modeloId: string): Promise<ModeloSnapshot> {
   const modelo = await prisma.modeloProjeto.findUnique({
@@ -10,6 +10,19 @@ export async function loadModeloSnapshot(modeloId: string): Promise<ModeloSnapsh
 
   const snap = modelo.snapshot as ModeloSnapshot | null;
   if (snap?.perguntas?.length && snap?.estrutura?.length) {
+    if (modelo.codigo === "PROJETO_ESTRUTURANTE_PADRAO") {
+      return {
+        ...snap,
+        perguntas: buildCatalogoPerguntas(),
+        etapas: etapasFromGrupos(),
+        estrutura: snap.estrutura.map((item) => ({
+          ...item,
+          nome: item.codigo === "TAR_OBTER_DOTACAO" ? "Confirmar dotação e liberação da verba" : item.nome,
+          // O catálogo anterior incluía etapas de licitação mesmo sem contratação.
+          sempreIncluir: ["META_EXECUCAO", "META_OPERACAO", "TAR_ENTREGA"].includes(item.codigo),
+        })),
+      };
+    }
     return snap;
   }
 

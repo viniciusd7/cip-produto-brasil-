@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { AvisosBadge } from "./avisos-badge";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
@@ -38,7 +39,8 @@ export function AppShell({
   const onPainel = pathname === "/painel";
 
   useEffect(() => {
-    setOpen(false);
+    const frame = requestAnimationFrame(() => setOpen(false));
+    return () => cancelAnimationFrame(frame);
   }, [pathname]);
 
   useEffect(() => {
@@ -123,17 +125,22 @@ export function AppShell({
           <BrandLogo variant="mark" />
           <span>Governo em perspectiva</span>
         </div>
-        <button
-          ref={menuToggleRef}
-          type="button"
-          className="menu-toggle"
-          aria-label={open ? "Fechar menu" : "Abrir menu"}
-          aria-expanded={open}
-          aria-controls="app-rail-menu"
-          onClick={() => setOpen((v) => !v)}
-        >
-          {open ? "✕" : "☰"}
-        </button>
+        <div className="app-topbar__actions">
+          {["gestor", "analista", "admin"].includes(role || "") && (
+            <AvisosBadge token={data?.accessToken} />
+          )}
+          <button
+            ref={menuToggleRef}
+            type="button"
+            className="menu-toggle"
+            aria-label={open ? "Fechar menu" : "Abrir menu"}
+            aria-expanded={open}
+            aria-controls="app-rail-menu"
+            onClick={() => setOpen((v) => !v)}
+          >
+            {open ? "✕" : "☰"}
+          </button>
+        </div>
       </header>
 
       <button

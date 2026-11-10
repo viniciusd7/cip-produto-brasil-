@@ -28,6 +28,7 @@ export function CondicaoCard({
   const perguntaTxt = pergunta.pergunta || pergunta.texto;
   const isSelecao = pergunta.tipoResposta === "SELECAO";
   const isNumero = pergunta.tipoResposta === "NUMERO";
+  const isTexto = pergunta.tipoResposta === "TEXTO";
   const isFechada = pergunta.tipoResposta === "CONDICAO_FECHADA";
 
   const followUps = pergunta.camposFollowUp || [];
@@ -40,7 +41,7 @@ export function CondicaoCard({
   const showFollowUps =
     followUps.length > 0 &&
     (isSelecao
-      ? Boolean(selecaoAtual && selecaoAtual !== "Não necessária")
+      ? Boolean(selecaoAtual && (!pergunta.opcoesComDetalhes || pergunta.opcoesComDetalhes.includes(selecaoAtual)))
       : fechada === "pendente" || fechada === "atendida");
 
   function setFechada(next: RespostaFechada) {
@@ -93,7 +94,7 @@ export function CondicaoCard({
             value={selecaoAtual}
             onChange={(e) => {
               const sel = e.target.value;
-              if (followUps.length && sel && sel !== "Não necessária") {
+              if (followUps.length && sel && (!pergunta.opcoesComDetalhes || pergunta.opcoesComDetalhes.includes(sel))) {
                 onChange({
                   codigo: pergunta.codigo,
                   aplicabilidade: "sim",
@@ -127,11 +128,24 @@ export function CondicaoCard({
         </label>
       ) : null}
 
+      {isTexto ? (
+        <label className="condicao-card__field">
+          <span>Resposta</span>
+          <textarea
+            rows={3}
+            value={typeof valor === "string" ? valor : ""}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={pergunta.ajuda || undefined}
+          />
+        </label>
+      ) : null}
+
       {(isFechada ||
         pergunta.tipoResposta === "SIM_NAO" ||
         pergunta.tipoResposta === "SIM_NAO_ANDAMENTO") &&
       !isSelecao &&
-      !isNumero ? (
+      !isNumero &&
+      !isTexto ? (
         <>
           <label className="condicao-card__field">
             <span>Situação: {rotulo}</span>

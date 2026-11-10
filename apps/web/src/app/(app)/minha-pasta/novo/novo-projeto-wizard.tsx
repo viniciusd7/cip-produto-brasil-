@@ -7,6 +7,7 @@ import {
   GRUPOS_ACAO,
   GRUPOS_CONDICOES,
   GRUPOS_PLANO,
+  buildCatalogoPerguntas,
   MODELO_ACAO_DIARIA,
   MODELO_PLANO_GOVERNO,
   quizItem,
@@ -105,6 +106,7 @@ const STEPS_ACAO = [
   "Prévia",
 ];
 const NOVO_VALOR = "__novo__";
+const PERGUNTAS_ESTRUTURANTE = buildCatalogoPerguntas();
 
 const PRIORIDADE_LABEL: Record<string, string> = {
   CRITICA: "Crítica",
@@ -192,12 +194,14 @@ export function NovoProjetoWizard({
   secretarias,
   modelos,
   metas,
+  planos,
 }: {
   token: string;
   defaultSecretariaId?: string;
   secretarias: Secretaria[];
   modelos: Modelo[];
   metas: Array<{ id: string; label: string }>;
+  planos: Array<{ id: string; nome: string }>;
 }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
@@ -226,8 +230,12 @@ export function NovoProjetoWizard({
   const [foraEscopo, setForaEscopo] = useState("");
   const [beneficiariosTxt, setBeneficiariosTxt] = useState("");
   const [metaId, setMetaId] = useState("");
+  const [novaMetaNome, setNovaMetaNome] = useState("");
+  const [planoId, setPlanoId] = useState(planos[0]?.id || "__novo__");
+  const [novoPlanoNome, setNovoPlanoNome] = useState("");
   const [escopo, setEscopo] = useState<EscopoNo[]>([]);
   const [preview, setPreview] = useState<PreviewData | null>(null);
+  const [ultimoPassoGerado, setUltimoPassoGerado] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -279,7 +287,9 @@ export function NovoProjetoWizard({
 
   const perguntasAtivas: ModeloPerguntaDef[] =
     classificacao === "ESTRUTURANTE"
-      ? perguntas
+      ? modeloPadrao?.codigo === "PROJETO_ESTRUTURANTE_PADRAO"
+        ? PERGUNTAS_ESTRUTURANTE
+        : perguntas
       : classificacao === "PLANO_GOVERNO"
         ? MODELO_PLANO_GOVERNO.perguntas
         : MODELO_ACAO_DIARIA.perguntas;
@@ -315,14 +325,19 @@ export function NovoProjetoWizard({
   );
 
   const descricaoCompleta = useMemo(() => {
+    const prefixo = classificacao === "ACAO_DIARIA"
+      ? "Demanda"
+      : classificacao === "PLANO_GOVERNO"
+        ? "Compromisso"
+        : "Problema";
     const parts = [
-      descricao.trim() && `Problema: ${descricao.trim()}`,
-      entrega.trim() && `Entrega: ${entrega.trim()}`,
-      beneficiariosTxt.trim() && `Beneficiários: ${beneficiariosTxt.trim()}`,
-      foraEscopo.trim() && `Fora de escopo: ${foraEscopo.trim()}`,
+      descricao.trim() && `${prefixo}: ${descricao.trim()}`,
+      classificacao !== "ACAO_DIARIA" && entrega.trim() && `Entrega: ${entrega.trim()}`,
+      classificacao === "ESTRUTURANTE" && beneficiariosTxt.trim() && `Beneficiários: ${beneficiariosTxt.trim()}`,
+      classificacao === "ESTRUTURANTE" && foraEscopo.trim() && `Fora de escopo: ${foraEscopo.trim()}`,
     ].filter(Boolean);
     return parts.join("\n\n") || undefined;
-  }, [descricao, entrega, beneficiariosTxt, foraEscopo]);
+  }, [classificacao, descricao, entrega, beneficiariosTxt, foraEscopo]);
 
   // Mesma regra do servidor: uma única fonte de verdade para mostrar/ocultar perguntas.
   const visiblePerguntas = useMemo(
@@ -393,9 +408,58 @@ export function NovoProjetoWizard({
       etapaAtual: json.data.etapaAtual ?? null,
       avisos: json.data.avisos || [],
     });
-    setEscopo((anterior) =>
-      mesclarEscopo(anterior, ((json.data.estrutura || []) as NoApi[]).map(paraEscopo)),
-    );
+    const estruturaModelo = ((json.data.estrutura || []) as NoApi[]).map(paraEscopo);
+    const proximoPasso = classificacao === "ACAO_DIARIA"
+      ? respostas.acao_providencia
+      : classificacao === "PLANO_GOVERNO"
+        ? respostas.plano_proximo_marco
+        : undefined;
+    if (typeof proximoPasso === "string" && proximoPasso.trim()) {
+      const codigoMeta = classificacao === "ACAO_DIARIA" ? "META_ACAO" : "META_PLANO";
+      estruturaModelo.push({
+        codigo: codigoMeta,
+        nivel: "META",
+        nome: classificacao === "ACAO_DIARIA" ? "Executar ação" : "Cumprir compromisso",
+        indicador: null,
+        alvo: null,
+        responsavel: null,
+        prazo: null,
+        origemPerguntaCodigo: null,
+        origemValor: null,
+        manual: false,
+        children: [{
+          codigo: `${codigoMeta}_PROXIMO`,
+          nivel: "TAREFA",
+          nome: proximoPasso.trim(),
+          indicador: null,
+          alvo: null,
+          responsavel: null,
+          prazo: null,
+          origemPerguntaCodigo: null,
+          origemValor: null,
+          manual: false,
+          children: [],
+        }],
+      });
+    }
+    setEscopo((anterior) => {
+      const mesclado = mesclarEscopo(anterior, estruturaModelo);
+      if (typeof proximoPasso !== "string" || !proximoPasso.trim() || proximoPasso.trim() === ultimoPassoGerado) {
+        return mesclado;
+      }
+      const codigoMeta = classificacao === "ACAO_DIARIA" ? "META_ACAO" : "META_PLANO";
+      return mesclado.map((meta) =>
+        meta.codigo !== codigoMeta ? meta : {
+          ...meta,
+          children: meta.children.map((tarefa) =>
+            tarefa.codigo === `${codigoMeta}_PROXIMO`
+              ? { ...tarefa, nome: proximoPasso.trim() }
+              : tarefa,
+          ),
+        },
+      );
+    });
+    if (typeof proximoPasso === "string") setUltimoPassoGerado(proximoPasso.trim());
   }
 
   function traduzirAviso(aviso: string) {
@@ -438,8 +502,10 @@ export function NovoProjetoWizard({
           setError("Informe nome e secretaria");
           return;
         }
-        if (estruturante && (!descricao.trim() || !entrega.trim())) {
-          setError("Informe o problema público e a entrega esperada");
+        if (!descricao.trim() || (classificacao !== "ACAO_DIARIA" && !entrega.trim())) {
+          setError(classificacao === "ACAO_DIARIA"
+            ? "Informe o que precisa ser feito e onde"
+            : "Informe o problema ou compromisso e a entrega esperada");
           return;
         }
         const respErr = validateResponsavel();
@@ -447,8 +513,8 @@ export function NovoProjetoWizard({
           setError(respErr);
           return;
         }
-        if (exigeMeta && !metaId) {
-          setError("Selecione a meta estratégica do Plano de Governo");
+        if (exigeMeta && (metaId === "__nova__" ? novaMetaNome.trim().length < 3 || (planoId === "__novo__" && novoPlanoNome.trim().length < 3) : !metaId)) {
+          setError(metaId === "__nova__" ? "Preencha o nome da meta e escolha ou nomeie o plano de governo" : "Selecione uma meta ou escolha Criar meta neste cadastro");
           return;
         }
         if (!codigo.trim() && sec?.sigla) {
@@ -459,8 +525,19 @@ export function NovoProjetoWizard({
       }
       // Demais passos (grupos de condição, urgência, escopo): avança e,
       // ao entrar no escopo ou na prévia, recalcula o modelo com as respostas atuais.
+      if (grupoAtualMeta) {
+        const pendente = visiblePerguntas.find((p) => {
+          const valor = respostas[p.codigo];
+          return p.grupo === grupoAtualMeta.id && p.obrigatoria &&
+            (valor === undefined || (typeof valor === "string" && !valor.trim()));
+        });
+        if (pendente) {
+          setError(`Responda: ${pendente.pergunta || pendente.texto}`);
+          return;
+        }
+      }
       const nextLabel = steps[step + 1];
-      if (nextLabel === "Escopo" || (nextLabel === "Prévia" && !preview)) {
+      if (nextLabel === "Escopo" || nextLabel === "Prévia") {
         await runPreview();
       }
       setStep((s) => s + 1);
@@ -500,7 +577,8 @@ export function NovoProjetoWizard({
           secretariaIds: secretariasCorrelatas.filter((id) => id !== secretariaId),
           classificacaoPrincipal: classificacao,
           vinculoPlanoGoverno: exigeMeta,
-          metaEstrategicaId: exigeMeta ? metaId || undefined : undefined,
+          metaEstrategicaId: exigeMeta && metaId !== "__nova__" ? metaId || undefined : undefined,
+          novaMeta: exigeMeta && metaId === "__nova__" ? { nome: novaMetaNome.trim(), planoId: planoId !== "__novo__" ? planoId : undefined, novoPlanoNome: planoId === "__novo__" ? novoPlanoNome.trim() : undefined } : undefined,
           modeloProjetoId: estruturante ? modeloPadrao?.id || undefined : undefined,
           responsavel: registrandoNovo ? novoNome.trim() : selected?.nome,
           responsavelPessoaId: registrandoNovo ? undefined : responsavelPessoaId,
@@ -533,6 +611,8 @@ export function NovoProjetoWizard({
 
   function escolherClassificacao(valor: Classificacao) {
     setClassificacao(valor);
+    setRespostas({});
+    setUltimoPassoGerado("");
     setEscopo([]);
     setPreview(null);
     setStep(0);
@@ -784,18 +864,28 @@ export function NovoProjetoWizard({
               </div>
             )}
             <div>
-              <label>Problema público *</label>
+              <label>
+                {estruturante
+                  ? "Problema público *"
+                  : classificacao === "PLANO_GOVERNO"
+                    ? "Compromisso do plano e resultado esperado *"
+                    : "O que precisa ser feito e onde? *"}
+              </label>
               <textarea
                 rows={3}
                 value={descricao}
                 onChange={(e) => setDescricao(e.target.value)}
-                placeholder="Qual problema público o projeto resolve? Quem é afetado e onde?"
+                placeholder={estruturante
+                  ? "Qual problema público será resolvido? Quem é afetado e onde?"
+                  : classificacao === "PLANO_GOVERNO"
+                    ? "Ex.: ampliar vagas de creche no Bairro Novo"
+                    : "Ex.: reparar o gerador da UBS Centro"}
               />
             </div>
-            {estruturante && (
+            {classificacao !== "ACAO_DIARIA" && (
               <>
                 <div>
-                  <label>O que será entregue e para quem *</label>
+                  <label>{estruturante ? "O que será entregue e para quem *" : "Entrega concreta deste ciclo *"}</label>
                   <textarea
                     rows={3}
                     value={entrega}
@@ -803,15 +893,15 @@ export function NovoProjetoWizard({
                     placeholder="Ex.: escola de seis salas no Bairro Novo, com acessibilidade e equipamentos."
                   />
                 </div>
-                <div>
+                {estruturante && <div>
                   <label>Público beneficiado</label>
                   <input
                     value={beneficiariosTxt}
                     onChange={(e) => setBeneficiariosTxt(e.target.value)}
                     placeholder="Ex.: ~400 crianças da região norte"
                   />
-                </div>
-                <div>
+                </div>}
+                {estruturante && <div>
                   <label>O que fica fora deste projeto</label>
                   <textarea
                     rows={2}
@@ -819,7 +909,7 @@ export function NovoProjetoWizard({
                     onChange={(e) => setForaEscopo(e.target.value)}
                     placeholder="Ex.: contratação de professores será outra iniciativa."
                   />
-                </div>
+                </div>}
               </>
             )}
             {exigeMeta && (
@@ -831,12 +921,19 @@ export function NovoProjetoWizard({
                   required
                 >
                   <option value="">Selecione a meta</option>
+                  <option value="__nova__">+ Criar meta neste cadastro</option>
                   {metas.map((m) => (
                     <option key={m.id} value={m.id}>
                       {m.label}
                     </option>
                   ))}
                 </select>
+                {metaId === "__nova__" && <div className="stack" style={{ marginTop: 12 }}>
+                  <label>Nome da nova meta<input value={novaMetaNome} onChange={(e) => setNovaMetaNome(e.target.value)} placeholder="Ex.: ampliar em 200 as vagas em creches" /></label>
+                  <label>Plano de governo<select value={planoId} onChange={(e) => setPlanoId(e.target.value)}>{planos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}<option value="__novo__">+ Criar plano de governo</option></select></label>
+                  {planoId === "__novo__" && <label>Nome e período do plano<input value={novoPlanoNome} onChange={(e) => setNovoPlanoNome(e.target.value)} placeholder="Ex.: Plano de Governo 2025–2028" /></label>}
+                  <p className="dashboard-muted">A meta será criada junto com o projeto ao confirmar.</p>
+                </div>}
               </div>
             )}
           </div>
@@ -860,7 +957,7 @@ export function NovoProjetoWizard({
 
       {grupoAtualMeta && (
         <Card title={grupoAtualMeta.nome} subtitle={grupoAtualMeta.ajuda}>
-          {estruturante && !perguntas.length ? (
+          {estruturante && !perguntasAtivas.length ? (
             <p className="dashboard-muted">
               Carregando checklist do modelo padrão CIP…
             </p>

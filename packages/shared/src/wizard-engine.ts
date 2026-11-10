@@ -71,6 +71,8 @@ export type ModeloPerguntaDef = {
     placeholder?: string;
     ajuda?: string;
   }> | null;
+  /** Opções da seleção que pedem os dados complementares. */
+  opcoesComDetalhes?: string[] | null;
 };
 
 export type ModeloEstruturaDef = {
@@ -167,6 +169,8 @@ function valorParaMatch(valor: Valor | undefined): string | number | boolean | n
   if (typeof valor === "object") {
     const o = valor as Record<string, unknown>;
     if (typeof o._selecao === "string" && o._selecao) return o._selecao;
+    const detalhes = o.detalhes as Record<string, unknown> | undefined;
+    if (typeof detalhes?._selecao === "string" && detalhes._selecao) return detalhes._selecao;
     return valorFechadoDeResposta(valor as CondicaoResposta) ?? null;
   }
   return valor;
@@ -209,6 +213,7 @@ function matchEfeito(valor: Valor | undefined, efeito: EfeitoPergunta) {
 function temValor(valor: Valor | undefined) {
   if (valor === null || valor === undefined || valor === "") return false;
   if (typeof valor === "object") {
+    if (typeof (valor as CondicaoResposta).detalhes?._selecao === "string") return true;
     return valorFechadoDeResposta(valor as CondicaoResposta) !== null;
   }
   return true;
@@ -220,11 +225,12 @@ function valorExibido(valor: Valor | undefined): string {
 }
 
 function contaParaEtapa(p: ModeloPerguntaDef) {
-  return Array.isArray(p.favoraveis) && p.favoraveis.length > 0;
+  return p.tipoResposta === "TEXTO" || (Array.isArray(p.favoraveis) && p.favoraveis.length > 0);
 }
 
 function isFavoravel(p: ModeloPerguntaDef, valor: Valor | undefined) {
   if (!contaParaEtapa(p) || !temValor(valor)) return false;
+  if (p.tipoResposta === "TEXTO") return typeof valor === "string" && Boolean(valor.trim());
   const v = valorParaMatch(valor);
   return (p.favoraveis as string[]).includes(String(v));
 }

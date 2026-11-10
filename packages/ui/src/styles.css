@@ -1,10 +1,12 @@
 :root {
-  /* Identidade Azimov / CIP executive — tema principal do produto */
+  /* Identidade Azimov / CIP executive — tema escuro */
+  color-scheme: dark;
   --cip-bg: #10121b;
   --cip-bg-elevated: #171923;
   --cip-surface: #202332;
   --cip-surface-soft: #242838;
   --cip-ink: #f1f3fc;
+  --cip-text: #f1f3fc;
   --cip-navy: #f1f3fc;
   --cip-navy-deep: #12141d;
   --cip-rail: #1c1f2c;
@@ -27,6 +29,7 @@
   --cip-info: #7c9cff;
   --cip-on-track: #7c9cff;
   --cip-lavender: #b9a0ff;
+  --cip-btn-on-primary: #10121b;
   --cip-radius: 14px;
   --cip-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
   --cip-touch: 44px;

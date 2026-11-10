@@ -1,9 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { ReprogramarTarefa } from "./reprogramar-tarefa";
+import { ComunicacaoProjeto } from "@/components/comunicacao-projeto";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   GRUPOS_CONDICOES,
+  MODELO_ACAO_DIARIA,
+  MODELO_PLANO_GOVERNO,
+  buildCatalogoPerguntas,
+  formatarDetalhes,
   quizItem,
   textoPorQueParado,
   tonePrazo,
@@ -47,7 +53,7 @@ export type ProjetoDocMarco = {
     concluida: boolean;
     responsavel?: string | null;
   }>;
-  reprogramacoes: Array<{ id: string; motivo: string; dataNova?: string }>;
+  reprogramacoes: Array<{ id: string; motivo: string; dataNova?: string; dataAnterior?: string | null }>;
 };
 
 export type ProjetoDocData = {
@@ -75,6 +81,12 @@ export type ProjetoDocData = {
     responsavel?: string | null;
     tipo: { nome: string; codigo?: string };
   }>;
+  respostasViabilidade?: Array<{
+    id: string;
+    perguntaCodigo: string;
+    perguntaTexto: string;
+    valor: unknown;
+  }>;
   impedimentos: Array<{
     id: string;
     descricao: string;
@@ -85,11 +97,33 @@ export type ProjetoDocData = {
   evidencias: EvidenciaItem[];
 };
 
+const ROTULOS_CAMPOS = new Map(
+  [...buildCatalogoPerguntas(), ...MODELO_ACAO_DIARIA.perguntas, ...MODELO_PLANO_GOVERNO.perguntas]
+    .map((p) => [p.codigo, Object.fromEntries((p.camposFollowUp || []).map((c) => [c.chave, c.label]))]),
+);
+const GRUPOS_DOCUMENTO = [
+  { id: "planejamento", nome: "Planejamento" },
+  ...GRUPOS_CONDICOES,
+];
+
 type Aba = "visao" | "andamento" | "evidencias";
 
 function fmt(d?: string | null) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("pt-BR");
+}
+
+function respostaLegivel(codigo: string, valor: unknown): string {
+  if (valor === null || valor === undefined) return "A confirmar";
+  if (typeof valor !== "object" || Array.isArray(valor)) return String(valor);
+  const obj = valor as Record<string, unknown>;
+  const detalhes = obj.detalhes && typeof obj.detalhes === "object" && !Array.isArray(obj.detalhes)
+    ? obj.detalhes as Record<string, string | number | null>
+    : undefined;
+  const selecao = detalhes?._selecao;
+  const principal = typeof selecao === "string" ? selecao : obj.situacao === "atendida" ? "Atendida" : obj.situacao === "pendente" ? "Pendente" : "A confirmar";
+  const complemento = formatarDetalhes(detalhes, ROTULOS_CAMPOS.get(codigo));
+  return complemento ? `${principal} · ${complemento}` : principal;
 }
 
 function metaProgress(me: ProjetoDocMeta) {
@@ -384,9 +418,22 @@ export function ProjetoDocumento({
             <FluxoArvore nodes={fluxoNodes} defaultExpandedDepth={1} showOrigemLabel />
           </Card>
 
+          {!!item.respostasViabilidade?.length && (
+            <Card title="Respostas do cadastro">
+              {item.respostasViabilidade.map((resposta) => (
+                <div key={resposta.id} className="dashboard-list-item">
+                  <div>
+                    <strong>{resposta.perguntaTexto}</strong>
+                    <div className="dashboard-muted">{respostaLegivel(resposta.perguntaCodigo, resposta.valor)}</div>
+                  </div>
+                </div>
+              ))}
+            </Card>
+          )}
+
           <div className="dashboard-grid-2">
             <Card title="Condicionantes por grupo">
-              {GRUPOS_CONDICOES.map((grupo) => {
+              {GRUPOS_DOCUMENTO.map((grupo) => {
                 const itens = item.verificacoes.filter((v) => {
                   const tema = quizItem(v.tipo.codigo || "");
                   return tema?.grupo === grupo.id;
@@ -495,7 +542,8 @@ export function ProjetoDocumento({
             </div>
           )}
 
-          <Card title="Fluxo Meta → Tarefa → Subtarefa">
+          <ComunicacaoProjeto token={token} iniciativaId={item.id} canWrite={canWrite} />
+          <Card title="Pastas de metas e tarefas">
             <FluxoArvore nodes={fluxoNodes} defaultExpandedDepth={1} showOrigemLabel />
           </Card>
 
@@ -511,9 +559,9 @@ export function ProjetoDocumento({
           )}
 
           {item.metasExecucao.map((me) => (
-            <details key={me.id} className="more-block" open={item.metasExecucao.length === 1}>
+            <details key={me.id} className="more-block projeto-pasta" open={item.metasExecucao.length === 1}>
               <summary>
-                {me.codigo ? `${me.codigo} · ` : ""}
+                📁 {me.codigo ? `${me.codigo} · ` : ""}
                 {me.nome} · {metaProgress(me).pct}% · Resp.: {me.responsavel || "sem responsável"}
               </summary>
               <div className="stack" style={{ marginTop: 12 }}>
@@ -555,6 +603,7 @@ export function ProjetoDocumento({
                         canWrite={canWrite}
                       />
                     </div>
+                    {<ReprogramarTarefa canWrite={canWrite && m.prazoStatus !== "CONCLUIDO"} token={token} marcoId={m.id} prazo={m.prazoVigente} historico={m.reprogramacoes} />}
                     <ul className="projeto-timeline__subs">
                       {m.subtarefas.map((st) => (
                         <li key={st.id} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -599,6 +648,7 @@ export function ProjetoDocumento({
                     {m.descricao} · {m.responsavel || "sem responsável"}
                   </span>
                   <Badge tone={tonePrazo(m.prazoStatus)}>{m.prazoStatus}</Badge>
+                  <ReprogramarTarefa canWrite={canWrite && m.prazoStatus !== "CONCLUIDO"} token={token} marcoId={m.id} prazo={m.prazoVigente} historico={m.reprogramacoes} />
                 </div>
               ))}
             </Card>

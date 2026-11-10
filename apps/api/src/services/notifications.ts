@@ -1,3 +1,4 @@
+import { prisma, type Prisma } from "@cip/db";
 /** Porta de notificação — WhatsApp/SMTP entram depois. */
 
 export type BloqueioNotifyCtx = {
@@ -16,18 +17,18 @@ export interface NotificationPort {
   notifyBloqueioResolvido(ctx: BloqueioNotifyCtx): Promise<void>;
 }
 
-export class ConsoleNotificationPort implements NotificationPort {
-  async notifyResponsavelBloqueio(ctx: BloqueioNotifyCtx) {
-    console.log(
-      `[notify] bloqueio → responsável=${ctx.responsavel || "—"} projeto=${ctx.codigo} label=${ctx.bloqueioLabel}`,
-    );
-  }
-
-  async notifyBloqueioResolvido(ctx: BloqueioNotifyCtx) {
-    console.log(
-      `[notify] bloqueio resolvido → responsável=${ctx.responsavel || "—"} projeto=${ctx.codigo}`,
-    );
-  }
+/** Entrega interna: titular vinculado por e-mail; sem vínculo, caixa compartilhada dos secretários. */
+export async function avisarSecretaria(iniciativaId: string, texto: string, tipo = "AVISO", autorId?: string, db: Prisma.TransactionClient = prisma) {
+  const iniciativa = await db.iniciativa.findUniqueOrThrow({ where: { id: iniciativaId }, include: { secretariaPrincipal: true } });
+  const email = iniciativa.secretariaPrincipal.titularEmail;
+  const titular = email ? await db.user.findFirst({ where: { email, active: true, vinculos: { some: { municipioId: iniciativa.municipioId } }, roles: { some: { role: { code: "gestor" } } } } }) : null;
+  return db.comunicado.create({ data: { iniciativaId, autorId, destinatarioId: titular?.id, destinoPapel: titular ? null : "gestor", texto, tipo } });
 }
-
-export const notifications: NotificationPort = new ConsoleNotificationPort();
+export const notifications: NotificationPort = {
+  async notifyResponsavelBloqueio(ctx) {
+    await avisarSecretaria(ctx.iniciativaId, `${ctx.bloqueioLabel}. Providência: verificar a pendência e orientar a equipe responsável pelo projeto.`, "BLOQUEIO");
+  },
+  async notifyBloqueioResolvido(ctx) {
+    await avisarSecretaria(ctx.iniciativaId, "Pré-requisito resolvido. A equipe pode atualizar o andamento do projeto.", "LIBERACAO");
+  },
+};

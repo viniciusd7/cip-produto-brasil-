@@ -236,6 +236,7 @@ const confirmSchema = previewSchema.extend({
   secretariaPrincipalId: z.string(),
   secretariaIds: z.array(z.string()).optional(),
   metaEstrategicaId: z.string().optional(),
+  novaMeta: z.object({ nome: z.string().trim().min(3), planoId: z.string().min(1).optional(), novoPlanoNome: z.string().trim().min(3).optional() }).refine((v) => Boolean(v.planoId) !== Boolean(v.novoPlanoNome), "Escolha um plano ou informe o nome do novo plano").optional(),
   vinculoPlanoGoverno: z.boolean().optional(),
   responsavel: z.string().optional(),
   responsavelPessoaId: z.string().optional(),
@@ -274,6 +275,8 @@ wizardRouter.post(
           );
         }
       }
+      if (body.novaMeta && body.metaEstrategicaId) throw new HttpError(422, "INVALID_META", "Escolha uma meta existente ou crie uma nova");
+      if (body.novaMeta?.planoId && !await prisma.planoGoverno.findFirst({ where: { id: body.novaMeta.planoId, municipioId } })) throw new HttpError(422, "INVALID_PLANO", "Plano inválido para este município");
       if (body.metaEstrategicaId) {
         const meta = await prisma.metaEstrategica.findFirst({
           where: { id: body.metaEstrategicaId, plano: { municipioId } },
@@ -298,9 +301,9 @@ wizardRouter.post(
 
       const vinculaPlano =
         body.classificacaoPrincipal === "PLANO_GOVERNO" ||
-        Boolean(body.vinculoPlanoGoverno);
+        Boolean(body.vinculoPlanoGoverno || body.novaMeta || body.metaEstrategicaId);
 
-      if (vinculaPlano && !body.metaEstrategicaId) {
+      if (vinculaPlano && !body.metaEstrategicaId && !body.novaMeta) {
         throw new HttpError(
           422,
           "META_REQUIRED",
@@ -334,6 +337,11 @@ wizardRouter.post(
         (body.estruturaOverride as TreeNode[] | undefined) || evaluated.estrutura;
 
       const created = await prisma.$transaction(async (tx) => {
+        let metaEstrategicaId = body.metaEstrategicaId;
+        if (body.novaMeta) {
+          const planoId = body.novaMeta.planoId || (await tx.planoGoverno.create({ data: { municipioId, nome: body.novaMeta.novoPlanoNome! } })).id;
+          metaEstrategicaId = (await tx.metaEstrategica.create({ data: { planoId, secretariaId: secretaria.id, nome: body.novaMeta.nome } })).id;
+        }
         let responsavelPessoaId = body.responsavelPessoaId || null;
         let responsavelNome = body.responsavel || secretaria.titularNome || null;
 
@@ -382,7 +390,7 @@ wizardRouter.post(
           data: {
             municipioId,
             secretariaPrincipalId: body.secretariaPrincipalId,
-            metaEstrategicaId: body.metaEstrategicaId || null,
+            metaEstrategicaId: metaEstrategicaId || null,
             codigo: body.codigo,
             nome: body.nome,
             descricao: body.descricao,

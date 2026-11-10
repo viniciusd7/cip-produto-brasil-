@@ -83,6 +83,7 @@ export function getNextStepForRole(role?: string | null): {
 export type NavItem = { href: string; label: string; icon: string };
 
 const ALL_NAV: NavItem[] = [
+  { href: "/comunicados", label: "Avisos e conversas", icon: "✉" },
   { href: "/painel", label: "Cenário", icon: "01" },
   { href: "/minha-pasta", label: "Minha pasta", icon: "02" },
   { href: "/secretarias", label: "Pastas", icon: "02b" },
@@ -113,5 +114,6 @@ export function getNavForRole(role?: string | null): NavItem[] {
     ["/painel", "/relatorios"].forEach((h) => allow.add(h));
   }
 
+  if (["gestor", "analista", "admin"].includes(r)) allow.add("/comunicados");
   return ALL_NAV.filter((n) => allow.has(n.href));
 }

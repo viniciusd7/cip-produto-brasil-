@@ -1,4 +1,5 @@
 import cors from "cors";
+import { comunicadosRouter } from "./routes/comunicados";
 import express from "express";
 import { authRouter } from "./routes/auth";
 import { dashboardRouter } from "./routes/dashboard";
@@ -38,6 +39,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/auth", authRouter);
+app.use("/comunicados", comunicadosRouter);
 app.use("/dashboard", dashboardRouter);
 app.use("/modelos-projeto", modelosRouter);
 app.use("/iniciativas/wizard", wizardRouter);

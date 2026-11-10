@@ -1,3 +1,4 @@
+import { avisarSecretaria } from "../services/notifications";
 import { Router } from "express";
 import multer from "multer";
 import path from "path";
@@ -70,6 +71,8 @@ iniciativasRouter.get(
           nome: r.nome,
           ciclo: r.ciclo,
           secretariaPrincipal: r.secretariaPrincipal.nome,
+          classificacaoPrincipal: r.classificacaoPrincipal,
+          bloqueioLabel: r.bloqueioLabel,
           responsavel: r.responsavel,
           origem: r.origem,
           atualizadoEm: r.atualizadoEm.toISOString(),
@@ -126,6 +129,7 @@ iniciativasRouter.get(
             orderBy: { ordem: "asc" },
           },
           verificacoes: { include: { tipo: true } },
+          respostasViabilidade: { orderBy: { createdAt: "asc" } },
           impedimentos: { include: { decisoes: true } },
           decisoes: true,
           evidencias: {
@@ -371,9 +375,26 @@ iniciativasRouter.post(
 );
 
 const reprogSchema = z.object({
-  dataNova: z.string().datetime(),
+  dataNova: z.string().datetime({ offset: true }),
   motivo: z.string().min(5),
   autorizacao: z.string().optional(),
+});
+
+iniciativasRouter.post("/marcos/:marcoId/prazo-inicial", requirePermission("marco:write"), async (req, res, next) => {
+  try {
+    const body = z.object({ dataNova: z.string().datetime({ offset: true }) }).parse(req.body);
+    const marco = await prisma.marcoEntrega.findUnique({ where: { id: req.params.marcoId }, include: { iniciativa: true } });
+    if (!marco) throw new HttpError(404, "NOT_FOUND", "Tarefa não encontrada");
+    await assertMunicipioAccess(req.user!, marco.iniciativa.municipioId);
+    const prazo = new Date(body.dataNova);
+    if (prazo.getTime() < Date.now() || marco.concluidoEm) throw new HttpError(422, "INVALID_DATA", "Defina uma data futura para uma tarefa aberta");
+    await prisma.$transaction(async (tx) => {
+      const result = await tx.marcoEntrega.updateMany({ where: { id: marco.id, prazoOriginal: null, prazoVigente: null, concluidoEm: null }, data: { prazoOriginal: prazo, prazoVigente: prazo } });
+      if (result.count !== 1) throw new HttpError(409, "PRAZO_EXISTENTE", "Esta tarefa já possui prazo. Use reprogramar.");
+      await avisarSecretaria(marco.iniciativaId, `Prazo definido para ${marco.descricao}: ${prazo.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}. Responsável: ${marco.responsavel || "a definir"}.`, "PRAZO", req.user!.id, tx);
+    });
+    res.status(201).json({ ok: true });
+  } catch (err) { next(err); }
 });
 
 iniciativasRouter.post(
@@ -394,9 +415,13 @@ iniciativasRouter.post(
 
       const body = reprogSchema.parse(req.body);
       const dataNova = new Date(body.dataNova);
+      if (!marco.prazoVigente || marco.concluidoEm) throw new HttpError(422, "INVALID_REPROGRAMACAO", "Defina o primeiro prazo no cadastro. Tarefas concluídas não podem ser reprogramadas.");
+      if (dataNova.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }) === marco.prazoVigente.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }) || dataNova.getTime() < Date.now()) throw new HttpError(422, "INVALID_DATA", "Informe uma nova data futura, diferente da atual");
 
-      const [reprog, updated] = await prisma.$transaction([
-        prisma.reprogramacao.create({
+      const [reprog, updated] = await prisma.$transaction(async (tx) => {
+        const changed = await tx.marcoEntrega.updateMany({ where: { id: marco.id, prazoVigente: marco.prazoVigente, concluidoEm: null }, data: { prazoVigente: dataNova } });
+        if (changed.count !== 1) throw new HttpError(409, "PRAZO_ALTERADO", "A tarefa foi atualizada por outra pessoa. Recarregue antes de reprogramar.");
+        const reprog = await tx.reprogramacao.create({
           data: {
             marcoId: marco.id,
             dataAnterior: marco.prazoVigente,
@@ -405,15 +430,17 @@ iniciativasRouter.post(
             autorId: req.user!.id,
             autorizacao: body.autorizacao,
           },
-        }),
-        prisma.marcoEntrega.update({
+        });
+        const updated = await tx.marcoEntrega.update({
           where: { id: marco.id },
           data: {
             // prazoOriginal NUNCA é sobrescrito
             prazoVigente: dataNova,
           },
-        }),
-      ]);
+        });
+        await avisarSecretaria(marco.iniciativaId, `Tarefa reprogramada: ${marco.descricao}. Prazo anterior: ${marco.prazoVigente!.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}. Novo prazo: ${dataNova.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}. Motivo: ${body.motivo}. Providência: acompanhar a nova entrega com ${marco.responsavel || "a equipe"}.`, "REPROGRAMACAO", req.user!.id, tx);
+        return [reprog, updated] as const;
+      });
 
       await writeAudit({
         user: req.user,
@@ -697,7 +724,8 @@ iniciativasRouter.post(
         if (!tipo) tipo = "LINK";
       }
 
-      const row = await prisma.evidencia.create({
+      const row = await prisma.$transaction(async (tx) => {
+        const evidencia = await tx.evidencia.create({
         data: {
           iniciativaId: ini.id,
           titulo: body.titulo,
@@ -712,6 +740,9 @@ iniciativasRouter.post(
           autorNome: req.user!.name,
           status: "A_VERIFICAR",
         },
+      });
+        await avisarSecretaria(ini.id, `Nova evidência: ${body.titulo}. Providência: verificar a entrega registrada por ${req.user!.name} e aprovar ou solicitar correção.`, "EVIDENCIA", req.user!.id, tx);
+        return evidencia;
       });
 
       await writeAudit({
@@ -879,6 +910,8 @@ iniciativasRouter.post(
           }
         }
 
+        const origem = await tx.auditLog.findFirst({ where: { entity: "Evidencia", entityId: evidencia.id, action: "CREATE", municipioId: req.user!.municipioId }, orderBy: { createdAt: "asc" } });
+        await tx.comunicado.create({ data: { iniciativaId: evidencia.iniciativaId, autorId: req.user!.id, destinatarioId: origem?.actorId || null, destinoPapel: origem?.actorId ? null : "analista", tipo: "VALIDACAO", texto: `Evidência ${body.status === "VERIFICADA" ? "aprovada" : "devolvida para revisão"}: ${evidencia.titulo}. ${parecer || "Consulte a validação no projeto."}` } });
         return { validacao, updated, marcoConcluido, metaAtualizada };
       });
 

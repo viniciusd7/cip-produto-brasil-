@@ -103,33 +103,28 @@ describe("prioridade — triagem de urgência e impacto", () => {
   });
 
   it("risco imediato à segurança torna a prioridade CRÍTICA", () => {
-    const r = estado(R({ risco_pessoas: "pendente" }));
+    const r = estado(R({ risco_pessoas: "Sim" }));
     assert.equal(r.prioridade, "CRITICA");
     assert.ok(
       r.motivosPrioridade.includes(
-        "Risco imediato à segurança ou serviço essencial parado",
+        "Risco imediato a pessoas ou serviço essencial",
       ),
     );
   });
 
   it("prazo crítico eleva para ALTA", () => {
-    const r = estado(R({ prazo_critico: "atendida" }));
+    const r = estado(R({ prazo_critico: "Sim" }));
     assert.equal(r.prioridade, "ALTA");
   });
 
   it("prazo crítico dispensado não eleva prioridade", () => {
-    const r = estado(R({ prazo_critico: "nao_se_aplica" }));
+    const r = estado(R({ prazo_critico: "Não" }));
     assert.equal(r.prioridade, "BAIXA");
-  });
-
-  it("janela eleitoral eleva para ALTA", () => {
-    const r = estado(R({ janela_eleitoral: "pendente" }));
-    assert.equal(r.prioridade, "ALTA");
   });
 
   it("risco crítico não é rebaixado por outros sinais", () => {
     assert.equal(
-      estado(R({ risco_pessoas: "atendida", janela_eleitoral: "nao_se_aplica" }))
+      estado(R({ risco_pessoas: "Sim", prazo_critico: "Não" }))
         .prioridade,
       "CRITICA",
     );
@@ -137,22 +132,22 @@ describe("prioridade — triagem de urgência e impacto", () => {
 });
 
 describe("etapas — grupos e prontidão", () => {
-  it("sem respostas a etapa atual é planejamento e a prontidão é zero", () => {
+  it("sem respostas a etapa atual é verba e a prontidão é zero", () => {
     const r = estado([]);
-    assert.equal(r.etapaAtual, "PLANEJAMENTO");
+    assert.equal(r.etapaAtual, "RECURSOS");
     assert.equal(r.prontidaoPct, 0);
     assert.equal(r.etapas[0].status, "PENDENTE");
   });
 
   it("verba pendente bloqueia o projeto e inclui obter dotação", () => {
-    const r = estado(R({ orcamento_recursos: "pendente" }));
+    const r = estado(R({ orcamento_recursos: "Ainda não há dotação" }));
     assert.equal(r.cicloInicial, "AGUARDANDO_PRE_REQUISITO");
-    assert.equal(r.bloqueioLabel, "Aguardando verba");
+    assert.equal(r.bloqueioLabel, "Aguardando verba para iniciar");
     assert.ok(codigosDaArvore(r.estrutura).includes("TAR_OBTER_DOTACAO"));
   });
 
   it("terreno a desapropriar inclui o processo completo na ordem da lei", () => {
-    const r = estado(R({ situacao_imovel: "Imóvel particular a desapropriar" }));
+    const r = estado(R({ situacao_imovel: "Precisa desapropriar imóvel" }));
     const codigos = codigosDaArvore(r.estrutura);
     for (const c of [
       "META_DESAPROPRIACAO",
@@ -164,7 +159,7 @@ describe("etapas — grupos e prontidão", () => {
       assert.ok(codigos.includes(c), `faltou ${c}`);
     }
     assert.equal(r.cicloInicial, "AGUARDANDO_PRE_REQUISITO");
-    assert.equal(r.bloqueioLabel, "Aguardando desapropriação do imóvel");
+    assert.equal(r.bloqueioLabel, "Aguardando desapropriação");
     const meta = r.estrutura.find((n) => n.codigo === "META_DESAPROPRIACAO");
     assert.deepEqual(
       meta?.children.map((c) => c.codigo),
@@ -172,28 +167,28 @@ describe("etapas — grupos e prontidão", () => {
     );
   });
 
-  it("autorização legislativa pendente inclui TAR_LEI_AUTORIZATIVA", () => {
-    const r = estado(R({ lei_autorizativa: "pendente" }));
-    assert.ok(codigosDaArvore(r.estrutura).includes("TAR_LEI_AUTORIZATIVA"));
+  it("sem necessidade de contratação não inclui tarefas de licitação", () => {
+    const r = estado(R({ licitacao_contratacao: "Não precisa contratar" }));
+    assert.ok(!codigosDaArvore(r.estrutura).includes("TAR_PCA"));
   });
 
   it("área pública disponível é favorável em preparação", () => {
-    const r = estado(R({ situacao_imovel: "Área pública disponível" }));
+    const r = estado(R({ situacao_imovel: "Imóvel público disponível" }));
     const prep = r.etapas.find((e) => e.codigo === "PREPARACAO");
     assert.ok((prep?.favoraveis ?? 0) >= 1);
   });
 
-  it("alerta quando preparação avança antes de planejamento", () => {
+  it("alerta quando preparação avança antes da verba", () => {
     const r = estado(
       R({
-        situacao_imovel: "Área pública disponível",
-        projeto_basico_executivo: "pendente",
+        situacao_imovel: "Imóvel público disponível",
+        projeto_basico_executivo: "Em elaboração",
       }),
     );
     const prep = r.etapas.find((e) => e.codigo === "PREPARACAO");
     assert.ok(prep?.status === "EM_ANDAMENTO" || prep?.status === "BLOQUEADA");
     assert.ok(
-      r.avisos.some((a) => a.includes("Preparação") && a.includes("avança antes")),
+      r.avisos.some((a) => a.includes("O que falta para começar") && a.includes("avança antes")),
       `avisos: ${JSON.stringify(r.avisos)}`,
     );
   });
@@ -201,9 +196,9 @@ describe("etapas — grupos e prontidão", () => {
   it("prontidão sobe com respostas favoráveis parciais", () => {
     const r = estado(
       R({
-        necessidade_resultado: "atendida",
-        situacao_imovel: "Área pública disponível",
-        licenca_ambiental: "Não necessária",
+        orcamento_recursos: "Sim, verba disponível",
+        situacao_imovel: "Imóvel público disponível",
+        licencas_autorizacoes: "Não precisa",
       }),
     );
     assert.ok((r.prontidaoPct ?? 0) > 0 && (r.prontidaoPct ?? 0) < 100);
@@ -241,7 +236,7 @@ describe("ação diária — demanda operacional", () => {
 
   it("avalia etapas dos segmentos (sem early-return)", () => {
     const r = estado([], "ACAO_DIARIA");
-    assert.ok(r.etapas.length >= 4);
+    assert.equal(r.etapas.length, 3);
     assert.equal(r.cicloInicial, "EM_PLANEJAMENTO");
     assert.equal(r.prioridade, "BAIXA");
   });
@@ -254,7 +249,7 @@ describe("ação diária — demanda operacional", () => {
         acao_prazo_externo: {
           aplicabilidade: "sim",
           situacao: "pendente",
-          detalhes: { dias_restantes: 1 },
+          detalhes: { _selecao: "Sim", dias_restantes: 1 },
         },
       }),
     });
@@ -269,12 +264,12 @@ describe("ação diária — demanda operacional", () => {
         acao_prazo_externo: {
           aplicabilidade: "sim",
           situacao: "pendente",
-          detalhes: { dias_restantes: 5 },
+          detalhes: { _selecao: "Sim", dias_restantes: 5 },
         },
         acao_impede_servico: {
           aplicabilidade: "sim",
           situacao: "pendente",
-          detalhes: { pessoas_dia: 600 },
+          detalhes: { _selecao: "Sim", pessoas_dia: 600 },
         },
       }),
     });
@@ -287,7 +282,7 @@ describe("ação diária — demanda operacional", () => {
       modelo: TRIAGEM_ACAO_DIARIA,
       classificacaoPrincipal: "ACAO_DIARIA",
       respostas: Robj({
-        acao_impede_servico: { aplicabilidade: "sim", situacao: "pendente" },
+        acao_impede_servico: { aplicabilidade: "sim", situacao: "pendente", detalhes: { _selecao: "Sim" } },
       }),
     });
     assert.equal(r.prioridade, "ALTA");

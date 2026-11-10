@@ -23,6 +23,7 @@ type Modelos = {
 };
 type Metas = {
   data: Array<{
+    id: string;
     nome: string;
     metas: Array<{ id: string; nome: string; codigo?: string | null }>;
   }>;
@@ -71,6 +72,7 @@ export default async function NovoProjetoPage({
       secretarias={secs.data || []}
       modelos={modelosEstruturante}
       metas={metas}
+      planos={(planos.data || []).map((p) => ({ id: p.id, nome: p.nome }))}
     />
   );
 }

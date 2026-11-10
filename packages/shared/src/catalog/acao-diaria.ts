@@ -6,28 +6,22 @@ import type { ModeloPerguntaDef, ModeloSnapshot } from "../wizard-engine";
 
 export const GRUPOS_ACAO = [
   {
-    id: "demanda",
-    nome: "Demanda",
-    ajuda: "O que precisa ser feito agora e onde.",
-    ordem: 1,
-  },
-  {
     id: "servico",
-    nome: "Serviço",
-    ajuda: "Impacto no atendimento ao cidadão.",
-    ordem: 2,
+    nome: "Impacto no serviço",
+    ajuda: "Informe se o atendimento ao cidadão está sendo afetado agora.",
+    ordem: 1,
   },
   {
     id: "prazo",
     nome: "Prazo",
     ajuda: "Prazos externos com documento e dias.",
-    ordem: 3,
+    ordem: 2,
   },
   {
     id: "providencia",
     nome: "Providência",
     ajuda: "Próximo passo concreto e quem executa.",
-    ordem: 4,
+    ordem: 3,
   },
 ] as const;
 
@@ -42,34 +36,12 @@ type TemaAcao = {
   obrigatoria?: boolean;
   camposFollowUp?: CampoFollowUp[];
   efeitos?: ModeloPerguntaDef["efeitos"];
+  tipoResposta?: ModeloPerguntaDef["tipoResposta"];
+  opcoes?: string[];
+  opcoesComDetalhes?: string[];
 };
 
 const TEMAS: TemaAcao[] = [
-  {
-    codigo: "acao_demanda",
-    grupo: "demanda",
-    rotulo: "Demanda imediata",
-    pergunta: "O que precisa ser feito agora nesta ação?",
-    ajuda: "Descreva a demanda em uma frase operacional.",
-    espera: "Aguardando descrição da demanda",
-    impacto: "BLOQUEANTE",
-    obrigatoria: true,
-    camposFollowUp: [
-      {
-        chave: "o_que_fazer",
-        label: "O que precisa ser feito agora",
-        tipo: "textarea",
-        placeholder: "Ex.: religar o gerador da UBS do bairro Centro",
-        obrigatorioQuando: ["pendente", "atendida"],
-      },
-      {
-        chave: "onde_unidade",
-        label: "Onde / unidade",
-        tipo: "texto",
-        placeholder: "Escola, UBS, secretaria, bairro…",
-      },
-    ],
-  },
   {
     codigo: "acao_impede_servico",
     grupo: "servico",
@@ -78,6 +50,9 @@ const TEMAS: TemaAcao[] = [
     ajuda: "Se sim, diga qual serviço e quantas pessoas/dia são afetadas.",
     espera: "Serviço ao cidadão impactado",
     impacto: "CONDICIONAL",
+    tipoResposta: "SELECAO",
+    opcoes: ["Sim", "Não", "A confirmar"],
+    opcoesComDetalhes: ["Sim"],
     camposFollowUp: [
       {
         chave: "qual_servico",
@@ -93,12 +68,12 @@ const TEMAS: TemaAcao[] = [
     ],
     efeitos: [
       {
-        quando: { in: ["pendente", "atendida"] },
+        quando: { eq: "Sim" },
         elevaPrioridade: "ALTA",
         motivoPrioridade: "Impede ou reduz atendimento ao cidadão",
       },
       {
-        quando: { in: ["pendente", "atendida"] },
+        quando: { eq: "Sim" },
         detalhe: { chave: "pessoas_dia", gte: 500 },
         elevaPrioridade: "ALTA",
         motivoPrioridade: "Centenas de pessoas afetadas por dia",
@@ -113,6 +88,9 @@ const TEMAS: TemaAcao[] = [
     ajuda: "Informe origem, número e dias restantes.",
     espera: "Prazo externo da ação",
     impacto: "CONDICIONAL",
+    tipoResposta: "SELECAO",
+    opcoes: ["Sim", "Não", "A confirmar"],
+    opcoesComDetalhes: ["Sim"],
     camposFollowUp: [
       {
         chave: "origem_prazo",
@@ -125,19 +103,19 @@ const TEMAS: TemaAcao[] = [
     ],
     efeitos: [
       {
-        quando: { in: ["pendente", "atendida"] },
+        quando: { eq: "Sim" },
         detalhe: { chave: "dias_restantes", lte: 2 },
         elevaPrioridade: "CRITICA",
         motivoPrioridade: "Prazo externo de até 2 dias",
       },
       {
-        quando: { in: ["pendente", "atendida"] },
+        quando: { eq: "Sim" },
         detalhe: { chave: "dias_restantes", lte: 7 },
         elevaPrioridade: "ALTA",
         motivoPrioridade: "Prazo externo de até 7 dias",
       },
       {
-        quando: { in: ["pendente", "atendida"] },
+        quando: { eq: "Sim" },
         elevaPrioridade: "ALTA",
         motivoPrioridade: "Prazo externo vinculado à ação",
       },
@@ -148,25 +126,11 @@ const TEMAS: TemaAcao[] = [
     grupo: "providencia",
     rotulo: "Próxima providência",
     pergunta: "Qual é o próximo passo concreto desta ação?",
-    ajuda: "Quem executa e o que fará em seguida.",
+    ajuda: "Ex.: solicitar reparo do gerador da UBS até sexta-feira.",
     espera: "Aguardando providência",
     impacto: "CONDICIONAL",
     obrigatoria: true,
-    camposFollowUp: [
-      {
-        chave: "proximo_passo",
-        label: "Próximo passo concreto",
-        tipo: "textarea",
-        placeholder: "Ex.: solicitar orçamento à manutenção até sexta",
-        obrigatorioQuando: ["pendente", "atendida"],
-      },
-      {
-        chave: "quem_executa",
-        label: "Quem executa",
-        tipo: "texto",
-        placeholder: "Nome ou área",
-      },
-    ],
+    tipoResposta: "TEXTO",
   },
 ];
 
@@ -177,7 +141,7 @@ function toPergunta(t: TemaAcao, ordem: number): ModeloPerguntaDef {
     texto: t.pergunta,
     rotulo: t.rotulo,
     pergunta: t.pergunta,
-    tipoResposta: "CONDICAO_FECHADA",
+    tipoResposta: t.tipoResposta || "CONDICAO_FECHADA",
     impacto: t.impacto || "CONDICIONAL",
     obrigatoria: t.obrigatoria,
     ordem,
@@ -185,7 +149,9 @@ function toPergunta(t: TemaAcao, ordem: number): ModeloPerguntaDef {
     espera: t.espera,
     grupo: t.grupo,
     etapa: g.ordem,
-    favoraveis: ["atendida", "nao_se_aplica"],
+    favoraveis: t.tipoResposta === "TEXTO" ? null : t.tipoResposta === "SELECAO" ? ["Não", "Sim"] : ["atendida", "nao_se_aplica"],
+    opcoes: t.opcoes,
+    opcoesComDetalhes: t.opcoesComDetalhes,
     camposFollowUp: t.camposFollowUp ?? null,
     efeitos: t.efeitos,
   };

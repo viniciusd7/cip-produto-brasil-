@@ -194,17 +194,17 @@ export default async function MinhaPastaPage({
 
       <DadosExternos token={session?.accessToken || ""} />
 
-      <details className="pasta-more">
+      <details className="pasta-more" open>
         <summary>Todos os projetos ({projetos.length})</summary>
-        <div className="pasta-more__grid">
+        <div className="pastas-grid">
           {projetos.map((p) => (
             <Link
               key={p.id}
-              href={`/iniciativas/${p.id}`}
-              className="pasta-more__item"
+              href={`/iniciativas/${p.id}?aba=andamento`}
+              className="projeto-folder"
             >
               <div>
-                <h3>{p.nome}</h3>
+                <h3>📁 {p.nome}</h3>
                 <p>{p.codigo}</p>
               </div>
               <Badge tone={p.atrasadas ? "danger" : "success"}>

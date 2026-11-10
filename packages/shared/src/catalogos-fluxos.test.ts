@@ -18,31 +18,37 @@ import { formatarDetalhes, parseCondicaoResposta } from "./condicao-resposta";
 import { evaluateWizard } from "./wizard-engine";
 
 describe("três catálogos de gestão pública", () => {
-  it("estruturante exporta 4 grupos e follow-ups de verba/licença", () => {
-    assert.equal(GRUPOS_CONDICOES.length, 4);
+  it("estruturante pergunta uma vez por decisão necessária", () => {
+    assert.equal(GRUPOS_CONDICOES.length, 3);
     const perguntas = buildCatalogoPerguntas();
-    assert.ok(perguntas.length > 10);
+    assert.equal(perguntas.length, 8);
+    assert.equal(new Set(perguntas.map((p) => p.codigo)).size, perguntas.length);
     const verba = perguntas.find((p) => p.codigo === "orcamento_recursos");
     const licenca = perguntas.find((p) => p.codigo === "licencas_autorizacoes");
+    const licitacao = perguntas.find((p) => p.codigo === "licitacao_contratacao");
     assert.ok(verba?.camposFollowUp?.some((c) => c.chave === "valor_verba"));
     assert.ok(licenca?.camposFollowUp?.some((c) => c.chave === "quais_licencas"));
+    assert.match(licitacao?.texto || "", /licitar/);
+    assert.ok(!perguntas.some((p) => p.codigo === "dotacao_loa" || p.codigo === "modalidade_licitacao"));
   });
 
   it("plano de governo tem segmentos compromisso→cobrança e follow-ups", () => {
-    assert.equal(GRUPOS_PLANO.length, 4);
+    assert.equal(GRUPOS_PLANO.length, 2);
     const perguntas = buildPlanoGovernoPerguntas();
     assert.equal(perguntas.length, MODELO_PLANO_GOVERNO.perguntas.length);
-    assert.ok(perguntas.some((p) => p.grupo === "compromisso"));
+    assert.ok(perguntas.some((p) => p.grupo === "recursos_leves"));
     assert.ok(perguntas.some((p) => p.grupo === "cobranca"));
+    assert.ok(!perguntas.some((p) => p.codigo === "plano_resultado" || p.codigo === "plano_entrega_ciclo"));
     const recurso = perguntas.find((p) => p.codigo === "plano_recurso");
     assert.ok(recurso?.camposFollowUp?.some((c) => c.chave === "valor_verba"));
   });
 
   it("ação diária tem demanda operacional objetiva com follow-ups", () => {
-    assert.equal(GRUPOS_ACAO.length, 4);
+    assert.equal(GRUPOS_ACAO.length, 3);
     const perguntas = buildAcaoDiariaPerguntas();
     assert.equal(perguntas.length, MODELO_ACAO_DIARIA.perguntas.length);
-    assert.ok(perguntas.some((p) => p.codigo === "acao_demanda"));
+    assert.ok(!perguntas.some((p) => p.codigo === "acao_demanda"));
+    assert.equal(perguntas.find((p) => p.codigo === "acao_providencia")?.tipoResposta, "TEXTO");
     assert.ok(perguntas.some((p) => p.codigo === "acao_prazo_externo"));
     const prazo = perguntas.find((p) => p.codigo === "acao_prazo_externo");
     assert.ok(prazo?.camposFollowUp?.some((c) => c.chave === "dias_restantes"));
@@ -64,13 +70,8 @@ describe("três catálogos de gestão pública", () => {
       classificacaoPrincipal: "PLANO_GOVERNO",
       respostas: [
         {
-          perguntaCodigo: "plano_resultado",
-          valor: {
-            codigo: "plano_resultado",
-            aplicabilidade: "sim",
-            situacao: "atendida",
-            detalhes: { resultado_esperado: "Ampliar vagas" },
-          },
+          perguntaCodigo: "plano_proximo_marco",
+          valor: "Abrir novas vagas até dezembro",
         },
       ],
     });
@@ -87,7 +88,7 @@ describe("três catálogos de gestão pública", () => {
             codigo: "acao_prazo_externo",
             aplicabilidade: "sim",
             situacao: "pendente",
-            detalhes: { dias_restantes: 1, origem_prazo: "Ofício" },
+            detalhes: { _selecao: "Sim", dias_restantes: 1, origem_prazo: "Ofício" },
           },
         },
       ],
@@ -99,5 +100,22 @@ describe("três catálogos de gestão pública", () => {
       detalhes: { _selecao: "Pregão", objeto_contratacao: "Obra" },
     });
     assert.equal(parsed.detalhes?._selecao, "Pregão");
+  });
+
+  it("seleção com detalhes usa a opção real para gerar bloqueio e estrutura", () => {
+    const modelo = {
+      codigo: "PROJETO_ESTRUTURANTE_PADRAO",
+      nome: "Projeto",
+      perguntas: buildCatalogoPerguntas(),
+      etapas: [],
+      estrutura: [
+        { codigo: "META_PLANEJAMENTO", nivel: "META" as const, nome: "Recursos", ordem: 1 },
+        { codigo: "TAR_OBTER_DOTACAO", nivel: "TAREFA" as const, parentCodigo: "META_PLANEJAMENTO", nome: "Obter dotação", ordem: 1 },
+      ],
+    };
+    const valor = { codigo: "orcamento_recursos", aplicabilidade: "sim" as const, situacao: "pendente" as const, detalhes: { _selecao: "Ainda não há dotação", valor_verba: 100 } };
+    const resultado = evaluateWizard({ modelo, classificacaoPrincipal: "ESTRUTURANTE", respostas: [{ perguntaCodigo: "orcamento_recursos", valor }] });
+    assert.equal(resultado.bloqueioLabel, "Aguardando verba para iniciar");
+    assert.ok(resultado.estrutura[0]?.children.some((n) => n.codigo === "TAR_OBTER_DOTACAO"));
   });
 });

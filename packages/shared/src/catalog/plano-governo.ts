@@ -7,28 +7,16 @@ import type { ModeloPerguntaDef, ModeloSnapshot } from "../wizard-engine";
 
 export const GRUPOS_PLANO = [
   {
-    id: "compromisso",
-    nome: "Compromisso",
-    ajuda: "Vincule o projeto ao compromisso do plano e ao resultado esperado.",
+    id: "recursos_leves",
+    nome: "Recursos",
+    ajuda: "Situação da verba e dependência de repasse.",
     ordem: 1,
   },
   {
-    id: "entrega",
-    nome: "Entrega",
-    ajuda: "O que será entregue neste ciclo e como medir sucesso.",
-    ordem: 2,
-  },
-  {
-    id: "recursos_leves",
-    nome: "Recursos",
-    ajuda: "Previsão de recurso e eventual emenda/convênio — sem checklist de obra.",
-    ordem: 3,
-  },
-  {
     id: "cobranca",
-    nome: "Cobrança",
-    ajuda: "Próximo marco e riscos de atraso para a agenda do gabinete.",
-    ordem: 4,
+    nome: "Acompanhamento",
+    ajuda: "Próximo marco e prazo externo. Mudanças de data são registradas nas tarefas.",
+    ordem: 2,
   },
 ] as const;
 
@@ -44,72 +32,22 @@ type TemaPlano = {
   tipoResposta?: ModeloPerguntaDef["tipoResposta"];
   camposFollowUp?: CampoFollowUp[];
   efeitos?: ModeloPerguntaDef["efeitos"];
+  opcoes?: string[];
+  opcoesComDetalhes?: string[];
 };
 
 const TEMAS: TemaPlano[] = [
-  {
-    codigo: "plano_resultado",
-    grupo: "compromisso",
-    rotulo: "Resultado esperado",
-    pergunta: "Qual resultado do plano este projeto deve concretizar?",
-    ajuda: "Descreva o compromisso em linguagem de entrega (não só o nome da meta).",
-    espera: "Aguardando definição do resultado",
-    impacto: "BLOQUEANTE",
-    obrigatoria: true,
-    camposFollowUp: [
-      {
-        chave: "resultado_esperado",
-        label: "Resultado esperado",
-        tipo: "textarea",
-        placeholder: "Ex.: ampliar 200 vagas escolares no Bairro Novo até dez/2026",
-        obrigatorioQuando: ["pendente", "atendida"],
-      },
-      {
-        chave: "publico_alvo",
-        label: "Público-alvo",
-        tipo: "texto",
-        placeholder: "Quem se beneficia",
-      },
-    ],
-  },
-  {
-    codigo: "plano_entrega_ciclo",
-    grupo: "entrega",
-    rotulo: "Entrega deste ciclo",
-    pergunta: "O que será entregue neste ciclo de governo / exercício?",
-    ajuda: "Seja concreto: obra, serviço, norma, sistema — com prazo.",
-    espera: "Aguardando definição da entrega",
-    impacto: "BLOQUEANTE",
-    obrigatoria: true,
-    camposFollowUp: [
-      {
-        chave: "entrega_ciclo",
-        label: "Entrega neste ciclo",
-        tipo: "textarea",
-        obrigatorioQuando: ["pendente", "atendida"],
-      },
-      {
-        chave: "prazo_entrega",
-        label: "Prazo da entrega",
-        tipo: "texto",
-        placeholder: "Ex.: 30/11/2026 ou 2º semestre",
-      },
-      {
-        chave: "indicador_sucesso",
-        label: "Indicador de sucesso",
-        tipo: "texto",
-        placeholder: "Ex.: % de execução; nº de atendimentos",
-      },
-    ],
-  },
   {
     codigo: "plano_recurso",
     grupo: "recursos_leves",
     rotulo: "Recurso previsto",
     pergunta: "Há recurso previsto para este compromisso?",
-    ajuda: "Informe valor e fonte quando houver previsão.",
+    ajuda: "Informe se o valor está liberado, apenas previsto ou ainda não definido.",
     espera: "Aguardando recurso do compromisso",
     impacto: "CONDICIONAL",
+    tipoResposta: "SELECAO",
+    opcoes: ["Sim, verba liberada", "Há previsão, mas não liberada", "Ainda sem previsão", "A confirmar"],
+    opcoesComDetalhes: ["Sim, verba liberada", "Há previsão, mas não liberada"],
     camposFollowUp: [
       { chave: "valor_verba", label: "Valor previsto (R$)", tipo: "moeda" },
       { chave: "fonte_confirmada", label: "Fonte", tipo: "texto" },
@@ -123,6 +61,9 @@ const TEMAS: TemaPlano[] = [
     ajuda: "Se sim, registre o número do instrumento (Transferegov / emenda).",
     espera: "Aguardando emenda ou convênio",
     impacto: "CONDICIONAL",
+    tipoResposta: "SELECAO",
+    opcoes: ["Sim", "Não", "A confirmar"],
+    opcoesComDetalhes: ["Sim"],
     camposFollowUp: [
       {
         chave: "instrumento",
@@ -137,42 +78,11 @@ const TEMAS: TemaPlano[] = [
     grupo: "cobranca",
     rotulo: "Próximo marco",
     pergunta: "Qual é o próximo marco cobrável deste compromisso?",
-    ajuda: "Um marco claro para a agenda do gabinete.",
+    ajuda: "Ex.: apresentar projeto básico até 15/04.",
     espera: "Aguardando próximo marco",
     impacto: "CONDICIONAL",
-    camposFollowUp: [
-      {
-        chave: "proximo_marco",
-        label: "Próximo marco",
-        tipo: "textarea",
-        placeholder: "Ex.: protocolar projeto básico até 15/04",
-        obrigatorioQuando: ["pendente", "atendida"],
-      },
-    ],
-  },
-  {
-    codigo: "plano_risco_atraso",
-    grupo: "cobranca",
-    rotulo: "Risco de atraso",
-    pergunta: "Há risco concreto de atraso neste compromisso?",
-    ajuda: "Se sim, registre a causa (verba, licença, licitação, equipe…).",
-    espera: "Aguardando mitigação de atraso",
-    impacto: "CONDICIONAL",
-    camposFollowUp: [
-      {
-        chave: "causa_atraso",
-        label: "Causa do risco de atraso",
-        tipo: "textarea",
-        placeholder: "Ex.: convênio não formalizado; falta de projeto",
-      },
-    ],
-    efeitos: [
-      {
-        quando: { in: ["pendente", "atendida"] },
-        elevaPrioridade: "ALTA",
-        motivoPrioridade: "Risco de atraso no compromisso do plano",
-      },
-    ],
+    obrigatoria: true,
+    tipoResposta: "TEXTO",
   },
   {
     codigo: "plano_prazo_externo",
@@ -182,6 +92,9 @@ const TEMAS: TemaPlano[] = [
     ajuda: "Registre origem, número e dias restantes.",
     espera: "Prazo externo do compromisso",
     impacto: "CONDICIONAL",
+    tipoResposta: "SELECAO",
+    opcoes: ["Sim", "Não", "A confirmar"],
+    opcoesComDetalhes: ["Sim"],
     camposFollowUp: [
       {
         chave: "origem_prazo",
@@ -194,7 +107,7 @@ const TEMAS: TemaPlano[] = [
     ],
     efeitos: [
       {
-        quando: { in: ["pendente", "atendida"] },
+        quando: { eq: "Sim" },
         elevaPrioridade: "ALTA",
         motivoPrioridade: "Prazo externo no compromisso do plano",
       },
@@ -217,7 +130,9 @@ function toPergunta(t: TemaPlano, ordem: number): ModeloPerguntaDef {
     espera: t.espera,
     grupo: t.grupo,
     etapa: g.ordem,
-    favoraveis: ["atendida", "nao_se_aplica"],
+    favoraveis: t.tipoResposta === "TEXTO" ? null : t.tipoResposta === "SELECAO" ? t.codigo === "plano_recurso" ? ["Sim, verba liberada"] : ["Sim", "Não"] : ["atendida", "nao_se_aplica"],
+    opcoes: t.opcoes,
+    opcoesComDetalhes: t.opcoesComDetalhes,
     camposFollowUp: t.camposFollowUp ?? null,
     efeitos: t.efeitos,
   };

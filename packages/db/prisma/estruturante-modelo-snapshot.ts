@@ -21,7 +21,7 @@ export const ESTRUTURANTE_PADRAO_MODELO_SNAPSHOT = {
       indicador: "Pendências de enquadramento resolvidas",
       alvo: "0",
       ordem: 1,
-      sempreIncluir: true,
+      sempreIncluir: false,
     },
     {
       codigo: "TAR_INCLUIR_PPA",
@@ -34,7 +34,7 @@ export const ESTRUTURANTE_PADRAO_MODELO_SNAPSHOT = {
       codigo: "TAR_OBTER_DOTACAO",
       nivel: "TAREFA",
       parentCodigo: "META_PLANEJAMENTO",
-      nome: "Obter dotação ou crédito adicional na LOA",
+      nome: "Confirmar dotação e liberação da verba",
       ordem: 2,
     },
     {
@@ -65,7 +65,7 @@ export const ESTRUTURANTE_PADRAO_MODELO_SNAPSHOT = {
       indicador: "Área disponível e com domínio regularizado",
       alvo: "1",
       ordem: 2,
-      sempreIncluir: true,
+      sempreIncluir: false,
     },
     {
       codigo: "TAR_IDENTIFICAR_AREA",
@@ -189,7 +189,7 @@ export const ESTRUTURANTE_PADRAO_MODELO_SNAPSHOT = {
       indicador: "Etapas da contratação concluídas",
       alvo: "100%",
       ordem: 6,
-      sempreIncluir: true,
+      sempreIncluir: false,
     },
     {
       codigo: "TAR_ETP",
@@ -197,7 +197,7 @@ export const ESTRUTURANTE_PADRAO_MODELO_SNAPSHOT = {
       parentCodigo: "META_CONTRATACAO",
       nome: "Estudo técnico preliminar e termo de referência (Lei 14.133/2021, art. 18)",
       ordem: 1,
-      sempreIncluir: true,
+      sempreIncluir: false,
     },
     {
       codigo: "TAR_ORCAMENTO",
@@ -205,7 +205,7 @@ export const ESTRUTURANTE_PADRAO_MODELO_SNAPSHOT = {
       parentCodigo: "META_CONTRATACAO",
       nome: "Orçamento estimado (SINAPI ou SICRO)",
       ordem: 2,
-      sempreIncluir: true,
+      sempreIncluir: false,
     },
     {
       codigo: "TAR_PCA",
@@ -213,7 +213,7 @@ export const ESTRUTURANTE_PADRAO_MODELO_SNAPSHOT = {
       parentCodigo: "META_CONTRATACAO",
       nome: "Incluir a contratação no PCA (Lei 14.133/2021, art. 12, VII)",
       ordem: 3,
-      sempreIncluir: true,
+      sempreIncluir: false,
     },
     {
       codigo: "TAR_PARECER_JURIDICO",
@@ -221,7 +221,7 @@ export const ESTRUTURANTE_PADRAO_MODELO_SNAPSHOT = {
       parentCodigo: "META_CONTRATACAO",
       nome: "Análise jurídica da minuta (Lei 14.133/2021, art. 53)",
       ordem: 4,
-      sempreIncluir: true,
+      sempreIncluir: false,
     },
     {
       codigo: "TAR_PUBLICAR_JULGAR",
@@ -229,7 +229,7 @@ export const ESTRUTURANTE_PADRAO_MODELO_SNAPSHOT = {
       parentCodigo: "META_CONTRATACAO",
       nome: "Publicar edital, julgar propostas e homologar",
       ordem: 5,
-      sempreIncluir: true,
+      sempreIncluir: false,
     },
     {
       codigo: "TAR_ASSINAR_CONTRATO",
@@ -237,7 +237,7 @@ export const ESTRUTURANTE_PADRAO_MODELO_SNAPSHOT = {
       parentCodigo: "META_CONTRATACAO",
       nome: "Assinar contrato e publicar extrato",
       ordem: 6,
-      sempreIncluir: true,
+      sempreIncluir: false,
     },
     {
       codigo: "META_EXECUCAO",
@@ -254,7 +254,7 @@ export const ESTRUTURANTE_PADRAO_MODELO_SNAPSHOT = {
       parentCodigo: "META_EXECUCAO",
       nome: "Designar fiscal de contrato (Lei 14.133/2021, art. 117)",
       ordem: 1,
-      sempreIncluir: true,
+      sempreIncluir: false,
     },
     {
       codigo: "TAR_MEDICOES",
@@ -262,7 +262,7 @@ export const ESTRUTURANTE_PADRAO_MODELO_SNAPSHOT = {
       parentCodigo: "META_EXECUCAO",
       nome: "Medições e acompanhamento físico-financeiro",
       ordem: 2,
-      sempreIncluir: true,
+      sempreIncluir: false,
     },
     {
       codigo: "META_OPERACAO",

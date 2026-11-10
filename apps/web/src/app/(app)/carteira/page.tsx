@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { toneCiclo, tonePrazo } from "@cip/shared";
-import { Badge, Card, EntityCard, PageHeader, SourceMeta, TableScroll } from "@cip/ui";
+import { Badge, Button, Card, PageHeader, SourceMeta } from "@cip/ui";
 import { authOptions } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 
@@ -12,6 +12,8 @@ type ListResponse = {
     nome: string;
     ciclo: string;
     secretariaPrincipal: string;
+    classificacaoPrincipal?: string;
+    bloqueioLabel?: string | null;
     responsavel?: string | null;
     origem?: string | null;
     atualizadoEm: string;
@@ -43,8 +45,8 @@ export default async function CarteiraPage({
     <div className="stack">
       <PageHeader
         eyebrow="Carteira de iniciativas"
-        title="O que está em curso na gestão?"
-        description="Hierarquia preservada: Plano → Secretarias → Meta → Projeto/Iniciativa. Vínculos transversais aparecem na ficha, sem duplicar indicadores."
+        title="Pastas de projetos"
+        description="Abra a secretaria, escolha a pasta do projeto e acompanhe metas, tarefas, prazos e conversas."
         actions={
           <Link href="/minha-pasta/novo" className="cip-btn cip-btn--primary">
             Novo projeto
@@ -79,100 +81,30 @@ export default async function CarteiraPage({
             </select>
           </div>
           <div style={{ alignSelf: "end" }}>
-            <button
-              type="submit"
-              style={{
-                background: "var(--cip-navy)",
-                color: "#fff",
-                border: 0,
-                borderRadius: 10,
-                padding: "10px 14px",
-                fontWeight: 650,
-                cursor: "pointer",
-                width: "100%",
-              }}
-            >
+            <Button type="submit" style={{ width: "100%" }}>
               Filtrar
-            </button>
+            </Button>
           </div>
         </form>
       </Card>
 
-      <div className="mobile-only stack">
-        {payload.data.map((item) => (
-          <EntityCard
-            key={item.id}
-            title={item.nome}
-            href={`/iniciativas/${item.id}`}
-            meta={
-              <div className="chip-row">
-                <Badge tone={toneCiclo(item.ciclo)}>{item.ciclo}</Badge>
-                <Badge tone={tonePrazo(item.prazoDerivado || "")}>
-                  {item.prazoDerivado || "—"}
-                </Badge>
-                <Badge tone={item.pendencias ? "warning" : "success"}>
-                  {item.pendencias} pend.
-                </Badge>
-              </div>
-            }
-          >
-            <div style={{ fontSize: 13, color: "var(--cip-muted)" }}>
-              {item.codigo} · {item.secretariaPrincipal}
-              <br />
-              {item.origem || "—"}
-            </div>
-          </EntityCard>
-        ))}
-      </div>
-
-      <Card title={`${payload.data.length} iniciativas`} className="desktop-only">
-        <TableScroll>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Código</th>
-                <th>Iniciativa</th>
-                <th>Secretaria</th>
-                <th>Ciclo</th>
-                <th>Prazo</th>
-                <th>Pendências</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payload.data.map((item) => (
-                <tr key={item.id}>
-                  <td>{item.codigo}</td>
-                  <td>
-                    <Link
-                      href={`/iniciativas/${item.id}`}
-                      style={{ color: "var(--cip-blue)", fontWeight: 700 }}
-                    >
-                      {item.nome}
-                    </Link>
-                    <div style={{ fontSize: 12, color: "var(--cip-muted)" }}>
-                      {item.origem || "—"}
-                    </div>
-                  </td>
-                  <td>{item.secretariaPrincipal}</td>
-                  <td>
-                    <Badge tone={toneCiclo(item.ciclo)}>{item.ciclo}</Badge>
-                  </td>
-                  <td>
-                    <Badge tone={tonePrazo(item.prazoDerivado || "")}>
-                      {item.prazoDerivado || "—"}
-                    </Badge>
-                  </td>
-                  <td>
-                    <Badge tone={item.pendencias ? "warning" : "success"}>
-                      {item.pendencias}
-                    </Badge>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </TableScroll>
-      </Card>
+      {!payload.data.length && <p>Nenhum projeto encontrado. Crie uma pasta ou ajuste os filtros.</p>}
+      {[...new Set(payload.data.map((p) => p.secretariaPrincipal))].map((secretaria) => (
+        <details key={secretaria} className="more-block projeto-pasta" open>
+          <summary>📁 {secretaria} · {payload.data.filter((p) => p.secretariaPrincipal === secretaria).length} projetos</summary>
+          <div className="pastas-grid">
+            {payload.data.filter((p) => p.secretariaPrincipal === secretaria).map((p) => (
+              <Link key={p.id} href={`/iniciativas/${p.id}?aba=andamento`} className="projeto-folder">
+                <span className="projeto-folder__tab">{p.classificacaoPrincipal === "ACAO_DIARIA" ? "Ação diária" : p.classificacaoPrincipal === "PLANO_GOVERNO" ? "Plano de governo" : "Estruturante"}</span>
+                <h2>📁 {p.nome}</h2>
+                <p>{p.codigo} · {p.responsavel || "Responsável a definir"}</p>
+                <div className="chip-row"><Badge tone={toneCiclo(p.ciclo)}>{({ EM_PLANEJAMENTO: "Em planejamento", EM_ACOMPANHAMENTO: "Em acompanhamento", AGUARDANDO_PRE_REQUISITO: "Aguardando providência", CONCLUIDA: "Concluído", SUSPENSA: "Suspenso" } as Record<string, string>)[p.ciclo] || p.ciclo}</Badge><Badge tone={tonePrazo(p.prazoDerivado || "")}>{({ NO_PRAZO: "No prazo", VENCIDO: "Prazo vencido", SEM_PRAZO: "Definir prazo", CONCLUIDO: "Concluído" } as Record<string, string>)[p.prazoDerivado || ""] || "Sem tarefas"}</Badge></div>
+                <p>{p.bloqueioLabel || (p.pendencias ? `${p.pendencias} providências pendentes` : "Abrir metas e tarefas →")}</p>
+              </Link>
+            ))}
+          </div>
+        </details>
+      ))}
     </div>
   );
 }

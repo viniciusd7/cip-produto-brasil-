@@ -25,6 +25,9 @@ model User {
   reprogramacoes      Reprogramacao[]
   decisoes            DecisaoProvidencia[]
   validacoesEvidencia ValidacaoEvidencia[]
+  comunicadosEnviados Comunicado[] @relation("ComunicadoAutor")
+  comunicadosRecebidos Comunicado[] @relation("ComunicadoDestino")
+  leiturasComunicado ComunicadoLeitura[]
   importacoes         ImportacaoSnapshot[]
 }
 
@@ -245,6 +248,7 @@ model Iniciativa {
   decisoes             DecisaoProvidencia[]
   evidencias           Evidencia[]
   equipamentos         IniciativaEquipamento[]
+  comunicados Comunicado[]
   respostasViabilidade IniciativaRespostaViabilidade[]
   itensGeradosOrigem   ItemGeradoOrigem[]
 
@@ -698,4 +702,29 @@ model ItemGeradoOrigem {
   iniciativa Iniciativa @relation(fields: [iniciativaId], references: [id], onDelete: Cascade)
 
   @@index([iniciativaId])
+}
+
+model Comunicado {
+  id String @id @default(cuid())
+  iniciativaId String
+  autorId String?
+  destinatarioId String?
+  destinoPapel String?
+  texto String @db.Text
+  tipo String @default("MENSAGEM")
+  createdAt DateTime @default(now())
+  iniciativa Iniciativa @relation(fields: [iniciativaId], references: [id], onDelete: Cascade)
+  autor User? @relation("ComunicadoAutor", fields: [autorId], references: [id])
+  destinatario User? @relation("ComunicadoDestino", fields: [destinatarioId], references: [id])
+  leituras ComunicadoLeitura[]
+  @@index([iniciativaId, createdAt])
+  @@index([destinatarioId])
+}
+model ComunicadoLeitura {
+  comunicadoId String
+  userId String
+  lidoEm DateTime @default(now())
+  comunicado Comunicado @relation(fields: [comunicadoId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([comunicadoId, userId])
 }

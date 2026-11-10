@@ -11,36 +11,26 @@ import type {
 
 export const GRUPOS_CONDICOES = [
   {
-    id: "planejamento",
-    nome: "Planejamento",
-    ajuda:
-      "Defina o problema, a entrega esperada e se a solução já foi avaliada.",
+    id: "recursos",
+    nome: "Verba",
+    ajuda: "Informe se o dinheiro para começar já está disponível.",
     ordem: 1,
   },
   {
-    id: "recursos",
-    nome: "Recursos",
-    ajuda:
-      "Previsão no orçamento, dinheiro disponível e repasses são verificações diferentes.",
+    id: "preparacao",
+    nome: "O que falta para começar",
+    ajuda: "Responda sobre imóvel, projeto técnico, licenças e contratação.",
     ordem: 2,
   },
   {
-    id: "preparacao",
-    nome: "Preparação",
-    ajuda:
-      "Confira as condições técnicas e administrativas aplicáveis ao projeto.",
-    ordem: 3,
-  },
-  {
     id: "operacao",
-    nome: "Entrega e operação",
-    ajuda:
-      "Planeje quem executa, como comprovar a entrega e como manter o serviço funcionando.",
-    ordem: 4,
+    nome: "Após a entrega",
+    ajuda: "Informe como a entrega será mantida em funcionamento.",
+    ordem: 3,
   },
 ] as const;
 
-export type GrupoCondicaoId = (typeof GRUPOS_CONDICOES)[number]["id"];
+export type GrupoCondicaoId = (typeof GRUPOS_CONDICOES)[number]["id"] | "planejamento";
 
 export type TemaCondicao = {
   codigo: string;
@@ -914,10 +904,95 @@ function temaToPergunta(tema: TemaCondicao, ordem: number): ModeloPerguntaDef {
 
 /** Perguntas do catálogo (checklist + triagem) prontas para o snapshot. */
 export function buildCatalogoPerguntas(): ModeloPerguntaDef[] {
-  const checklist = QUIZ_P03_ENRIQUECIDO.map((t, i) => temaToPergunta(t, i + 1));
-  const triagem = TRIAGEM_ESTRUTURANTE.map((t, i) =>
-    temaToPergunta(t, 900 + i + 1),
-  );
+  const checklist: ModeloPerguntaDef[] = [
+    {
+      codigo: "orcamento_recursos", texto: "A verba para iniciar o projeto já está liberada?",
+      rotulo: "Verba disponível", pergunta: "A verba para iniciar o projeto já está liberada?",
+      ajuda: "Escolha a situação real. Dotação no orçamento e dinheiro liberado são etapas diferentes.",
+      tipoResposta: "SELECAO", impacto: "CONDICIONAL", obrigatoria: true,
+      ordem: 1, grupo: "recursos", etapa: 1,
+      opcoes: ["Sim, verba disponível", "Há dotação, mas falta liberar", "Ainda não há dotação", "Depende de repasse ou convênio", "A confirmar com finanças"],
+      favoraveis: ["Sim, verba disponível"],
+      opcoesComDetalhes: ["Sim, verba disponível", "Há dotação, mas falta liberar", "Depende de repasse ou convênio"],
+      camposFollowUp: [
+        { chave: "valor_verba", label: "Valor disponível ou previsto (R$)", tipo: "moeda" },
+        { chave: "fonte_confirmada", label: "Fonte do recurso", tipo: "texto", placeholder: "Ex.: tesouro municipal, convênio estadual" },
+      ],
+      efeitos: [
+        { quando: { in: ["Há dotação, mas falta liberar", "Ainda não há dotação", "Depende de repasse ou convênio", "A confirmar com finanças"] }, ciclo: "AGUARDANDO_PRE_REQUISITO", rotuloBloqueio: "Aguardando verba para iniciar", alertaResponsavel: true },
+        { quando: { in: ["Há dotação, mas falta liberar", "Ainda não há dotação", "A confirmar com finanças"] }, incluirEstrutura: ["TAR_OBTER_DOTACAO"] },
+        { quando: { eq: "Depende de repasse ou convênio" }, incluirEstrutura: ["TAR_FORMALIZAR_REPASSE"] },
+      ],
+    },
+    {
+      codigo: "situacao_imovel", texto: "O projeto precisa de terreno, aquisição ou desapropriação?",
+      rotulo: "Imóvel e desapropriação", pergunta: "O projeto precisa de terreno, aquisição ou desapropriação?",
+      ajuda: "Marque a situação atual do local da entrega. Serviços sem imóvel próprio podem escolher 'Não precisa'.",
+      tipoResposta: "SELECAO", impacto: "CONDICIONAL", obrigatoria: true,
+      ordem: 2, grupo: "preparacao", etapa: 2,
+      opcoes: ["Não precisa de imóvel", "Imóvel público disponível", "Precisa identificar uma área", "Precisa regularizar imóvel público", "Precisa adquirir imóvel", "Precisa desapropriar imóvel", "Desapropriação em andamento", "Posse já liberada"],
+      favoraveis: ["Não precisa de imóvel", "Imóvel público disponível", "Posse já liberada"],
+      opcoesComDetalhes: ["Imóvel público disponível", "Precisa regularizar imóvel público", "Precisa adquirir imóvel", "Precisa desapropriar imóvel", "Desapropriação em andamento", "Posse já liberada"],
+      camposFollowUp: [{ chave: "endereco_ou_matricula", label: "Endereço ou matrícula, se conhecido", tipo: "texto" }],
+      efeitos: [
+        { quando: { eq: "Precisa identificar uma área" }, ciclo: "AGUARDANDO_PRE_REQUISITO", rotuloBloqueio: "Aguardando definição do imóvel", incluirEstrutura: ["TAR_IDENTIFICAR_AREA"] },
+        { quando: { eq: "Precisa regularizar imóvel público" }, ciclo: "AGUARDANDO_PRE_REQUISITO", rotuloBloqueio: "Aguardando regularização do imóvel", incluirEstrutura: ["TAR_REGULARIZACAO"] },
+        { quando: { eq: "Precisa adquirir imóvel" }, ciclo: "AGUARDANDO_PRE_REQUISITO", rotuloBloqueio: "Aguardando aquisição do imóvel", incluirEstrutura: ["TAR_IDENTIFICAR_AREA", "TAR_REGULARIZACAO"] },
+        { quando: { in: ["Precisa desapropriar imóvel", "Desapropriação em andamento"] }, ciclo: "AGUARDANDO_PRE_REQUISITO", rotuloBloqueio: "Aguardando desapropriação", incluirEstrutura: ["TAR_DUP", "TAR_AVALIACAO", "TAR_OFERTA", "TAR_IMISSAO_POSSE"] },
+      ],
+    },
+    {
+      codigo: "projeto_basico_executivo", texto: "O projeto técnico ou a especificação da entrega já está pronto?",
+      rotulo: "Projeto técnico", pergunta: "O projeto técnico ou a especificação da entrega já está pronto?",
+      ajuda: "Para obra, considere projeto básico. Para serviço ou sistema, considere a especificação necessária para executar.",
+      tipoResposta: "SELECAO", impacto: "CONDICIONAL", obrigatoria: true,
+      ordem: 3, grupo: "preparacao", etapa: 2,
+      opcoes: ["Não precisa", "Sim, aprovado", "Em elaboração", "Ainda não iniciado", "A confirmar com a área técnica"],
+      favoraveis: ["Não precisa", "Sim, aprovado"],
+      efeitos: [{ quando: { in: ["Em elaboração", "Ainda não iniciado", "A confirmar com a área técnica"] }, incluirEstrutura: ["TAR_ELABORAR_PROJETO", "TAR_APROVAR_PROJETO"] }],
+    },
+    {
+      codigo: "licencas_autorizacoes", texto: "O projeto precisa de licença ou autorização para começar?",
+      rotulo: "Licenças e autorizações", pergunta: "O projeto precisa de licença ou autorização para começar?",
+      ajuda: "Ex.: licença ambiental, vigilância sanitária, bombeiros ou patrimônio. A área competente pode confirmar se há dúvida.",
+      tipoResposta: "SELECAO", impacto: "CONDICIONAL", obrigatoria: true,
+      ordem: 4, grupo: "preparacao", etapa: 2,
+      opcoes: ["Não precisa", "Sim, já obtida", "Sim, em andamento", "Sim, ainda não solicitada", "A confirmar com a área técnica"],
+      favoraveis: ["Não precisa", "Sim, já obtida"],
+      opcoesComDetalhes: ["Sim, já obtida", "Sim, em andamento", "Sim, ainda não solicitada"],
+      camposFollowUp: [{ chave: "quais_licencas", label: "Quais licenças ou autorizações?", tipo: "texto", placeholder: "Ex.: licença ambiental; AVCB" }],
+      efeitos: [{ quando: { in: ["Sim, em andamento", "Sim, ainda não solicitada", "A confirmar com a área técnica"] }, incluirEstrutura: ["TAR_CARACTERIZAR", "TAR_PROTOCOLAR_LICENCA", "TAR_ACOMPANHAR_LICENCA"] }],
+    },
+    {
+      codigo: "licitacao_contratacao", texto: "Será preciso licitar ou contratar para executar o projeto?",
+      rotulo: "Licitação e contratação", pergunta: "Será preciso licitar ou contratar para executar o projeto?",
+      ajuda: "Informe a necessidade, não a modalidade jurídica. Compras e Procuradoria definem o rito depois.",
+      tipoResposta: "SELECAO", impacto: "CONDICIONAL", obrigatoria: true,
+      ordem: 5, grupo: "preparacao", etapa: 2,
+      opcoes: ["Não precisa contratar", "Precisa licitar", "Pode ser contratação direta; confirmar", "Licitação em andamento", "Contrato já assinado", "A confirmar com compras"],
+      favoraveis: ["Não precisa contratar", "Contrato já assinado"],
+      opcoesComDetalhes: ["Precisa licitar", "Pode ser contratação direta; confirmar", "Licitação em andamento", "Contrato já assinado"],
+      camposFollowUp: [{ chave: "objeto_contratacao", label: "O que será contratado?", tipo: "texto", placeholder: "Ex.: construção da escola ou aquisição de equipamentos" }],
+      efeitos: [
+        { quando: { in: ["Precisa licitar", "Pode ser contratação direta; confirmar", "Licitação em andamento", "A confirmar com compras"] }, incluirEstrutura: ["TAR_ETP", "TAR_ORCAMENTO", "TAR_PCA", "TAR_PARECER_JURIDICO", "TAR_PUBLICAR_JULGAR", "TAR_ASSINAR_CONTRATO"] },
+        { quando: { in: ["Precisa licitar", "Pode ser contratação direta; confirmar", "Licitação em andamento", "Contrato já assinado", "A confirmar com compras"] }, incluirEstrutura: ["TAR_FISCAL", "TAR_MEDICOES"] },
+      ],
+    },
+    {
+      codigo: "custeio_pos_entrega", texto: "Depois da entrega, haverá gasto mensal ou equipe para manter o serviço?",
+      rotulo: "Custeio após a entrega", pergunta: "Depois da entrega, haverá gasto mensal ou equipe para manter o serviço?",
+      ajuda: "Ex.: equipe, energia, manutenção, combustível ou suporte. Registre se já há previsão para custear.",
+      tipoResposta: "SELECAO", impacto: "CONDICIONAL", obrigatoria: true,
+      ordem: 6, grupo: "operacao", etapa: 3,
+      opcoes: ["Não haverá gasto recorrente", "Sim, custeio previsto", "Sim, custeio ainda não previsto", "A confirmar"],
+      favoraveis: ["Não haverá gasto recorrente", "Sim, custeio previsto"],
+      efeitos: [{ quando: { in: ["Sim, custeio ainda não previsto", "A confirmar"] }, incluirEstrutura: ["TAR_CUSTEIO"] }],
+    },
+  ];
+  const triagem: ModeloPerguntaDef[] = [
+    { codigo: "risco_pessoas", texto: "Há risco imediato para pessoas ou interrupção de serviço essencial?", rotulo: "Risco imediato", tipoResposta: "SELECAO", impacto: "INFORMATIVA", ordem: 900, etapa: null, opcoes: ["Sim", "Não", "A confirmar"], efeitos: [{ quando: { eq: "Sim" }, elevaPrioridade: "CRITICA", motivoPrioridade: "Risco imediato a pessoas ou serviço essencial" }] },
+    { codigo: "prazo_critico", texto: "Há prazo legal, contratual ou de repasse que vence nos próximos 6 meses?", rotulo: "Prazo crítico", tipoResposta: "SELECAO", impacto: "INFORMATIVA", ordem: 901, etapa: null, opcoes: ["Sim", "Não", "A confirmar"], efeitos: [{ quando: { eq: "Sim" }, elevaPrioridade: "ALTA", motivoPrioridade: "Prazo crítico nos próximos 6 meses" }] },
+  ];
   return [...checklist, ...triagem];
 }
 
@@ -930,7 +1005,20 @@ export function etapasFromGrupos() {
   }));
 }
 
+const PERGUNTAS_ATUAIS = buildCatalogoPerguntas();
+
 export function quizItem(codigo: string) {
+  const atual = PERGUNTAS_ATUAIS.find((item) => item.codigo === codigo);
+  if (atual) {
+    return {
+      codigo,
+      grupo: (atual.grupo || "planejamento") as GrupoCondicaoId,
+      rotulo: atual.rotulo || atual.texto,
+      pergunta: atual.pergunta || atual.texto,
+      ajuda: atual.ajuda || "",
+      espera: atual.espera || `Aguardando: ${atual.rotulo || atual.texto}`,
+    };
+  }
   return QUIZ_P03.find((item) => item.codigo === codigo);
 }
 
