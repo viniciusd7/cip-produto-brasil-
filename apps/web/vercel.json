@@ -1,6 +1,5 @@
 {
   "framework": "nextjs",
-  "buildCommand": "cd ../.. && pnpm --filter @cip/shared build && pnpm --filter @cip/ui build && pnpm --filter @cip/web build",
-  "installCommand": "cd ../.. && pnpm install",
-  "outputDirectory": ".next"
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile --prod=false",
+  "buildCommand": "cd ../.. && pnpm --filter @cip/shared build && pnpm --filter @cip/ui build && pnpm --filter @cip/web build"
 }

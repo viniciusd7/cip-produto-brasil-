@@ -1,15 +1,4 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "src/index.ts",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "src/index.ts"
-    }
-  ]
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile --prod=false",
+  "buildCommand": "cd ../.. && pnpm --filter @cip/shared build && pnpm --filter @cip/db generate && pnpm --filter @cip/db build && pnpm --filter @cip/api build"
 }

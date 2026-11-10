@@ -20,28 +20,41 @@ pnpm db:migrate:deploy
 # Seed demo só em ambiente isolado com CIP_ALLOW_DEMO_SEED=true (ver docs/DEMO.md).
 ```
 
-## 2. Projeto API na Vercel
+## 2. Projeto API na Vercel (`cip-painel-api`)
 
 - Root Directory: `apps/api`
-- Build Command: `cd ../.. && pnpm --filter @cip/shared build && pnpm --filter @cip/db build && pnpm --filter @cip/api build`
-- Output: serverless via entry Node (ou hospede API em serviço Node se preferir long-running)
+- Framework: Express
+- Node: `22.x`
+- Install: `cd ../.. && pnpm install --frozen-lockfile --prod=false`
+- Build: `cd ../.. && pnpm --filter @cip/shared build && pnpm --filter @cip/db generate && pnpm --filter @cip/db build && pnpm --filter @cip/api build`
+- Entry: `export default app` em `apps/api/src/index.ts` (sem `listen` no Vercel)
 - Env:
-  - `DATABASE_URL`
-  - `NEXTAUTH_SECRET` (mesmo do web)
-  - `CORS_ORIGIN` = URL do front
-  - `API_PORT=4000`
+  - `DATABASE_URL` (MySQL remoto acessível da Vercel — não use `localhost`)
+  - `NEXTAUTH_SECRET` / `JWT_SECRET` (mesmo do web)
+  - `CORS_ORIGIN` = URL do front (ex.: `https://cip-painel.vercel.app`)
+- Produção atual: https://cip-painel-api.vercel.app
 
 > Em contas HostGator com MySQL remoto lento, aumente timeout de connection do Prisma e use connection pooling se disponível.
 
-## 3. Projeto Web na Vercel
+## 3. Projeto Web na Vercel (`cip-painel`)
 
 - Root Directory: `apps/web`
 - Framework Preset: Next.js
+- Node: `22.x`
+- Install: `cd ../.. && pnpm install --frozen-lockfile --prod=false`
+- Build: `cd ../.. && pnpm --filter @cip/shared build && pnpm --filter @cip/ui build && pnpm --filter @cip/web build`
 - Env:
-  - `NEXTAUTH_URL` = URL pública do front
+  - `NEXTAUTH_URL` = URL pública do front (ex.: `https://cip-painel.vercel.app`)
   - `NEXTAUTH_SECRET`
   - `NEXT_PUBLIC_API_URL` = URL pública da API
-  - `API_URL` = URL interna/pública da API (server-side)
+  - `API_URL` = URL da API (server-side)
+  - `NEXT_PUBLIC_DEMO_MODE=false` em produção
+- Produção atual: https://cip-painel.vercel.app
+
+### GitHub
+
+Para deploy automático no push, conecte o repositório no dashboard Vercel
+(`cip-produto-brasil-`). A conta do time precisa de write/admin no repo GitHub.
 
 ## 4. Checklist pós-deploy
 

@@ -13,7 +13,7 @@ import { integracoesRouter } from "./routes/integracoes";
 import { errorHandler } from "./middleware/error";
 import { authSecret } from "./middleware/auth";
 
-// Fail-fast: valida secret antes de abrir a porta.
+// Fail-fast: valida secret (em produção aborta sem NEXTAUTH_SECRET/JWT_SECRET).
 authSecret();
 
 const app = express();
@@ -50,6 +50,11 @@ app.use("/integracoes", integracoesRouter);
 
 app.use(errorHandler);
 
-app.listen(port, () => {
-  console.log(`[cip-api] listening on http://localhost:${port}`);
-});
+// Vercel serverless: exporta o app. Localmente sobe HTTP.
+if (!process.env.VERCEL) {
+  app.listen(port, () => {
+    console.log(`[cip-api] listening on http://localhost:${port}`);
+  });
+}
+
+export default app;
