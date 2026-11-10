@@ -127,7 +127,7 @@ export function AppShell({
         </div>
         <div className="app-topbar__actions">
           {["gestor", "analista", "admin"].includes(role || "") && (
-            <AvisosBadge token={data?.accessToken} />
+            <AvisosBadge token={data?.accessToken} compact />
           )}
           <button
             ref={menuToggleRef}

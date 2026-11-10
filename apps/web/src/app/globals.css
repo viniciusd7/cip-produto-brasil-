@@ -1471,6 +1471,7 @@ label {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-size: 14px;
   }
 
   .app-topbar__actions {
@@ -1479,6 +1480,20 @@ label {
     gap: 8px;
     flex-shrink: 0;
     margin-left: auto;
+  }
+
+  .app-topbar__avisos {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--cip-touch);
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #f8faff;
+    font-size: 13px;
+    font-weight: 650;
+    white-space: nowrap;
   }
 
   .menu-toggle {
