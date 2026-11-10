@@ -1,0 +1,28 @@
+{
+  "name": "cip-plataforma",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "author": "Centro de Inteligência Pública (CIP)",
+  "description": "Plataforma CIP — Sistema Integrado de Inteligência de Gestão Municipal",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter @cip/web --filter @cip/api dev",
+    "dev:web": "pnpm --filter @cip/web dev",
+    "dev:api": "pnpm --filter @cip/api dev",
+    "build": "pnpm --filter @cip/db build && pnpm --filter @cip/shared build && pnpm --filter @cip/ui build && pnpm --filter @cip/api build && pnpm --filter @cip/web build",
+    "lint": "pnpm -r lint",
+    "db:generate": "pnpm --filter @cip/db generate",
+    "db:migrate": "pnpm --filter @cip/db migrate:dev",
+    "db:migrate:deploy": "pnpm --filter @cip/db migrate:deploy",
+    "db:seed": "pnpm --filter @cip/db seed",
+    "db:studio": "pnpm --filter @cip/db studio",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

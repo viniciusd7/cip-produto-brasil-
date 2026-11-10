@@ -1,0 +1,701 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ========== Auth / RBAC ==========
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  roles               UserRole[]
+  vinculos            VinculoUsuarioMunicipio[]
+  sessions            SessionToken[]
+  auditLogs           AuditLog[]                @relation("AuditActor")
+  reprogramacoes      Reprogramacao[]
+  decisoes            DecisaoProvidencia[]
+  validacoesEvidencia ValidacaoEvidencia[]
+  importacoes         ImportacaoSnapshot[]
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  code        String           @unique
+  name        String
+  description String?
+  permissions RolePermission[]
+  users       UserRole[]
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  code        String           @unique
+  name        String
+  description String?
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model SessionToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ========== Organização municipal ==========
+
+model Municipio {
+  id        String   @id @default(cuid())
+  nome      String
+  uf        String   @db.VarChar(2)
+  ibgeCode  String?  @unique
+  /** CNPJ do órgão (só dígitos) para consultas Transferegov/PNCP. */
+  cnpjOrgao String?  @db.VarChar(14)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  secretarias   Secretaria[]
+  vinculos      VinculoUsuarioMunicipio[]
+  compromissos  Compromisso[]
+  iniciativas   Iniciativa[]
+  equipamentos  EquipamentoPublico[]
+  importacoes   ImportacaoSnapshot[]
+  planos        PlanoGoverno[]
+  modelosProjeto ModeloProjeto[]
+}
+
+model VinculoUsuarioMunicipio {
+  id          String   @id @default(cuid())
+  userId      String
+  municipioId String
+  principal   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  municipio   Municipio @relation(fields: [municipioId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, municipioId])
+  @@index([municipioId])
+}
+
+model PlanoGoverno {
+  id          String   @id @default(cuid())
+  municipioId String
+  nome        String
+  periodo     String?
+  descricao   String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  municipio   Municipio @relation(fields: [municipioId], references: [id], onDelete: Cascade)
+  metas       MetaEstrategica[]
+
+  @@index([municipioId])
+}
+
+model Secretaria {
+  id               String   @id @default(cuid())
+  municipioId      String
+  nome             String
+  sigla            String?
+  titularNome      String?
+  titularCargo     String?
+  titularTelefone  String?
+  titularEmail     String?
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  municipio        Municipio @relation(fields: [municipioId], references: [id], onDelete: Cascade)
+  metas            MetaEstrategica[]
+  iniciativas      Iniciativa[]           @relation("SecretariaPrincipal")
+  vinculos         IniciativaSecretaria[]
+  pessoas          SecretariaPessoa[]
+
+  @@index([municipioId])
+  @@unique([municipioId, nome])
+}
+
+model SecretariaPessoa {
+  id           String   @id @default(cuid())
+  secretariaId String
+  nome         String
+  cargo        String
+  telefone     String?
+  email        String?
+  papel        String   @default("EQUIPE") // TITULAR | EQUIPE
+  ativo        Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  secretaria   Secretaria  @relation(fields: [secretariaId], references: [id], onDelete: Cascade)
+  iniciativas  Iniciativa[] @relation("ResponsavelPessoa")
+
+  @@index([secretariaId])
+  @@index([secretariaId, ativo])
+}
+
+model MetaEstrategica {
+  id           String   @id @default(cuid())
+  planoId      String
+  secretariaId String?
+  codigo       String?
+  nome         String
+  descricao    String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  plano        PlanoGoverno @relation(fields: [planoId], references: [id], onDelete: Cascade)
+  secretaria   Secretaria?  @relation(fields: [secretariaId], references: [id])
+  iniciativas  Iniciativa[]
+
+  @@index([planoId])
+  @@index([secretariaId])
+}
+
+// ========== Compromissos e Iniciativas ==========
+
+model Compromisso {
+  id          String   @id @default(cuid())
+  municipioId String
+  codigo      String?
+  titulo      String
+  fonte       String?
+  descricao   String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  municipio   Municipio @relation(fields: [municipioId], references: [id], onDelete: Cascade)
+  vinculos    IniciativaCompromisso[]
+
+  @@index([municipioId])
+}
+
+model Iniciativa {
+  id                   String   @id @default(cuid())
+  municipioId          String
+  secretariaPrincipalId String
+  metaEstrategicaId    String?
+  codigo               String
+  nome                 String
+  descricao            String?  @db.Text
+  tipo                 String?
+  origem               String?
+  responsavel          String?
+  responsavelPessoaId  String?
+  ciclo                String   @default("EM_ACOMPANHAMENTO")
+  publicacao           String   @default("INTERNA")
+  dataReferencia       DateTime?
+  fonte                String?
+  confiabilidade       String?  @default("MEDIA")
+  estruturante         Boolean  @default(false)
+  classificacaoPrincipal String?
+  vinculoPlanoGoverno  Boolean  @default(false)
+  modeloProjetoId      String?
+  modeloSnapshot       Json?
+  bloqueioLabel        String?
+  bloqueiosAtivos      Json?
+  prioridadeNivel      String?
+  etapaAtual           String?
+  prontidaoPct         Int?
+  criadoPorId          String?
+  atualizadoEm         DateTime @default(now())
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  municipio            Municipio @relation(fields: [municipioId], references: [id], onDelete: Cascade)
+  secretariaPrincipal  Secretaria @relation("SecretariaPrincipal", fields: [secretariaPrincipalId], references: [id])
+  metaEstrategica      MetaEstrategica? @relation(fields: [metaEstrategicaId], references: [id])
+  modeloProjeto        ModeloProjeto? @relation(fields: [modeloProjetoId], references: [id])
+  responsavelPessoa    SecretariaPessoa? @relation("ResponsavelPessoa", fields: [responsavelPessoaId], references: [id])
+  secretarias          IniciativaSecretaria[]
+  compromissos         IniciativaCompromisso[]
+  metasExecucao        MetaExecucao[]
+  marcos               MarcoEntrega[]
+  verificacoes         Verificacao[]
+  impedimentos         Impedimento[]
+  decisoes             DecisaoProvidencia[]
+  evidencias           Evidencia[]
+  equipamentos         IniciativaEquipamento[]
+  respostasViabilidade IniciativaRespostaViabilidade[]
+  itensGeradosOrigem   ItemGeradoOrigem[]
+
+  @@unique([municipioId, codigo])
+  @@index([municipioId])
+  @@index([secretariaPrincipalId])
+  @@index([ciclo])
+  @@index([modeloProjetoId])
+  @@index([responsavelPessoaId])
+}
+
+model MetaExecucao {
+  id           String    @id @default(cuid())
+  iniciativaId String
+  codigo       String?
+  nome         String
+  indicador    String?
+  criterio     String?   @db.Text
+  alvo         String?
+  valorAtual   String?
+  unidade      String?
+  responsavel  String?
+  prazo        DateTime?
+  status       String    @default("EM_ANDAMENTO")
+  ordem        Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  iniciativa   Iniciativa     @relation(fields: [iniciativaId], references: [id], onDelete: Cascade)
+  marcos       MarcoEntrega[]
+
+  @@index([iniciativaId])
+}
+
+model IniciativaSecretaria {
+  id           String @id @default(cuid())
+  iniciativaId String
+  secretariaId String
+  papel        String @default("CORRESPONSAVEL")
+  responsavel  String?
+  iniciativa   Iniciativa @relation(fields: [iniciativaId], references: [id], onDelete: Cascade)
+  secretaria   Secretaria @relation(fields: [secretariaId], references: [id], onDelete: Cascade)
+
+  @@unique([iniciativaId, secretariaId])
+}
+
+model IniciativaCompromisso {
+  id              String @id @default(cuid())
+  iniciativaId    String
+  compromissoId   String
+  tipoContribuicao String?
+  origemVinculo   String?
+  iniciativa      Iniciativa  @relation(fields: [iniciativaId], references: [id], onDelete: Cascade)
+  compromisso     Compromisso @relation(fields: [compromissoId], references: [id], onDelete: Cascade)
+
+  @@unique([iniciativaId, compromissoId])
+}
+
+model EquipamentoPublico {
+  id          String   @id @default(cuid())
+  municipioId String
+  nome        String
+  tipo        String?
+  endereco    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  municipio   Municipio @relation(fields: [municipioId], references: [id], onDelete: Cascade)
+  iniciativas IniciativaEquipamento[]
+  marcos      MarcoEntrega[]
+
+  @@index([municipioId])
+  @@unique([municipioId, nome])
+}
+
+model IniciativaEquipamento {
+  id              String @id @default(cuid())
+  iniciativaId    String
+  equipamentoId   String
+  tipoVinculo     String @default("RELACIONADO")
+  validado        Boolean @default(false)
+  iniciativa      Iniciativa @relation(fields: [iniciativaId], references: [id], onDelete: Cascade)
+  equipamento     EquipamentoPublico @relation(fields: [equipamentoId], references: [id], onDelete: Cascade)
+
+  @@unique([iniciativaId, equipamentoId])
+}
+
+// ========== Marcos / Tarefas ==========
+
+model MarcoEntrega {
+  id              String    @id @default(cuid())
+  iniciativaId    String
+  metaExecucaoId  String?
+  equipamentoId   String?
+  codigo          String?
+  descricao       String    @db.Text
+  ordem           Int       @default(0)
+  responsavel     String?
+  prazoOriginal   DateTime?
+  prazoVigente    DateTime?
+  concluidoEm     DateTime?
+  encerradoSemSolucaoEm DateTime?
+  motivoEncerramento String? @db.Text
+  gravidade       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  iniciativa      Iniciativa @relation(fields: [iniciativaId], references: [id], onDelete: Cascade)
+  metaExecucao    MetaExecucao? @relation(fields: [metaExecucaoId], references: [id])
+  equipamento     EquipamentoPublico? @relation(fields: [equipamentoId], references: [id])
+  reprogramacoes  Reprogramacao[]
+  subtarefas      Subtarefa[]
+  evidencias      Evidencia[]
+  impedimentos    Impedimento[]
+
+  @@index([iniciativaId])
+  @@index([metaExecucaoId])
+  @@index([prazoVigente])
+}
+
+model Subtarefa {
+  id          String   @id @default(cuid())
+  marcoId     String
+  descricao   String   @db.Text
+  responsavel String?
+  concluida   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  marco       MarcoEntrega @relation(fields: [marcoId], references: [id], onDelete: Cascade)
+
+  @@index([marcoId])
+}
+
+model Reprogramacao {
+  id              String   @id @default(cuid())
+  marcoId         String
+  dataAnterior    DateTime?
+  dataNova        DateTime
+  motivo          String   @db.Text
+  autorId         String?
+  autorizacao     String?
+  createdAt       DateTime @default(now())
+  marco           MarcoEntrega @relation(fields: [marcoId], references: [id], onDelete: Cascade)
+  autor           User? @relation(fields: [autorId], references: [id])
+
+  @@index([marcoId])
+}
+
+// ========== Verificações / Impedimentos / Decisões ==========
+
+model TipoVerificacao {
+  id          String   @id @default(cuid())
+  codigo      String   @unique
+  nome        String
+  descricao   String?  @db.Text
+  active      Boolean  @default(true)
+  verificacoes Verificacao[]
+}
+
+model Verificacao {
+  id                String   @id @default(cuid())
+  iniciativaId      String
+  tipoVerificacaoId String
+  aplicabilidade    String   @default("A_AVALIAR")
+  situacao          String   @default("NAO_INICIADA")
+  responsavel       String?
+  justificativa     String?  @db.Text
+  documentoFonte    String?
+  efeitoNoAvanco    String   @default("INFORMATIVO")
+  proximaAcao       String?  @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  iniciativa        Iniciativa @relation(fields: [iniciativaId], references: [id], onDelete: Cascade)
+  tipo              TipoVerificacao @relation(fields: [tipoVerificacaoId], references: [id])
+
+  @@index([iniciativaId])
+  @@unique([iniciativaId, tipoVerificacaoId])
+}
+
+model Impedimento {
+  id           String   @id @default(cuid())
+  iniciativaId String
+  marcoId      String?
+  tipo         String?
+  descricao    String   @db.Text
+  gravidade    String   @default("MEDIA")
+  responsavel  String?
+  status       String   @default("ABERTO")
+  proximoPasso String?  @db.Text
+  prazo        DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  iniciativa   Iniciativa @relation(fields: [iniciativaId], references: [id], onDelete: Cascade)
+  marco        MarcoEntrega? @relation(fields: [marcoId], references: [id])
+  decisoes     DecisaoProvidencia[]
+
+  @@index([iniciativaId])
+  @@index([status])
+}
+
+model DecisaoProvidencia {
+  id            String   @id @default(cuid())
+  iniciativaId  String
+  impedimentoId String?
+  descricao     String   @db.Text
+  responsavel   String?
+  autorId       String?
+  prazo         DateTime?
+  status        String   @default("ABERTA")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  iniciativa    Iniciativa @relation(fields: [iniciativaId], references: [id], onDelete: Cascade)
+  impedimento   Impedimento? @relation(fields: [impedimentoId], references: [id])
+  autor         User? @relation(fields: [autorId], references: [id])
+
+  @@index([iniciativaId])
+}
+
+// ========== Evidências ==========
+
+model Evidencia {
+  id           String   @id @default(cuid())
+  iniciativaId String
+  marcoId      String?
+  titulo       String
+  descricao    String?  @db.Text
+  tipo         String?  // FOTO | DOCUMENTO | LINK
+  urlOuArquivo String?
+  mimeType     String?
+  tamanhoBytes Int?
+  arquivoNome  String?
+  fonte        String?
+  autorNome    String?
+  status       String   @default("DECLARADA")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  iniciativa   Iniciativa @relation(fields: [iniciativaId], references: [id], onDelete: Cascade)
+  marco        MarcoEntrega? @relation(fields: [marcoId], references: [id])
+  validacoes   ValidacaoEvidencia[]
+
+  @@index([iniciativaId])
+  @@index([status])
+}
+
+model ValidacaoEvidencia {
+  id          String   @id @default(cuid())
+  evidenciaId String
+  validadorId String?
+  status      String
+  parecer     String?  @db.Text
+  createdAt   DateTime @default(now())
+  evidencia   Evidencia @relation(fields: [evidenciaId], references: [id], onDelete: Cascade)
+  validador   User? @relation(fields: [validadorId], references: [id])
+
+  @@index([evidenciaId])
+}
+
+// ========== Importação / Auditoria ==========
+
+model ImportacaoSnapshot {
+  id            String   @id @default(cuid())
+  municipioId   String
+  autorId       String?
+  nomeArquivo   String
+  dataReferencia DateTime
+  fonte         String?
+  totalLinhas   Int      @default(0)
+  importadas    Int      @default(0)
+  conflitos     Int      @default(0)
+  resultado     String   @default("PENDENTE")
+  mapaCampos    Json?
+  log           String?  @db.LongText
+  createdAt     DateTime @default(now())
+  municipio     Municipio @relation(fields: [municipioId], references: [id], onDelete: Cascade)
+  autor         User? @relation(fields: [autorId], references: [id])
+  itensConflito ImportacaoConflito[]
+
+  @@index([municipioId])
+}
+
+model ImportacaoConflito {
+  id           String   @id @default(cuid())
+  importacaoId String
+  chaveExterna String
+  campo        String?
+  valorAtual   String?  @db.Text
+  valorNovo    String?  @db.Text
+  resolvido    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  importacao   ImportacaoSnapshot @relation(fields: [importacaoId], references: [id], onDelete: Cascade)
+
+  @@index([importacaoId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  municipioId String?
+  action     String
+  entity     String
+  entityId   String?
+  before     Json?
+  after      Json?
+  ip         String?
+  createdAt  DateTime @default(now())
+  actor      User? @relation("AuditActor", fields: [actorId], references: [id])
+
+  @@index([entity, entityId])
+  @@index([municipioId])
+  @@index([createdAt])
+}
+
+model Relatorio {
+  id          String   @id @default(cuid())
+  municipioId String
+  titulo      String
+  tipo        String
+  filtros     Json?
+  geradoPorId String?
+  arquivoUrl  String?
+  createdAt   DateTime @default(now())
+
+  @@index([municipioId])
+}
+
+// ========== Modelos de projeto / wizard de viabilidade ==========
+
+model ModeloProjetoCatalogo {
+  id          String   @id @default(cuid())
+  codigo      String   @unique
+  nome        String
+  descricao   String?  @db.Text
+  categoria   String?
+  ativo       Boolean  @default(true)
+  versao      Int      @default(1)
+  snapshot    Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  ativacoes   ModeloProjeto[]
+}
+
+model ModeloProjeto {
+  id                       String   @id @default(cuid())
+  municipioId              String
+  catalogoOrigemId         String?
+  codigo                   String
+  nome                     String
+  descricao                String?  @db.Text
+  classificacoesPermitidas Json
+  ativo                    Boolean  @default(true)
+  snapshotVersion          Int      @default(1)
+  snapshot                 Json
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  municipio      Municipio @relation(fields: [municipioId], references: [id], onDelete: Cascade)
+  catalogoOrigem ModeloProjetoCatalogo? @relation(fields: [catalogoOrigemId], references: [id])
+  perguntas      ModeloPergunta[]
+  estrutura      ModeloEstruturaItem[]
+  iniciativas    Iniciativa[]
+
+  @@unique([municipioId, codigo])
+  @@index([municipioId])
+}
+
+model ModeloPergunta {
+  id                 String   @id @default(cuid())
+  modeloId           String
+  codigo             String
+  texto              String   @db.Text
+  tipoResposta       String
+  impacto            String
+  obrigatoria        Boolean  @default(false)
+  ordem              Int      @default(0)
+  dependeDePerguntaId String?
+  dependeDeValor     Json?
+  opcoes             Json?
+  efeitos            Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  modelo           ModeloProjeto @relation(fields: [modeloId], references: [id], onDelete: Cascade)
+  dependeDePergunta ModeloPergunta? @relation("PerguntaDependencia", fields: [dependeDePerguntaId], references: [id])
+  dependentes      ModeloPergunta[] @relation("PerguntaDependencia")
+
+  @@unique([modeloId, codigo])
+  @@index([modeloId])
+}
+
+model ModeloEstruturaItem {
+  id            String   @id @default(cuid())
+  modeloId      String
+  codigo        String
+  nivel         String
+  parentCodigo  String?
+  nome          String
+  indicador     String?
+  alvo          String?
+  ordem         Int      @default(0)
+  sempreIncluir Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  modelo ModeloProjeto @relation(fields: [modeloId], references: [id], onDelete: Cascade)
+
+  @@unique([modeloId, codigo])
+  @@index([modeloId])
+}
+
+model IniciativaRespostaViabilidade {
+  id             String   @id @default(cuid())
+  iniciativaId   String
+  perguntaCodigo String
+  perguntaTexto  String   @db.Text
+  valor          Json
+  impacto        String
+  autorId        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  iniciativa Iniciativa @relation(fields: [iniciativaId], references: [id], onDelete: Cascade)
+  historico  IniciativaRespostaHistorico[]
+
+  @@unique([iniciativaId, perguntaCodigo])
+  @@index([iniciativaId])
+}
+
+model IniciativaRespostaHistorico {
+  id            String   @id @default(cuid())
+  respostaId    String
+  valorAnterior Json?
+  valorNovo     Json
+  autorId       String?
+  createdAt     DateTime @default(now())
+
+  resposta IniciativaRespostaViabilidade @relation(fields: [respostaId], references: [id], onDelete: Cascade)
+
+  @@index([respostaId])
+}
+
+model ItemGeradoOrigem {
+  id                    String   @id @default(cuid())
+  iniciativaId          String
+  metaExecucaoId        String?
+  marcoId               String?
+  subtarefaId           String?
+  perguntaCodigo        String?
+  valorQueGerou         String?
+  modeloEstruturaCodigo String?
+  createdAt             DateTime @default(now())
+
+  iniciativa Iniciativa @relation(fields: [iniciativaId], references: [id], onDelete: Cascade)
+
+  @@index([iniciativaId])
+}

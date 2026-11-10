@@ -1,0 +1,11 @@
+**/node_modules
+**/.next
+**/dist
+.git
+.data
+graphify-out
+**/.env
+**/.env.local
+**/uploads
+**/tmp
+**/*.log

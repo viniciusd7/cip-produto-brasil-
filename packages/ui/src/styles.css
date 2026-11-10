@@ -1,0 +1,33 @@
+:root {
+  /* Identidade Azimov / CIP executive — tema principal do produto */
+  --cip-bg: #10121b;
+  --cip-bg-elevated: #171923;
+  --cip-surface: #202332;
+  --cip-surface-soft: #242838;
+  --cip-ink: #f1f3fc;
+  --cip-navy: #f1f3fc;
+  --cip-navy-deep: #12141d;
+  --cip-rail: #1c1f2c;
+  --cip-blue: #7c9cff;
+  --cip-blue-deep: #5a78e8;
+  --cip-blue-soft: #3d5fd4;
+  --cip-sky: rgba(124, 156, 255, 0.14);
+  --cip-rose: #ff5982;
+  --cip-rose-soft: rgba(255, 89, 130, 0.16);
+  --cip-gold: #eac78c;
+  --cip-gold-soft: rgba(234, 199, 140, 0.2);
+  --cip-slate: #929bb4;
+  --cip-muted: #929bb4;
+  --cip-border: rgba(255, 255, 255, 0.08);
+  --cip-success: #b4e4a0;
+  --cip-success-ink: #b4e4a0;
+  --cip-warning: #eac78c;
+  --cip-warning-ink: #eac78c;
+  --cip-danger: #ff5982;
+  --cip-info: #7c9cff;
+  --cip-on-track: #7c9cff;
+  --cip-lavender: #b9a0ff;
+  --cip-radius: 14px;
+  --cip-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  --cip-touch: 44px;
+}
