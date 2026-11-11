@@ -3,6 +3,7 @@
 import { Badge, Card } from "@cip/ui";
 import { tonePrazo } from "@cip/shared";
 import { DesdobramentoForms } from "./desdobramento-forms";
+import { SugerirTarefas } from "./sugerir-tarefas";
 import { ItemTextoEditor } from "./item-texto-editor";
 import { ReprogramarTarefa } from "./reprogramar-tarefa";
 import { ResponsavelEditor } from "./responsavel-editor";
@@ -214,13 +215,16 @@ export function TarefasBoard({
                 />
               ))}
               {canWrite && (
-                <DesdobramentoForms
-                  equipe={equipe}
-                  mode="tarefa"
-                  token={token}
-                  iniciativaId={iniciativaId}
-                  metaExecucaoId={me.id}
-                />
+                <>
+                  <DesdobramentoForms
+                    equipe={equipe}
+                    mode="tarefa"
+                    token={token}
+                    iniciativaId={iniciativaId}
+                    metaExecucaoId={me.id}
+                  />
+                  <SugerirTarefas token={token} metaExecucaoId={me.id} />
+                </>
               )}
             </div>
           </details>

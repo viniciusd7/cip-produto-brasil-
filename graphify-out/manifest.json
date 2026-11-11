@@ -840,10 +840,10 @@
     "semantic_hash": "cda1a4547bbb4c7b8e3048db8b2410a3"
   },
   "apps/web/src/app/(app)/iniciativas/[id]/tarefas-board.tsx": {
-    "mtime": 1794428321.426735,
-    "seen": 1794439285.571014,
-    "ast_hash": "203fc94aa60c5f2870846dc116227ae1",
-    "semantic_hash": "203fc94aa60c5f2870846dc116227ae1"
+    "mtime": 1794439372.6127243,
+    "seen": 1794439527.819572,
+    "ast_hash": "c5067350642467231c38a65f061aaec7",
+    "semantic_hash": ""
   },
   "apps/web/src/components/overview/cenario-secretaria.tsx": {
     "mtime": 1794429896.9204388,
@@ -1017,6 +1017,12 @@
     "mtime": 1794317142.145232,
     "seen": 1794439285.572017,
     "ast_hash": "7be25e8731f05a37257cbb3a385c8330",
+    "semantic_hash": ""
+  },
+  "apps/web/src/app/(app)/iniciativas/[id]/sugerir-tarefas.tsx": {
+    "mtime": 1794439372.5013707,
+    "seen": 1794439527.819531,
+    "ast_hash": "0f4d50d511dac2b8b637aaad1aec8006",
     "semantic_hash": ""
   }
 }
