@@ -336,6 +336,15 @@ wizardRouter.post(
       const estrutura =
         (body.estruturaOverride as TreeNode[] | undefined) || evaluated.estrutura;
 
+      const metasEscopo = (estrutura || []).filter((n) => n.nivel === "META");
+      if (!metasEscopo.length) {
+        throw new HttpError(
+          422,
+          "ESCOPO_INCOMPLETO",
+          "O escopo só pode ser concluído com ao menos uma meta de execução",
+        );
+      }
+
       const created = await prisma.$transaction(async (tx) => {
         let metaEstrategicaId = body.metaEstrategicaId;
         if (body.novaMeta) {

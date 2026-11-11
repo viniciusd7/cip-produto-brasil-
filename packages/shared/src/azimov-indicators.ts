@@ -66,10 +66,8 @@ export const GRAVIDADE_COLORS: Record<string, string> = {
 };
 
 export const PAINEL_TOC = [
-  { id: "visao", label: "Cenário do governo", href: "/painel#visao" },
-  { id: "secretarias", label: "Saúde das secretarias", href: "/painel#secretarias" },
-  { id: "decisoes", label: "Agenda do prefeito", href: "/painel#decisoes" },
-  { id: "prestacao", label: "Prestação de contas", href: "/painel#prestacao" },
-  { id: "projetos", label: "Projetos prioritários", href: "/painel#projetos" },
-  { id: "metodo", label: "Critérios de leitura", href: "/painel#metodo" },
+  { id: "secretarias", label: "Secretarias", href: "/painel#secretarias" },
+  { id: "meta-estrategica", label: "Meta estratégica", href: "/painel#meta-estrategica" },
+  { id: "meta-execucao", label: "Meta de execução", href: "/painel#meta-execucao" },
+  { id: "indicadores", label: "Indicadores", href: "/painel#indicadores" },
 ] as const;

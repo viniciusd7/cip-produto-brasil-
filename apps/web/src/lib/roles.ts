@@ -11,6 +11,16 @@ export function canWriteRole(role?: string | null) {
   return ["admin", "gestor", "analista"].includes(normalizeRole(role));
 }
 
+/** Gabinete e admin cadastram pastas, siglas e responsáveis. */
+export function canManageSecretariaRole(role?: string | null) {
+  return ["admin", "prefeito"].includes(normalizeRole(role));
+}
+
+/** Edição de secretaria: gabinete (manage) ou secretário/equipe (write). */
+export function canEditSecretariaRole(role?: string | null) {
+  return canManageSecretariaRole(role) || canWriteRole(role);
+}
+
 export function canValidateRole(role?: string | null) {
   return ["admin", "gestor"].includes(normalizeRole(role));
 }
@@ -80,20 +90,20 @@ export function getNextStepForRole(role?: string | null): {
   }
 }
 
-export type NavItem = { href: string; label: string; icon: string };
+export type NavItem = { href: string; label: string; icon?: string };
 
+/** Ordem da jornada: Cenário → Minha pasta → Projeto → Cobrança. */
 const ALL_NAV: NavItem[] = [
+  { href: "/painel", label: "Cenário" },
+  { href: "/minha-pasta", label: "Minha pasta" },
+  { href: "/carteira", label: "Projetos" },
+  { href: "/acoes", label: "Ações" },
+  { href: "/planejamento", label: "Plano" },
+  { href: "/pendencias", label: "Agenda" },
+  { href: "/relatorios", label: "Prestação" },
   { href: "/comunicados", label: "Avisos e conversas", icon: "✉" },
-  { href: "/painel", label: "Cenário", icon: "01" },
-  { href: "/minha-pasta", label: "Minha pasta", icon: "02" },
-  { href: "/secretarias", label: "Pastas", icon: "02b" },
-  { href: "/pendencias", label: "Agenda", icon: "03" },
-  { href: "/relatorios", label: "Prestação", icon: "04" },
-  { href: "/carteira", label: "Projetos", icon: "05" },
-  { href: "/acoes", label: "Ações", icon: "06" },
-  { href: "/planejamento", label: "Plano", icon: "07" },
-  { href: "/importacao", label: "Importação", icon: "08" },
-  { href: "/administracao", label: "Administração", icon: "09" },
+  { href: "/importacao", label: "Importação" },
+  { href: "/administracao", label: "Administração" },
 ];
 
 export function getNavForRole(role?: string | null): NavItem[] {
@@ -103,17 +113,23 @@ export function getNavForRole(role?: string | null): NavItem[] {
   if (r === "admin") {
     ALL_NAV.forEach((n) => allow.add(n.href));
   } else if (r === "prefeito") {
-    ["/painel", "/pendencias", "/relatorios", "/carteira"].forEach((h) => allow.add(h));
+    ["/painel", "/carteira", "/pendencias", "/relatorios"].forEach((h) => allow.add(h));
   } else if (r === "gestor") {
-    ["/minha-pasta", "/secretarias", "/carteira", "/pendencias", "/acoes", "/painel"].forEach(
-      (h) => allow.add(h),
+    ["/painel", "/minha-pasta", "/carteira", "/acoes", "/pendencias"].forEach((h) =>
+      allow.add(h),
     );
   } else if (r === "analista") {
-    ["/carteira", "/acoes", "/relatorios", "/secretarias"].forEach((h) => allow.add(h));
+    ["/minha-pasta", "/carteira", "/acoes", "/relatorios"].forEach((h) => allow.add(h));
   } else {
     ["/painel", "/relatorios"].forEach((h) => allow.add(h));
   }
 
   if (["gestor", "analista", "admin"].includes(r)) allow.add("/comunicados");
-  return ALL_NAV.filter((n) => allow.has(n.href));
+
+  let seq = 0;
+  return ALL_NAV.filter((n) => allow.has(n.href)).map((n) => {
+    if (n.icon) return n;
+    seq += 1;
+    return { ...n, icon: String(seq).padStart(2, "0") };
+  });
 }

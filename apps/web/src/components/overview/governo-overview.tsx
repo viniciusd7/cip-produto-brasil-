@@ -77,7 +77,7 @@ function recommendation(p: SecretariaOverview) {
 }
 
 export function GovernoOverview({ payload, municipio, role }: { payload: OverviewResponse; municipio: string; role?: string }) {
-  const { governo, porSecretaria, agenda, projetosEstruturantes, pendencias, tarefasPedemAcao, metas } = payload.data;
+  const { governo, porSecretaria, agenda, projetosEstruturantes, pendencias, tarefasPedemAcao, metas, estrategia } = payload.data;
   const metasResumo = metas || { total: 0, comIndicador: 0, comValor: 0, cobertura: 0, atrasadas: 0, semPrazo: 0, concluidas: 0, pedemAcao: [] as NonNullable<OverviewResponse["data"]["metas"]>["pedemAcao"] };
   const [tab, setTab] = useState("compare");
   const [query, setQuery] = useState("");
@@ -129,6 +129,60 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
           <Link href={nextStep.href} className={s.button}>{nextStep.label} <span aria-hidden="true">↗</span></Link>
         </div>
       </header>
+
+      {estrategia && (
+        <section id="estrategia" className={s.chapter} style={{ marginBottom: 24 }}>
+          <div className={s.panel} style={{ padding: 20 }}>
+            <p className={s.kicker}>Inteligência · Meta Estratégica / BSC / OKR</p>
+            <h2 style={{ marginTop: 4, marginBottom: 12, fontSize: 22 }}>Realizado, esperado e desvio</h2>
+            {(estrategia.alertasOrcamento?.length ?? 0) > 0 && (
+              <p className="dashboard-muted" style={{ marginBottom: 12 }}>
+                Conferência orçamentária pendente:{" "}
+                {estrategia.alertasOrcamento.map((a) => `${a.tipo} (${a.titulo})`).join(" · ")}. O cadastro continua liberado.
+              </p>
+            )}
+            <div className="dashboard-grid-3" style={{ gap: 12 }}>
+              {(estrategia.metas || []).slice(0, 6).map((m) => (
+                <div key={m.id} style={{ border: "1px solid var(--cip-border)", borderRadius: 12, padding: 14 }}>
+                  <div className="chip-row" style={{ justifyContent: "space-between" }}>
+                    <strong>{m.nome}</strong>
+                    {m.perspectivaBsc && <span className="dashboard-muted">{m.perspectivaBsc}</span>}
+                  </div>
+                  <p className="dashboard-muted" style={{ margin: "8px 0" }}>
+                    {m.indicador || "Indicador a definir"} · alvo {m.alvo || "—"} {m.unidade || ""}
+                  </p>
+                  {m.resultadoChaveOkr && <p className="dashboard-muted">OKR: {m.resultadoChaveOkr}</p>}
+                  {m.aguardandoMedicao ? (
+                    <p>Aguardando medição</p>
+                  ) : (
+                    <p>
+                      Realizado {m.medicaoAtual?.valorRealizado}
+                      {m.medicaoAtual?.valorEsperado != null ? ` · esperado ${m.medicaoAtual.valorEsperado}` : ""}
+                      {m.desvio != null ? ` · desvio ${m.desvio > 0 ? "+" : ""}${m.desvio}` : " · ritmo por avaliar"}
+                    </p>
+                  )}
+                  {m.medicaoAnterior && (
+                    <p className="dashboard-muted">Anterior: {m.medicaoAnterior.valorRealizado}</p>
+                  )}
+                </div>
+              ))}
+              {!estrategia.metas?.length && (
+                <p className="dashboard-muted">Cadastre metas estratégicas com indicador e registre medições em Planejamento.</p>
+              )}
+            </div>
+            {(estrategia.alertaEquipamentos?.length ?? 0) > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <p className={s.kicker}>Alerta por equipamento (frentes cruzadas)</p>
+                {estrategia.alertaEquipamentos!.map((eq) => (
+                  <p key={eq.id} className="dashboard-muted">
+                    {eq.nome}: {eq.frentesComAtraso.map((f) => `${f.nome} (${f.secretaria}, ${f.atrasos} atraso/s)`).join("; ")}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* ——— #visao ——— */}
       <section id="visao" className={s.chapter}>

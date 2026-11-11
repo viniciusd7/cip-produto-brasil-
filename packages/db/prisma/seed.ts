@@ -286,19 +286,33 @@ async function main() {
 
   const plano = await prisma.planoGoverno.upsert({
     where: { id: "plano-cmd-demo" },
-    update: {},
+    update: {
+      mandatoInicio: new Date("2025-01-01T00:00:00.000Z"),
+      mandatoFim: new Date("2028-12-31T00:00:00.000Z"),
+    },
     create: {
       id: "plano-cmd-demo",
       municipioId: municipio.id,
       nome: "Plano de Governo CMD 2025-2028",
       periodo: "2025-2028",
       descricao: "Plano piloto para demonstração CIP",
+      mandatoInicio: new Date("2025-01-01T00:00:00.000Z"),
+      mandatoFim: new Date("2028-12-31T00:00:00.000Z"),
     },
   });
 
   const metaEdu = await prisma.metaEstrategica.upsert({
     where: { id: "meta-edu-demo" },
-    update: {},
+    update: {
+      indicador: "% escolas com intervenção concluída",
+      valorBase: "10",
+      alvo: "80",
+      unidade: "%",
+      periodicidade: "Quinzenal",
+      statusValidacao: "VALIDADO",
+      perspectivaBsc: "PROCESSOS",
+      resultadoChaveOkr: "Concluir 80% das intervenções prioritárias até 2026",
+    },
     create: {
       id: "meta-edu-demo",
       planoId: plano.id,
@@ -306,8 +320,58 @@ async function main() {
       codigo: "ME-EDU-01",
       nome: "Ampliar infraestrutura educacional",
       descricao: "Garantir condições físicas adequadas às escolas municipais",
+      indicador: "% escolas com intervenção concluída",
+      valorBase: "10",
+      alvo: "80",
+      unidade: "%",
+      periodicidade: "Quinzenal",
+      statusValidacao: "VALIDADO",
+      perspectivaBsc: "PROCESSOS",
+      resultadoChaveOkr: "Concluir 80% das intervenções prioritárias até 2026",
     },
   });
+
+  const medicaoExistente = await prisma.medicao.findFirst({
+    where: {
+      municipioId: municipio.id,
+      metaEstrategicaId: metaEdu.id,
+      dataCorte: new Date("2026-10-06T12:00:00.000Z"),
+    },
+  });
+  if (!medicaoExistente) {
+    await prisma.medicao.create({
+      data: {
+        municipioId: municipio.id,
+        metaEstrategicaId: metaEdu.id,
+        dataCorte: new Date("2026-10-06T12:00:00.000Z"),
+        valorRealizado: "35",
+        valorEsperado: "40",
+        fonte: "Relatório Quinzenal REV04",
+        confiabilidade: "MEDIA",
+        observacao: "Medição ilustrativa do piloto CMD",
+      },
+    });
+  }
+
+  for (const doc of [
+    { id: "doc-ppa-cmd", tipo: "PPA", titulo: "PPA 2026–2029 CMD", vigencia: "2026-2029" },
+    { id: "doc-ldo-cmd", tipo: "LDO", titulo: "LDO 2026 CMD", vigencia: "2026" },
+    { id: "doc-loa-cmd", tipo: "LOA", titulo: "LOA 2026 CMD", vigencia: "2026" },
+  ] as const) {
+    await prisma.documentoConhecimento.upsert({
+      where: { id: doc.id },
+      update: { titulo: doc.titulo, vigencia: doc.vigencia },
+      create: {
+        id: doc.id,
+        municipioId: municipio.id,
+        tipo: doc.tipo,
+        titulo: doc.titulo,
+        vigencia: doc.vigencia,
+        fonte: "Prefeitura de Conceição do Mato Dentro",
+        statusConferencia: "PENDENTE",
+      },
+    });
+  }
 
   const compromisso = await prisma.compromisso.upsert({
     where: { id: "comp-edu-demo" },

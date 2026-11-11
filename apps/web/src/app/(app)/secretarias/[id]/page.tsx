@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { Badge, Breadcrumbs, Card, PageHeader } from "@cip/ui";
 import { authOptions } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
-import { canWriteRole } from "@/lib/roles";
+import { canEditSecretariaRole } from "@/lib/roles";
 import { EquipeAddForm, EquipeLista, type PessoaPasta } from "./equipe-form";
 import { TitularForm } from "./titular-form";
 
@@ -54,7 +54,7 @@ export default async function SecretariaDetailPage({
     notFound();
   }
   const s = payload.data;
-  const canWrite = canWriteRole(session?.user?.role);
+  const canWrite = canEditSecretariaRole(session?.user?.role);
 
   return (
     <div className="stack">
@@ -70,6 +70,36 @@ export default async function SecretariaDetailPage({
         title={s.nome}
         description="Hub da pasta: equipe, metas estratégicas e projetos vinculados."
       />
+
+      <Card
+        title="Identidade da pasta"
+        subtitle="Nome, sigla e titular — a prefeitura define quem responde pela secretaria"
+      >
+        <div className="chip-row" style={{ marginBottom: 12 }}>
+          <Badge tone="info">{s.sigla || "Sem sigla"}</Badge>
+          <Badge tone="neutral">{s.titularNome || "Sem titular"}</Badge>
+          {s.titularTelefone && <Badge tone="neutral">{s.titularTelefone}</Badge>}
+          {s.titularCargo && <Badge tone="gold">{s.titularCargo}</Badge>}
+        </div>
+        {canWrite ? (
+          <TitularForm
+            token={session?.accessToken || ""}
+            secretariaId={s.id}
+            initial={{
+              nome: s.nome,
+              sigla: s.sigla,
+              titularNome: s.titularNome,
+              titularCargo: s.titularCargo,
+              titularTelefone: s.titularTelefone,
+              titularEmail: s.titularEmail,
+            }}
+          />
+        ) : (
+          <p className="dashboard-muted">
+            {s.titularEmail || "Somente leitura — titular definido pela gestão."}
+          </p>
+        )}
+      </Card>
 
       <Card
         title="Equipe da pasta"
@@ -88,30 +118,6 @@ export default async function SecretariaDetailPage({
               secretariaId={s.id}
             />
           </div>
-        )}
-      </Card>
-
-      <Card title="Titular da pasta" subtitle="Atalho para editar o titular (sincroniza com a equipe)">
-        <div className="chip-row" style={{ marginBottom: 12 }}>
-          <Badge tone="info">{s.titularNome || "Sem titular"}</Badge>
-          {s.titularTelefone && <Badge tone="neutral">{s.titularTelefone}</Badge>}
-          {s.titularCargo && <Badge tone="gold">{s.titularCargo}</Badge>}
-        </div>
-        {canWrite ? (
-          <TitularForm
-            token={session?.accessToken || ""}
-            secretariaId={s.id}
-            initial={{
-              titularNome: s.titularNome,
-              titularCargo: s.titularCargo,
-              titularTelefone: s.titularTelefone,
-              titularEmail: s.titularEmail,
-            }}
-          />
-        ) : (
-          <p className="dashboard-muted">
-            {s.titularEmail || "Somente leitura — titular definido pela gestão."}
-          </p>
         )}
       </Card>
 

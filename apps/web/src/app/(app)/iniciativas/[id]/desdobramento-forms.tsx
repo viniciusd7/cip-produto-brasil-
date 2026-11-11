@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@cip/ui";
 import { API_URL } from "@/lib/api";
-
-const LISTA_EQUIPE = "equipe-desdobramento";
 
 export function DesdobramentoForms({
   mode,
@@ -24,6 +22,7 @@ export function DesdobramentoForms({
   equipe?: string[];
 }) {
   const router = useRouter();
+  const listaEquipe = useId();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
@@ -103,7 +102,7 @@ export function DesdobramentoForms({
       ) : (
         <form onSubmit={onSubmit} className="quick-task-form">
           <strong className="quick-task-form__title">{title}</strong>
-          <datalist id={LISTA_EQUIPE}>
+          <datalist id={listaEquipe}>
             {equipe.map((nome) => (
               <option key={nome} value={nome} />
             ))}
@@ -134,7 +133,7 @@ export function DesdobramentoForms({
               </div>
               <div>
                 <label>Quem responde?</label>
-                <input name="responsavel" list={LISTA_EQUIPE} placeholder="Nome ou equipe" />
+                <input name="responsavel" list={listaEquipe} placeholder="Nome ou equipe" />
               </div>
             </>
           )}
@@ -156,7 +155,7 @@ export function DesdobramentoForms({
                 </div>
                 <div>
                   <label>Quem faz?</label>
-                  <input name="responsavel" list={LISTA_EQUIPE} placeholder="Nome ou equipe" />
+                  <input name="responsavel" list={listaEquipe} placeholder="Nome ou equipe" />
                 </div>
               </div>
             </>
@@ -174,7 +173,7 @@ export function DesdobramentoForms({
               </div>
               <div>
                 <label>Quem faz?</label>
-                <input name="responsavel" list={LISTA_EQUIPE} placeholder="Nome ou equipe" />
+                <input name="responsavel" list={listaEquipe} placeholder="Nome ou equipe" />
               </div>
             </>
           )}

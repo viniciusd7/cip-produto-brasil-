@@ -181,7 +181,7 @@ export function AppShell({
           </Link>
           <ol className="flow-mini">
             <li>Cenário</li>
-            <li>Pasta</li>
+            <li>Minha pasta</li>
             <li>Projeto</li>
             <li>Cobrança</li>
           </ol>

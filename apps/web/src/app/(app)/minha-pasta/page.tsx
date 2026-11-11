@@ -8,6 +8,17 @@ import { ApiError, apiFetch } from "@/lib/api";
 import { PastaSaudeResumo } from "@/components/charts/pasta-saude-resumo";
 import { DadosExternos } from "@/components/dados-externos";
 
+type ProjetoItem = {
+  id: string;
+  codigo: string;
+  nome: string;
+  ciclo: string;
+  pendencias: number;
+  atrasadas: number;
+  bloqueioLabel?: string | null;
+  secretariaPrincipalNome?: string;
+};
+
 type PastaResumo = {
   data: {
     secretaria: {
@@ -28,15 +39,9 @@ type PastaResumo = {
       semPrazo: number;
       concluidas: number;
     };
-    projetos: Array<{
-      id: string;
-      codigo: string;
-      nome: string;
-      ciclo: string;
-      pendencias: number;
-      atrasadas: number;
-      bloqueioLabel?: string | null;
-    }>;
+    projetosPrincipais?: ProjetoItem[];
+    projetosCorrelacionados?: ProjetoItem[];
+    projetos: ProjetoItem[];
   } | null;
 };
 
@@ -48,6 +53,60 @@ function classLabel(c: string) {
     DADOS_DEFASADOS: "Dados defasados",
   };
   return map[c] || c;
+}
+
+function ProjetoLista({
+  titulo,
+  descricao,
+  projetos,
+  correlacionado,
+}: {
+  titulo: string;
+  descricao: string;
+  projetos: ProjetoItem[];
+  correlacionado?: boolean;
+}) {
+  return (
+    <section className="pasta-section" aria-labelledby={`${titulo}-title`}>
+      <div className="pasta-section__head">
+        <h2 id={`${titulo}-title`}>{titulo}</h2>
+        <p>{descricao}</p>
+      </div>
+      {!projetos.length ? (
+        <div className="pasta-empty">
+          <p>
+            {correlacionado
+              ? "Nenhum projeto correlacionado nesta pasta."
+              : "Ainda não há projetos principais. Use “Novo projeto” para criar o primeiro."}
+          </p>
+        </div>
+      ) : (
+        <div className="pastas-grid">
+          {projetos.map((p) => (
+            <Link
+              key={p.id}
+              href={`/iniciativas/${p.id}?aba=andamento`}
+              className="projeto-folder"
+            >
+              <div>
+                <h3>{p.nome}</h3>
+                <p>
+                  {p.codigo}
+                  {correlacionado && p.secretariaPrincipalNome
+                    ? ` · titular: ${p.secretariaPrincipalNome}`
+                    : ""}
+                  {p.bloqueioLabel ? ` · ${p.bloqueioLabel}` : ""}
+                </p>
+              </div>
+              <Badge tone={p.atrasadas ? "danger" : "success"}>
+                {p.atrasadas ? `${p.atrasadas} atrasos` : "ok"}
+              </Badge>
+            </Link>
+          ))}
+        </div>
+      )}
+    </section>
+  );
 }
 
 export default async function MinhaPastaPage({
@@ -72,20 +131,29 @@ export default async function MinhaPastaPage({
     return (
       <div className="pasta-board">
         <header className="pasta-hero">
-          <p className="pasta-hero__kicker">Secretário · Minha pasta</p>
+          <p className="pasta-hero__kicker">Minha pasta · gestão</p>
           <h1 className="pasta-hero__title">Cadastre uma secretaria</h1>
           <p className="pasta-hero__lead">
-            A pasta do secretário concentra saúde das tarefas, fila de cobrança
-            e a abertura de novos projetos.
+            A pasta concentra a saúde das tarefas, os projetos principais e os
+            correlacionados.
           </p>
         </header>
       </div>
     );
   }
 
-  const { secretaria, classificacao, pctAtraso, tarefasStatus, projetos } =
-    payload.data;
-  const fila = [...projetos]
+  const {
+    secretaria,
+    classificacao,
+    pctAtraso,
+    tarefasStatus,
+    projetosPrincipais,
+    projetosCorrelacionados,
+    projetos,
+  } = payload.data;
+  const principais = projetosPrincipais ?? projetos;
+  const correlacionados = projetosCorrelacionados ?? [];
+  const fila = [...principais]
     .sort((a, b) => b.atrasadas - a.atrasadas || b.pendencias - a.pendencias)
     .slice(0, 3);
   const novoHref = `/minha-pasta/novo?secretariaId=${secretaria.id}`;
@@ -97,7 +165,7 @@ export default async function MinhaPastaPage({
     <div className="pasta-board">
       <header className="pasta-hero">
         <div className="pasta-hero__main">
-          <p className="pasta-hero__kicker">Secretário · Minha pasta</p>
+          <p className="pasta-hero__kicker">Minha pasta · preview de gestão</p>
           <h1 className="pasta-hero__title">{titulo}</h1>
           <p className="pasta-hero__lead">
             {secretaria.titular.nome || "Titular não cadastrado"}
@@ -125,7 +193,7 @@ export default async function MinhaPastaPage({
       <section className="pasta-section" aria-labelledby="pasta-saude-title">
         <div className="pasta-section__head">
           <h2 id="pasta-saude-title">Saúde das tarefas</h2>
-          <p>Contagem clara do que está no prazo, atrasado ou sem data.</p>
+          <p>Contagem do que está no prazo, atrasado, sem data ou concluído.</p>
         </div>
         <div className="pasta-section__surface">
           <PastaSaudeResumo status={tarefasStatus} />
@@ -137,14 +205,13 @@ export default async function MinhaPastaPage({
           <h2 id="pasta-fila-title">Fila de ação</h2>
           <p>
             {fila.length
-              ? "Priorize o que está atrasado ou bloqueado nesta pasta."
+              ? "Priorize o que está atrasado ou bloqueado nos projetos principais."
               : "Nenhum projeto crítico na fila."}
           </p>
         </div>
-
         {!fila.length ? (
           <div className="pasta-empty">
-            <p>Ainda não há projetos nesta pasta. Use “Novo projeto” no topo para criar o primeiro.</p>
+            <p>Use “Novo projeto” para abrir o primeiro projeto desta pasta.</p>
           </div>
         ) : (
           <ul className="pasta-fila">
@@ -179,12 +246,6 @@ export default async function MinhaPastaPage({
                   >
                     Andamento
                   </Link>
-                  <Link
-                    href={`/iniciativas/${p.id}?aba=evidencias`}
-                    className="cip-btn cip-btn--ghost"
-                  >
-                    Evidência
-                  </Link>
                 </div>
               </li>
             ))}
@@ -192,28 +253,20 @@ export default async function MinhaPastaPage({
         )}
       </section>
 
-      <DadosExternos token={session?.accessToken || ""} />
+      <ProjetoLista
+        titulo="Meus projetos"
+        descricao="Projetos em que esta pasta é a responsável principal."
+        projetos={principais}
+      />
 
-      <details className="pasta-more" open>
-        <summary>Todos os projetos ({projetos.length})</summary>
-        <div className="pastas-grid">
-          {projetos.map((p) => (
-            <Link
-              key={p.id}
-              href={`/iniciativas/${p.id}?aba=andamento`}
-              className="projeto-folder"
-            >
-              <div>
-                <h3>📁 {p.nome}</h3>
-                <p>{p.codigo}</p>
-              </div>
-              <Badge tone={p.atrasadas ? "danger" : "success"}>
-                {p.atrasadas ? `${p.atrasadas} atrasos` : "ok"}
-              </Badge>
-            </Link>
-          ))}
-        </div>
-      </details>
+      <ProjetoLista
+        titulo="Projetos correlacionados"
+        descricao="Projetos de outras pastas em que esta secretaria participa."
+        projetos={correlacionados}
+        correlacionado
+      />
+
+      <DadosExternos token={session?.accessToken || ""} />
     </div>
   );
 }

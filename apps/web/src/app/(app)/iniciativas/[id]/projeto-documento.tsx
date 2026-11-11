@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { ReprogramarTarefa } from "./reprogramar-tarefa";
 import { ComunicacaoProjeto } from "@/components/comunicacao-projeto";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -12,15 +11,13 @@ import {
   formatarDetalhes,
   quizItem,
   textoPorQueParado,
-  tonePrazo,
 } from "@cip/shared";
 import { Badge, Card } from "@cip/ui";
 import { FluxoArvore, type FluxoNode } from "@/components/fluxo-arvore";
-import { DesdobramentoForms } from "./desdobramento-forms";
 import { EvidenciaCard, type EvidenciaItem } from "./evidencia-actions";
 import { EvidenciaForm } from "./evidencia-form";
-import { ResponsavelEditor } from "./responsavel-editor";
 import { VinculosEditor } from "./vinculos-editor";
+import { TarefasBoard } from "./tarefas-board";
 
 export type SecretariaRef = { id: string; nome: string; sigla?: string | null };
 
@@ -44,6 +41,7 @@ export type ProjetoDocMarco = {
   prazoStatus: string;
   prazoOriginal?: string | null;
   prazoVigente?: string | null;
+  concluidoEm?: string | null;
   gravidade?: string | null;
   metaExecucaoId?: string | null;
   responsavel?: string | null;
@@ -67,7 +65,17 @@ export type ProjetoDocData = {
   bloqueioLabel?: string | null;
   bloqueiosAtivos?: Array<{ perguntaCodigo: string; rotulo: string }> | null;
   secretariaPrincipal: { id: string; nome: string; sigla?: string | null };
-  metaEstrategica?: { id: string; nome: string; codigo?: string | null } | null;
+  metaEstrategica?: {
+    id: string;
+    nome: string;
+    codigo?: string | null;
+    indicador?: string | null;
+    valorBase?: string | null;
+    alvo?: string | null;
+    unidade?: string | null;
+    perspectivaBsc?: string | null;
+    resultadoChaveOkr?: string | null;
+  } | null;
   secretarias: Array<{ papel: string; secretaria: SecretariaRef }>;
   equipamentos: Array<{ equipamento: { nome: string } }>;
   metasExecucao: ProjetoDocMeta[];
@@ -107,11 +115,6 @@ const GRUPOS_DOCUMENTO = [
 ];
 
 type Aba = "visao" | "andamento" | "evidencias";
-
-function fmt(d?: string | null) {
-  if (!d) return "—";
-  return new Date(d).toLocaleDateString("pt-BR");
-}
 
 function respostaLegivel(codigo: string, valor: unknown): string {
   if (valor === null || valor === undefined) return "A confirmar";
@@ -212,36 +215,43 @@ export function ProjetoDocumento({
     }
   }
 
-  const fluxoNodes: FluxoNode[] = item.metasExecucao.map((me) => {
-    const prog = metaProgress(me);
+  function marcoParaNo(m: ProjetoDocMarco): FluxoNode {
     return {
-      id: me.id,
-      codigo: me.codigo,
-      nome: me.nome,
-      nivel: "META",
-      indicador: me.indicador,
-      alvo: me.alvo,
-      status: me.status,
-      progresso: prog.pct,
-      responsavel: me.responsavel,
-      children: me.marcos.map((m) => ({
-        id: m.id,
-        codigo: m.codigo,
-        nome: m.descricao,
-        nivel: "TAREFA",
-        status: m.prazoStatus,
-        responsavel: m.responsavel,
-        prazo: m.prazoVigente ?? m.prazoOriginal ?? null,
-        children: m.subtarefas.map((st) => ({
-          id: st.id,
-          nome: st.descricao,
-          nivel: "SUBTAREFA",
-          status: st.concluida ? "CONCLUIDO" : "EM_ANDAMENTO",
-          responsavel: st.responsavel,
-        })),
+      id: m.id,
+      codigo: m.codigo,
+      nome: m.descricao,
+      nivel: "TAREFA",
+      status: m.prazoStatus,
+      responsavel: m.responsavel,
+      prazo: m.prazoVigente ?? m.prazoOriginal ?? null,
+      children: m.subtarefas.map((st) => ({
+        id: st.id,
+        nome: st.descricao,
+        nivel: "SUBTAREFA",
+        status: st.concluida ? "CONCLUIDO" : "EM_ANDAMENTO",
+        responsavel: st.responsavel,
       })),
     };
-  });
+  }
+
+  const fluxoNodes: FluxoNode[] = [
+    ...item.metasExecucao.map((me) => {
+      const prog = metaProgress(me);
+      return {
+        id: me.id,
+        codigo: me.codigo,
+        nome: me.nome,
+        nivel: "META" as const,
+        indicador: me.indicador,
+        alvo: me.alvo,
+        status: me.status,
+        progresso: prog.pct,
+        responsavel: me.responsavel,
+        children: me.marcos.map(marcoParaNo),
+      };
+    }),
+    ...marcosSemMeta.map(marcoParaNo),
+  ];
 
   return (
     <div className="projeto-doc">
@@ -278,7 +288,55 @@ export function ProjetoDocumento({
         </div>
       )}
 
-      <section className="projeto-indicadores" aria-label="Indicadores do projeto">
+      <section className="projeto-metas-destaque" aria-label="Metas do projeto">
+        <article className="projeto-indicador-chip projeto-indicador-chip--estrategica">
+          <div className="projeto-indicador-chip__head">
+            <strong>Meta estratégica</strong>
+            <Badge tone={item.metaEstrategica ? "info" : "warning"}>
+              {item.metaEstrategica ? "Vinculada" : "Pendente"}
+            </Badge>
+          </div>
+          {item.metaEstrategica ? (
+            <>
+              <p style={{ margin: 0, fontWeight: 700 }}>
+                {item.metaEstrategica.codigo ? `${item.metaEstrategica.codigo} · ` : ""}
+                {item.metaEstrategica.nome}
+              </p>
+              <div className="projeto-indicador-chip__metrics">
+                <div>
+                  <span className="projeto-indicador-chip__label">Indicador</span>
+                  <p>{item.metaEstrategica.indicador || "—"}</p>
+                </div>
+                <div>
+                  <span className="projeto-indicador-chip__label">Base / Alvo</span>
+                  <p>
+                    {item.metaEstrategica.valorBase || "—"} / {item.metaEstrategica.alvo || "—"}
+                    {item.metaEstrategica.unidade ? ` ${item.metaEstrategica.unidade}` : ""}
+                  </p>
+                </div>
+              </div>
+              {(item.metaEstrategica.perspectivaBsc || item.metaEstrategica.resultadoChaveOkr) && (
+                <span className="dashboard-muted">
+                  {[
+                    item.metaEstrategica.perspectivaBsc && `BSC: ${item.metaEstrategica.perspectivaBsc}`,
+                    item.metaEstrategica.resultadoChaveOkr && `OKR: ${item.metaEstrategica.resultadoChaveOkr}`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              )}
+            </>
+          ) : (
+            <p className="dashboard-muted" style={{ margin: 0 }}>
+              {item.estruturante
+                ? "Obrigatória para projeto estruturante — vincule na aba Visão."
+                : "Nenhuma meta estratégica vinculada."}
+            </p>
+          )}
+        </article>
+      </section>
+
+      <section className="projeto-indicadores" aria-label="Metas de execução">
         {!item.metasExecucao.length && (
           <p className="dashboard-muted" style={{ margin: 0 }}>
             Cadastre uma meta de execução na aba Andamento para acompanhar indicadores.
@@ -289,7 +347,7 @@ export function ProjetoDocumento({
           return (
             <article key={me.id} className="projeto-indicador-chip">
               <div className="projeto-indicador-chip__head">
-                <strong>{me.nome}</strong>
+                <strong>Meta de execução · {me.nome}</strong>
                 <Badge tone="info">{me.status}</Badge>
               </div>
               <div className="projeto-indicador-chip__metrics">
@@ -519,7 +577,7 @@ export function ProjetoDocumento({
       {aba === "andamento" && (
         <div className="stack">
           <p className="dashboard-muted" style={{ margin: 0 }}>
-            Pasta do projeto: abra cada meta (▶) para ver tarefas e subtarefas.
+            Board de tarefas por status · avance, atraso e conclusão. Agrupe pela meta de execução abaixo.
           </p>
 
           {(item.bloqueioLabel ||
@@ -543,120 +601,15 @@ export function ProjetoDocumento({
           )}
 
           <ComunicacaoProjeto token={token} iniciativaId={item.id} canWrite={canWrite} />
-          <Card title="Pastas de metas e tarefas">
-            <FluxoArvore nodes={fluxoNodes} defaultExpandedDepth={1} showOrigemLabel />
-          </Card>
 
-          {!item.metasExecucao.length && (
-            <Card title="Comece pela meta">
-              <p className="dashboard-muted">
-                Sem meta de execução o escopo fica incompleto.
-              </p>
-              {canWrite && (
-                <DesdobramentoForms equipe={equipe} mode="meta" token={token} iniciativaId={item.id} />
-              )}
-            </Card>
-          )}
-
-          {item.metasExecucao.map((me) => (
-            <details key={me.id} className="more-block projeto-pasta" open={item.metasExecucao.length === 1}>
-              <summary>
-                📁 {me.codigo ? `${me.codigo} · ` : ""}
-                {me.nome} · {metaProgress(me).pct}% · Resp.: {me.responsavel || "sem responsável"}
-              </summary>
-              <div className="stack" style={{ marginTop: 12 }}>
-                <div className="dashboard-muted">
-                  Indicador: {me.indicador || "—"} · Alvo: {me.alvo || "—"} · Atual:{" "}
-                  {me.valorAtual || "—"} · Prazo:{" "}
-                  {fmt(me.prazo)}
-                </div>
-                <div className="dashboard-muted">
-                  Quem responde pela meta:{" "}
-                  <ResponsavelEditor
-                    token={token}
-                    endpoint={`/iniciativas/metas-execucao/${me.id}`}
-                    value={me.responsavel}
-                    equipe={equipe}
-                    listId="equipe-projeto"
-                    canWrite={canWrite}
-                  />
-                </div>
-                {me.marcos.map((m) => (
-                  <article key={m.id} className="entity-card">
-                    <div className="entity-card__top">
-                      <strong>
-                        {m.codigo ? `${m.codigo} · ` : ""}
-                        {m.descricao}
-                      </strong>
-                      <Badge tone={tonePrazo(m.prazoStatus)}>{m.prazoStatus}</Badge>
-                    </div>
-                    <div className="dashboard-muted" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                      <span>
-                        Quem faz: {m.responsavel || "sem responsável"} · Prazo: {fmt(m.prazoVigente)}
-                      </span>
-                      <ResponsavelEditor
-                        token={token}
-                        endpoint={`/iniciativas/marcos/${m.id}`}
-                        value={m.responsavel}
-                        equipe={equipe}
-                        listId="equipe-projeto"
-                        canWrite={canWrite}
-                      />
-                    </div>
-                    {<ReprogramarTarefa canWrite={canWrite && m.prazoStatus !== "CONCLUIDO"} token={token} marcoId={m.id} prazo={m.prazoVigente} historico={m.reprogramacoes} />}
-                    <ul className="projeto-timeline__subs">
-                      {m.subtarefas.map((st) => (
-                        <li key={st.id} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                          <span aria-hidden>{st.concluida ? "✓" : "○"}</span>
-                          <span>{st.descricao}</span>
-                          <span className="dashboard-muted">
-                            · {st.responsavel || "sem responsável"}
-                          </span>
-                          <ResponsavelEditor
-                            token={token}
-                            endpoint={`/iniciativas/subtarefas/${st.id}`}
-                            value={st.responsavel}
-                            equipe={equipe}
-                            listId="equipe-projeto"
-                            canWrite={canWrite}
-                          />
-                        </li>
-                      ))}
-                    </ul>
-                    {canWrite && (
-                      <DesdobramentoForms equipe={equipe} mode="subtarefa" token={token} marcoId={m.id} />
-                    )}
-                  </article>
-                ))}
-                {canWrite && (
-                  <DesdobramentoForms equipe={equipe}
-                    mode="tarefa"
-                    token={token}
-                    iniciativaId={item.id}
-                    metaExecucaoId={me.id}
-                  />
-                )}
-              </div>
-            </details>
-          ))}
-
-          {!!marcosSemMeta.length && (
-            <Card title="Tarefas sem meta de execução">
-              {marcosSemMeta.map((m) => (
-                <div key={m.id} className="dashboard-list-item">
-                  <span>
-                    {m.descricao} · {m.responsavel || "sem responsável"}
-                  </span>
-                  <Badge tone={tonePrazo(m.prazoStatus)}>{m.prazoStatus}</Badge>
-                  <ReprogramarTarefa canWrite={canWrite && m.prazoStatus !== "CONCLUIDO"} token={token} marcoId={m.id} prazo={m.prazoVigente} historico={m.reprogramacoes} />
-                </div>
-              ))}
-            </Card>
-          )}
-
-          {canWrite && !!item.metasExecucao.length && (
-            <DesdobramentoForms equipe={equipe} mode="meta" token={token} iniciativaId={item.id} />
-          )}
+          <TarefasBoard
+            metasExecucao={item.metasExecucao}
+            marcosSemMeta={marcosSemMeta}
+            canWrite={canWrite}
+            token={token}
+            equipe={equipe}
+            iniciativaId={item.id}
+          />
         </div>
       )}
 

@@ -3,6 +3,7 @@ import { Card, PageHeader, SourceMeta, Badge } from "@cip/ui";
 import { authOptions } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 import { PlanejamentoForm } from "./planejamento-form";
+import { ConhecimentoForm } from "./conhecimento-form";
 
 type PlanningResponse = {
   data: Array<{
@@ -15,6 +16,10 @@ type PlanningResponse = {
       codigo?: string | null;
       nome: string;
       descricao?: string | null;
+      indicador?: string | null;
+      alvo?: string | null;
+      perspectivaBsc?: string | null;
+      resultadoChaveOkr?: string | null;
       iniciativas: number;
       secretaria?: { nome: string; sigla?: string | null } | null;
     }>;
@@ -25,6 +30,7 @@ type PlanningResponse = {
 export default async function PlanejamentoPage() {
   const session = await getServerSession(authOptions);
   const payload = await apiFetch<PlanningResponse>("/planejamento/resumo", { token: session?.accessToken });
+  const metasFlat = payload.data.flatMap((p) => p.metas.map((m) => ({ id: m.id, nome: m.nome })));
 
   return (
     <div className="stack">
@@ -35,6 +41,7 @@ export default async function PlanejamentoPage() {
       />
       <SourceMeta fonte={payload.meta?.fonte} confiabilidade="Estrutura configurável por prefeitura" />
       <PlanejamentoForm token={session?.accessToken || ""} />
+      <ConhecimentoForm token={session?.accessToken || ""} metas={metasFlat} />
       {payload.data.map((plano) => (
         <Card key={plano.id} title={plano.nome} subtitle={[plano.periodo, plano.descricao].filter(Boolean).join(" · ") || "Plano sem descrição cadastrada"}>
           <div className="dashboard-grid-3">
@@ -47,6 +54,13 @@ export default async function PlanejamentoPage() {
                 <h3 style={{ margin: "16px 0 6px", fontSize: 17 }}>{meta.nome}</h3>
                 <p className="dashboard-muted" style={{ minHeight: 38 }}>{meta.descricao || "Sem descrição operacional."}</p>
                 <div className="dashboard-muted">Unidade responsável: {meta.secretaria?.sigla || meta.secretaria?.nome || "A definir"}</div>
+                {(meta.indicador || meta.alvo || meta.perspectivaBsc || meta.resultadoChaveOkr) && (
+                  <div className="dashboard-muted" style={{ marginTop: 8 }}>
+                    {[meta.indicador && `Indicador: ${meta.indicador}`, meta.alvo && `Alvo: ${meta.alvo}`, meta.perspectivaBsc && `BSC: ${meta.perspectivaBsc}`, meta.resultadoChaveOkr && `OKR: ${meta.resultadoChaveOkr}`]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </div>
+                )}
               </div>
             ))}
             {!plano.metas.length && <p className="dashboard-muted">Adicione a primeira meta estratégica para começar a organizar a carteira.</p>}

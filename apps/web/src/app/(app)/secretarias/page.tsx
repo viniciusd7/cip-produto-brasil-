@@ -4,6 +4,8 @@ import { toneClassPasta as classTone } from "@cip/shared";
 import { Badge, Breadcrumbs, Card, PageHeader } from "@cip/ui";
 import { authOptions } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
+import { canManageSecretariaRole } from "@/lib/roles";
+import { NovaSecretariaForm } from "./nova-secretaria-form";
 
 type Dash = {
   data: {
@@ -41,6 +43,7 @@ export default async function SecretariasPage({
   const payload = await apiFetch<Dash>("/dashboard/resumo", {
     token: session?.accessToken,
   });
+  const canManage = canManageSecretariaRole(session?.user?.role);
 
   const list = payload.data.porSecretaria.filter((s) =>
     sp.class ? s.classificacao === sp.class : true,
@@ -51,22 +54,35 @@ export default async function SecretariasPage({
       <Breadcrumbs
         items={[
           { label: "Cenário", href: "/painel" },
-          { label: "Saúde das secretarias" },
+          { label: "Pastas" },
         ]}
       />
       <PageHeader
         eyebrow={
           session?.user?.role === "gestor"
             ? "Sua home · Pastas da prefeitura"
-            : "Passo 2 do fluxo · Quem cobrar"
+            : session?.user?.role === "prefeito"
+              ? "Gabinete · Organograma"
+              : "Passo 2 do fluxo · Quem cobrar"
         }
         title={
           session?.user?.role === "gestor"
             ? "Minhas pastas e prioridades"
-            : "Saúde de cada secretaria"
+            : session?.user?.role === "prefeito"
+              ? "Pastas da prefeitura"
+              : "Saúde de cada secretaria"
         }
         description="Identifique o sinal, entenda a causa e abra a pauta de acompanhamento de cada pasta. Fluxo: Cenário → Pasta → Projeto → Cobrança."
       />
+
+      {canManage && (
+        <Card
+          title="Cadastro de pastas"
+          subtitle="Crie secretarias, defina a sigla e depois abra a pasta para incluir responsáveis"
+        >
+          <NovaSecretariaForm token={session?.accessToken || ""} />
+        </Card>
+      )}
 
       <div className="chip-row">
         <Link href="/secretarias">

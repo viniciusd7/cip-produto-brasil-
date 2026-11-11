@@ -33,7 +33,20 @@ export function PlanejamentoForm({ token }: { token: string }) {
     if (!planRes.ok) { setError(planJson?.error?.message || "Não foi possível salvar o plano."); setSaving(false); return; }
     const metaName = String(form.get("metaNome") || "").trim();
     if (metaName) {
-      const metaRes = await fetch(`${API_URL}/planejamento/metas`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ planoId: planJson.data.id, nome: metaName, codigo: String(form.get("metaCodigo") || "") || undefined, secretariaId: String(form.get("secretariaId") || "") || undefined, descricao: String(form.get("metaDescricao") || "") || undefined }) });
+      const metaRes = await fetch(`${API_URL}/planejamento/metas`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({
+        planoId: planJson.data.id,
+        nome: metaName,
+        codigo: String(form.get("metaCodigo") || "") || undefined,
+        secretariaId: String(form.get("secretariaId") || "") || undefined,
+        descricao: String(form.get("metaDescricao") || "") || undefined,
+        indicador: String(form.get("indicador") || "") || undefined,
+        valorBase: String(form.get("valorBase") || "") || undefined,
+        alvo: String(form.get("alvo") || "") || undefined,
+        unidade: String(form.get("unidade") || "") || undefined,
+        periodicidade: String(form.get("periodicidade") || "") || undefined,
+        perspectivaBsc: String(form.get("perspectivaBsc") || "") || undefined,
+        resultadoChaveOkr: String(form.get("resultadoChaveOkr") || "") || undefined,
+      }) });
       const metaJson = await metaRes.json();
       if (!metaRes.ok) { setError(metaJson?.error?.message || "Plano salvo, mas a meta não foi criada."); setSaving(false); router.refresh(); return; }
     }
@@ -62,6 +75,26 @@ export function PlanejamentoForm({ token }: { token: string }) {
           <div><label htmlFor="secretariaId">Unidade responsável</label><select id="secretariaId" name="secretariaId"><option value="">A definir</option>{secretarias.map((s) => <option key={s.id} value={s.id}>{secretariaLabel(s)}</option>)}</select></div>
           <div><label htmlFor="metaDescricao">Descrição da meta</label><input id="metaDescricao" name="metaDescricao" placeholder="Resultado estratégico esperado" /></div>
         </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+          <div><label htmlFor="indicador">Indicador</label><input id="indicador" name="indicador" placeholder="Ex.: % cobertura APS" /></div>
+          <div><label htmlFor="valorBase">Linha de base</label><input id="valorBase" name="valorBase" placeholder="Ex.: 42" /></div>
+          <div><label htmlFor="alvo">Alvo</label><input id="alvo" name="alvo" placeholder="Ex.: 70" /></div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+          <div><label htmlFor="unidade">Unidade</label><input id="unidade" name="unidade" placeholder="%" /></div>
+          <div><label htmlFor="periodicidade">Periodicidade</label><input id="periodicidade" name="periodicidade" placeholder="Mensal / Quinzenal" /></div>
+          <div>
+            <label htmlFor="perspectivaBsc">Perspectiva BSC</label>
+            <select id="perspectivaBsc" name="perspectivaBsc">
+              <option value="">—</option>
+              <option value="FINANCEIRA">Financeira</option>
+              <option value="CLIENTES">Cidadãos / clientes</option>
+              <option value="PROCESSOS">Processos</option>
+              <option value="APRENDIZADO">Aprendizado</option>
+            </select>
+          </div>
+        </div>
+        <div><label htmlFor="resultadoChaveOkr">Resultado-chave (OKR)</label><input id="resultadoChaveOkr" name="resultadoChaveOkr" placeholder="KR mensurável do mandato" /></div>
         {error && <p style={{ color: "var(--cip-danger)", margin: 0 }}>{error}</p>}
         <div className="chip-row"><Button type="submit" disabled={saving}>{saving ? "Salvando..." : "Salvar estrutura"}</Button><Button type="button" variant="secondary" onClick={() => setOpen(false)}>Cancelar</Button></div>
       </form>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Badge } from "@cip/ui";
 
 export type FluxoNode = {
@@ -31,6 +31,7 @@ function NodeRow({
   onChange,
   defaultExpandedDepth = 0,
   showOrigemLabel,
+  footer,
 }: {
   node: FluxoNode;
   depth: number;
@@ -38,6 +39,7 @@ function NodeRow({
   onChange?: (next: FluxoNode) => void;
   defaultExpandedDepth?: number;
   showOrigemLabel?: boolean;
+  footer?: (node: FluxoNode) => ReactNode;
 }) {
   const [open, setOpen] = useState(depth < defaultExpandedDepth);
   const kids = node.children || [];
@@ -108,6 +110,7 @@ function NodeRow({
               Condicionante: {node.origemPerguntaCodigo}
             </span>
           )}
+          {footer?.(node)}
         </div>
       </div>
       {open && hasKids && (
@@ -120,6 +123,7 @@ function NodeRow({
               editable={editable}
               defaultExpandedDepth={defaultExpandedDepth}
               showOrigemLabel={showOrigemLabel}
+              footer={footer}
               onChange={(next) => {
                 if (!onChange) return;
                 const children = [...kids];
@@ -140,12 +144,15 @@ export function FluxoArvore({
   onChange,
   defaultExpandedDepth = 1,
   showOrigemLabel = true,
+  footer,
 }: {
   nodes: FluxoNode[];
   editable?: boolean;
   onChange?: (nodes: FluxoNode[]) => void;
   defaultExpandedDepth?: number;
   showOrigemLabel?: boolean;
+  /** Ação de incluir filho (tarefa na meta, subtarefa na tarefa). */
+  footer?: (node: FluxoNode) => ReactNode;
 }) {
   if (!nodes.length) {
     return <p className="dashboard-muted">Nenhuma meta ou tarefa ainda.</p>;
@@ -161,6 +168,7 @@ export function FluxoArvore({
           editable={editable}
           defaultExpandedDepth={defaultExpandedDepth}
           showOrigemLabel={showOrigemLabel}
+          footer={footer}
           onChange={(next) => {
             if (!onChange) return;
             const copy = [...nodes];

@@ -1,39 +1,63 @@
-# Aderência ao doc 01 — RF e AT
+# Aderência ao dossiê Izabela (08/11/2026)
 
-## Camadas de completude
+Fonte: `CIP_Dossie_Tecnico_Integral_VF_comentarios Izabela_0811.pdf` (v0.2, NÃO HOMOLOGADO).
 
-1. **MVP operacional** (RF-01…RF-13 da matriz inicial): cadastro, marcos, evidências, import, auditoria — **implementado**.
-2. **Completude de produto (dossiê + modelo executivo):** hierarquia, metas de execução, subtarefas, painel/relatório quinzenal — **em evolução nesta entrega**.
+Esta matriz usa **a numeração RF/RN do dossiê**. A matriz antiga (RF-01…13 = evidências/import) foi aposentada e não deve ser citada à gestora.
 
-## Requisitos funcionais
+## Camadas
 
-| ID | Prior. | Status | Onde |
+1. **Organização** — município, plano, secretarias, Meta Estratégica, base de conhecimento.
+2. **Execução** — projeto/iniciativa, meta de execução, tarefas, dependências, evidências.
+3. **Inteligência** — medições, painel do prefeito (realizado/esperado/desvio), BSC/OKR, tramitação.
+
+## Requisitos funcionais (dossiê)
+
+| ID | Exigência | Status | Onde |
 |---|---|---|---|
-| RF-01 | P0 | Implementado | Município/Secretaria + vínculo |
-| RF-02 | P0 | Implementado | NextAuth + RBAC |
-| RF-03 | P0 | Implementado | `/iniciativas` + Carteira |
-| RF-04 | P0 | Implementado | Secretarias/compromissos/equipamentos |
-| RF-05 | P0 | Implementado | Marcos com prazo original/vigente |
-| RF-06 | P0 | Implementado | Reprogramação imutável |
-| RF-07 | P0 | Implementado | Verificações |
-| RF-08 | P0 | Implementado | Impedimentos |
-| RF-09 | P0 | Implementado | Decisões |
-| RF-10 | P0 | Implementado | Evidências + validação |
-| RF-11 | P0 | Implementado | Painel executivo (visão governo + secretarias) |
-| RF-12 | P0 | Implementado | AuditLog |
-| RF-13 | P0 | Implementado | Import amostral |
-| Desdobramento | P0 | Implementado | `MetaExecucao` + subtarefas + ficha hierárquica |
-| Relatório secretaria | P0 | Implementado | `/relatorios` + CSV com gravidade/índice |
-| RF-14 papéis | P1 | Implementado | Homes distintas: prefeito/gestor/analista/admin + logo CIP |
-| Titulares pasta | P0 | Implementado | `titularNome/Telefone` + seleção principal/correlacionadas no projeto |
-| Gráficos executivos | P0 | Implementado | Board Azimov em `/painel` (AreaChart + radar + barras de entraves/gravidade/metas); cockpit `/minha-pasta` |
-| RF-15…17 | P1 | Parcial | Export/alertas |
-| RF-18…20 | P2 | Roadmap | Integrações/IA |
+| RF-01 | Estrutura por município + isolamento | **Atende** | `Municipio`, `assertMunicipioAccess` |
+| RF-02 | Mandato/plano de governo + origem do compromisso | **Parcial** | `PlanoGoverno` (início/fim mandato), `Compromisso`; mandato ainda acoplado ao plano |
+| RF-03 | Secretarias antes de metas/projetos; participantes | **Atende** | `Secretaria`, `IniciativaSecretaria`, Pastas |
+| RF-04 | Meta Estratégica com base, alvo, indicador, periodicidade, validação | **Atende** | `MetaEstrategica` + campos KPI + BSC/OKR |
+| RF-05 | Projeto estratégico vinculado à meta; rascunho até ativação | **Atende** | `Iniciativa.metaEstrategicaId`, ciclo `RASCUNHO` |
+| RF-06 | Escopo + ≥1 meta de execução para concluir escopo | **Atende** | Gate no wizard (cliente + API) |
+| RF-07 | Tarefa ⊂ projeto; subtarefa ⊂ tarefa | **Atende** | `MetaExecucao` → `MarcoEntrega` → `Subtarefa` |
+| RF-08 | Conclusão de atividade ≠ alcance de meta | **Parcial** | Dimensões de status + painel estratégico separado; faixas oficiais ainda abertas no dossiê |
+| RF-09 | Histórico de alterações relevantes | **Atende** | `AuditLog`, `Reprogramacao`, timeline na ficha |
+| RF-10 | Visão do prefeito: indicadores, realizado×esperado×desvio | **Atende** | `/dashboard/resumo` bloco `estrategia` + `/painel` |
+| RF-11 | Participantes + dependências tipadas entre atividades/projetos | **Atende** | `IniciativaSecretaria` + `DependenciaVinculo` (anti-ciclo) |
+| RF-12 | Pendências/importados/IA não como validados | **Atende** | Import + `SugestaoIA` separada dos registros validados |
 
-## Critérios de aceite
+## Regras de negócio (amostra crítica)
 
-| ID | Status |
+| ID | Status | Nota |
+|---|---|---|
+| RN-01 | Atende | Ativação exige secretaria + meta; legado pode ficar pendente |
+| RN-02 / RN-17 | Atende | `EquipamentoPublico` transversal + vínculo na ficha + alerta cruzado no painel |
+| RN-07 / RN-08 | Atende | Vínculos tipados com estado; ciclos bloqueados na API |
+| RN-10 / RN-11 / RN-12 | Atende | Prazo original imutável; atraso ≠ vigente; sem prazo explícito |
+| RN-15 / RN-25 | Atende | `Medicao` com fonte, período, realizado/esperado |
+| RN-19 / RN-V06 | Atende | Sugestões de IA persistidas e revisáveis |
+| RN-21 / RN-22 | Atende | RBAC + município; import com origem/conflito |
+| RN-23 | Parcial | `GRAVIDADE_METODO_VERSAO` versionada; política local ainda configurável |
+| RN-03 | Parcial | Uma Meta Estratégica padrão por projeto; multi-contribuição ainda em discussão no dossiê |
+| RN-V01…V10 | Parcial | Tramitação mínima (`SolicitacaoValidacao` / `DecisaoValidacao`); motor completo de fluxos evolutivo |
+
+## Orientações Izabela
+
+| Orientação | Status |
 |---|---|
-| AT-01…AT-10 | Cobertos por seed + API (ver docs anteriores) |
-| Mobile-first | Shell drawer + cards/table-scroll |
-| Identidade CIP | Tokens azul/branco/rosa alinhados ao site e ao modelo |
+| Três núcleos Organização / Execução / Inteligência | Atende (modelo + painéis) |
+| Hierarquia Meta Estratégica → Projeto → metas de execução → tarefas | Atende |
+| PPA/LDO/LOA na base de conhecimento + alerta sem bloquear | Atende (`DocumentoConhecimento`) |
+| Ajuda (?) + apoio de IA | Parcial (ajuda no wizard; IA heurística revisável) |
+| Dashboard BSC + OKR + desvio | Atende (campos + bloco no painel) |
+| Dependências entre projetos distintos | Atende |
+| Faixas de desempenho oficiais | Aberto no dossiê (limites municipais pendentes) |
+
+## Critérios de aceite do piloto
+
+| Item | Status |
+|---|---|
+| Seed Alça Viária / Escola João Lima | Presente em `packages/db/prisma/seed.ts` |
+| Isolamento multi-município | Atende |
+| Documento NÃO HOMOLOGADO | Homologação municipal permanece fora do software |

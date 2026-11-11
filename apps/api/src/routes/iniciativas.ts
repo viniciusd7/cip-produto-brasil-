@@ -19,6 +19,7 @@ import {
   MAX_UPLOAD_BYTES,
 } from "../services/storage";
 import { assertExecucaoPermitida } from "../services/wizard-persist";
+import { criariaCiclo } from "../services/dependencias";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -343,7 +344,28 @@ iniciativasRouter.post(
       await assertMunicipioAccess(req.user!, ini.municipioId, "Iniciativa");
 
       const body = marcoSchema.parse(req.body);
+      if (body.metaExecucaoId) {
+        const meta = await prisma.metaExecucao.findFirst({
+          where: { id: body.metaExecucaoId, iniciativaId: ini.id },
+          select: { id: true },
+        });
+        if (!meta) {
+          throw new HttpError(
+            400,
+            "INVALID_META",
+            "A meta não pertence a este projeto",
+          );
+        }
+      }
       const prazo = body.prazoOriginal ? new Date(body.prazoOriginal) : null;
+      const ordem =
+        body.ordem ??
+        (await prisma.marcoEntrega.count({
+          where: {
+            iniciativaId: ini.id,
+            metaExecucaoId: body.metaExecucaoId ?? null,
+          },
+        }));
       const marco = await prisma.marcoEntrega.create({
         data: {
           iniciativaId: ini.id,
@@ -352,7 +374,7 @@ iniciativasRouter.post(
           responsavel: body.responsavel,
           prazoOriginal: prazo,
           prazoVigente: prazo,
-          ordem: body.ordem ?? 0,
+          ordem,
           metaExecucaoId: body.metaExecucaoId,
           gravidade: body.gravidade,
         },
@@ -1034,14 +1056,6 @@ iniciativasRouter.post(
         marco.iniciativa.municipioId,
         "MarcoEntrega",
       );
-      if (!assertExecucaoPermitida(marco.iniciativa.ciclo)) {
-        throw new HttpError(
-          422,
-          "BLOQUEADO_PRE_REQUISITO",
-          marco.iniciativa.bloqueioLabel ||
-            "Projeto aguardando pré-requisito — não é possível avançar a execução",
-        );
-      }
       const body = subtarefaSchema.parse(req.body);
       const row = await prisma.subtarefa.create({
         data: {
@@ -1302,6 +1316,376 @@ iniciativasRouter.patch(
         ip: req.ip,
       });
       res.json({ data: row });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+/** Paridade com cip-projeto: concluir tarefa na ficha (sem passar por evidência). */
+iniciativasRouter.post(
+  "/marcos/:id/concluir",
+  requirePermission("marco:write"),
+  async (req, res, next) => {
+    try {
+      const existing = await prisma.marcoEntrega.findUnique({
+        where: { id: req.params.id },
+        include: { iniciativa: { select: { id: true, municipioId: true, ciclo: true, bloqueioLabel: true } } },
+      });
+      if (!existing) throw new HttpError(404, "NOT_FOUND", "Tarefa não encontrada");
+      await assertMunicipioAccess(req.user!, existing.iniciativa.municipioId, "MarcoEntrega");
+      if (!assertExecucaoPermitida(existing.iniciativa.ciclo)) {
+        throw new HttpError(
+          422,
+          "BLOQUEADO_PRE_REQUISITO",
+          existing.iniciativa.bloqueioLabel ||
+            "Projeto aguardando pré-requisito — não é possível concluir tarefas",
+        );
+      }
+      if (existing.concluidoEm) {
+        res.json({ data: existing });
+        return;
+      }
+      const row = await prisma.$transaction(async (tx) => {
+        const updated = await tx.marcoEntrega.update({
+          where: { id: existing.id },
+          data: { concluidoEm: new Date() },
+        });
+        await tx.subtarefa.updateMany({
+          where: { marcoId: existing.id, concluida: false },
+          data: { concluida: true },
+        });
+        return updated;
+      });
+      await writeAudit({
+        user: req.user,
+        action: "UPDATE",
+        entity: "MarcoEntrega",
+        entityId: row.id,
+        before: { concluidoEm: existing.concluidoEm },
+        after: { concluidoEm: row.concluidoEm },
+        ip: req.ip,
+      });
+      res.json({ data: row });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+/** Paridade com cip-projeto: reabrir tarefa concluída. */
+iniciativasRouter.post(
+  "/marcos/:id/reabrir",
+  requirePermission("marco:write"),
+  async (req, res, next) => {
+    try {
+      const existing = await prisma.marcoEntrega.findUnique({
+        where: { id: req.params.id },
+        include: { iniciativa: { select: { municipioId: true } } },
+      });
+      if (!existing) throw new HttpError(404, "NOT_FOUND", "Tarefa não encontrada");
+      await assertMunicipioAccess(req.user!, existing.iniciativa.municipioId, "MarcoEntrega");
+      const row = await prisma.marcoEntrega.update({
+        where: { id: existing.id },
+        data: {
+          concluidoEm: null,
+          encerradoSemSolucaoEm: null,
+          motivoEncerramento: null,
+        },
+      });
+      await writeAudit({
+        user: req.user,
+        action: "UPDATE",
+        entity: "MarcoEntrega",
+        entityId: row.id,
+        before: { concluidoEm: existing.concluidoEm },
+        after: { concluidoEm: null },
+        ip: req.ip,
+      });
+      res.json({ data: row });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+iniciativasRouter.get(
+  "/:id/historico",
+  requirePermission("iniciativa:read"),
+  async (req, res, next) => {
+    try {
+      const ini = await prisma.iniciativa.findUnique({
+        where: { id: req.params.id },
+        select: { id: true, municipioId: true },
+      });
+      if (!ini) throw new HttpError(404, "NOT_FOUND", "Iniciativa não encontrada");
+      await assertMunicipioAccess(req.user!, ini.municipioId, "Iniciativa");
+
+      const marcos = await prisma.marcoEntrega.findMany({
+        where: { iniciativaId: ini.id },
+        select: { id: true },
+      });
+      const marcoIds = marcos.map((m) => m.id);
+
+      const [audits, reprogramacoes] = await Promise.all([
+        prisma.auditLog.findMany({
+          where: {
+            municipioId: ini.municipioId,
+            OR: [
+              { entity: "Iniciativa", entityId: ini.id },
+              ...(marcoIds.length
+                ? [{ entity: "MarcoEntrega", entityId: { in: marcoIds } }]
+                : []),
+            ],
+          },
+          orderBy: { createdAt: "desc" },
+          take: 80,
+          include: { actor: { select: { id: true, name: true } } },
+        }),
+        prisma.reprogramacao.findMany({
+          where: { marcoId: { in: marcoIds.length ? marcoIds : ["__none__"] } },
+          orderBy: { createdAt: "desc" },
+          take: 40,
+          include: {
+            marco: { select: { id: true, descricao: true, codigo: true } },
+            autor: { select: { id: true, name: true } },
+          },
+        }),
+      ]);
+
+      const timeline = [
+        ...audits.map((a) => ({
+          id: a.id,
+          tipo: "AUDIT" as const,
+          action: a.action,
+          entity: a.entity,
+          entityId: a.entityId,
+          autor: a.actor?.name ?? null,
+          createdAt: a.createdAt.toISOString(),
+          detalhe: a.after,
+        })),
+        ...reprogramacoes.map((r) => ({
+          id: r.id,
+          tipo: "REPROGRAMACAO" as const,
+          action: "REPROGRAMAR",
+          entity: "MarcoEntrega",
+          entityId: r.marcoId,
+          autor: r.autor?.name ?? null,
+          createdAt: r.createdAt.toISOString(),
+          detalhe: {
+            marco: r.marco.descricao,
+            dataAnterior: r.dataAnterior,
+            dataNova: r.dataNova,
+            motivo: r.motivo,
+          },
+        })),
+      ].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+      res.json({ data: timeline });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+const dependenciaSchema = z.object({
+  origemTipo: z.enum(["MARCO", "INICIATIVA"]),
+  origemId: z.string().min(1),
+  destinoTipo: z.enum(["MARCO", "INICIATIVA"]),
+  destinoId: z.string().min(1),
+  tipo: z.enum(["IMPEDITIVA", "INFORMATIVA", "COMPARTILHADA"]).optional(),
+  sentido: z.string().optional(),
+  justificativa: z.string().min(5),
+});
+
+iniciativasRouter.get(
+  "/:id/dependencias",
+  requirePermission("iniciativa:read"),
+  async (req, res, next) => {
+    try {
+      const ini = await prisma.iniciativa.findUnique({
+        where: { id: req.params.id },
+        select: { id: true, municipioId: true },
+      });
+      if (!ini) throw new HttpError(404, "NOT_FOUND", "Iniciativa não encontrada");
+      await assertMunicipioAccess(req.user!, ini.municipioId, "Iniciativa");
+      const marcoIds = (
+        await prisma.marcoEntrega.findMany({
+          where: { iniciativaId: ini.id },
+          select: { id: true },
+        })
+      ).map((m) => m.id);
+      const data = await prisma.dependenciaVinculo.findMany({
+        where: {
+          municipioId: ini.municipioId,
+          OR: [
+            { origemTipo: "INICIATIVA", origemId: ini.id },
+            { destinoTipo: "INICIATIVA", destinoId: ini.id },
+            ...(marcoIds.length
+              ? [
+                  { origemTipo: "MARCO" as const, origemId: { in: marcoIds } },
+                  { destinoTipo: "MARCO" as const, destinoId: { in: marcoIds } },
+                ]
+              : []),
+          ],
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      res.json({ data });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+iniciativasRouter.post(
+  "/:id/dependencias",
+  requirePermission("iniciativa:write"),
+  async (req, res, next) => {
+    try {
+      const body = dependenciaSchema.parse(req.body);
+      const ini = await prisma.iniciativa.findUnique({
+        where: { id: req.params.id },
+        select: { id: true, municipioId: true },
+      });
+      if (!ini) throw new HttpError(404, "NOT_FOUND", "Iniciativa não encontrada");
+      await assertMunicipioAccess(req.user!, ini.municipioId, "Iniciativa");
+
+      if (
+        body.tipo !== "INFORMATIVA" &&
+        (await criariaCiclo(
+          ini.municipioId,
+          { tipo: body.origemTipo, id: body.origemId },
+          { tipo: body.destinoTipo, id: body.destinoId },
+        ))
+      ) {
+        throw new HttpError(
+          422,
+          "CICLO_DEPENDENCIA",
+          "Dependência impeditiva criaria um ciclo entre atividades/projetos",
+        );
+      }
+
+      const row = await prisma.dependenciaVinculo.create({
+        data: {
+          municipioId: ini.municipioId,
+          origemTipo: body.origemTipo,
+          origemId: body.origemId,
+          destinoTipo: body.destinoTipo,
+          destinoId: body.destinoId,
+          tipo: body.tipo ?? "IMPEDITIVA",
+          sentido: body.sentido ?? "ORIGEM_BLOQUEIA_DESTINO",
+          justificativa: body.justificativa,
+          autorId: req.user!.id,
+          status: "PENDENTE",
+        },
+      });
+      await writeAudit({
+        user: req.user,
+        action: "CREATE",
+        entity: "DependenciaVinculo",
+        entityId: row.id,
+        after: row,
+        ip: req.ip,
+      });
+      res.status(201).json({ data: row });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+iniciativasRouter.patch(
+  "/dependencias/:depId",
+  requirePermission("iniciativa:write"),
+  async (req, res, next) => {
+    try {
+      const body = z
+        .object({ status: z.enum(["VALIDADO", "REJEITADO"]) })
+        .parse(req.body);
+      const existing = await prisma.dependenciaVinculo.findFirst({
+        where: { id: req.params.depId, municipioId: req.user!.municipioId },
+      });
+      if (!existing) throw new HttpError(404, "NOT_FOUND", "Dependência não encontrada");
+      const row = await prisma.dependenciaVinculo.update({
+        where: { id: existing.id },
+        data: {
+          status: body.status,
+          validadorId: req.user!.id,
+          validadoEm: new Date(),
+        },
+      });
+      res.json({ data: row });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+iniciativasRouter.post(
+  "/:id/equipamentos",
+  requirePermission("iniciativa:write"),
+  async (req, res, next) => {
+    try {
+      const body = z
+        .object({
+          equipamentoId: z.string().min(1),
+          tipoVinculo: z.string().optional(),
+          validado: z.boolean().optional(),
+        })
+        .parse(req.body);
+      const ini = await prisma.iniciativa.findUnique({
+        where: { id: req.params.id },
+      });
+      if (!ini) throw new HttpError(404, "NOT_FOUND", "Iniciativa não encontrada");
+      await assertMunicipioAccess(req.user!, ini.municipioId, "Iniciativa");
+      const eq = await prisma.equipamentoPublico.findFirst({
+        where: { id: body.equipamentoId, municipioId: ini.municipioId },
+      });
+      if (!eq) throw new HttpError(422, "INVALID_EQUIP", "Equipamento inválido");
+      const row = await prisma.iniciativaEquipamento.upsert({
+        where: {
+          iniciativaId_equipamentoId: {
+            iniciativaId: ini.id,
+            equipamentoId: eq.id,
+          },
+        },
+        create: {
+          iniciativaId: ini.id,
+          equipamentoId: eq.id,
+          tipoVinculo: body.tipoVinculo ?? "RELACIONADO",
+          validado: body.validado ?? false,
+        },
+        update: {
+          tipoVinculo: body.tipoVinculo ?? "RELACIONADO",
+          validado: body.validado ?? false,
+        },
+        include: { equipamento: true },
+      });
+      res.status(201).json({ data: row });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+iniciativasRouter.delete(
+  "/:id/equipamentos/:equipamentoId",
+  requirePermission("iniciativa:write"),
+  async (req, res, next) => {
+    try {
+      const ini = await prisma.iniciativa.findUnique({
+        where: { id: req.params.id },
+      });
+      if (!ini) throw new HttpError(404, "NOT_FOUND", "Iniciativa não encontrada");
+      await assertMunicipioAccess(req.user!, ini.municipioId, "Iniciativa");
+      await prisma.iniciativaEquipamento.deleteMany({
+        where: {
+          iniciativaId: ini.id,
+          equipamentoId: req.params.equipamentoId,
+        },
+      });
+      res.status(204).end();
     } catch (err) {
       next(err);
     }

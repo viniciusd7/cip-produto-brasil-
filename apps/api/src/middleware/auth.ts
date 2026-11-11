@@ -70,6 +70,29 @@ export function requirePermission(...needed: PermissionCode[]) {
   };
 }
 
+/**
+ * Aceita qualquer uma das permissões listadas.
+ * Gabinete (prefeito) também passa em rotas de secretaria mesmo com token
+ * antigo, enquanto o papel no JWT já for "prefeito".
+ */
+export function requireAnyPermission(
+  ...needed: PermissionCode[]
+) {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return next(new HttpError(401, "UNAUTHORIZED", "Não autenticado"));
+    }
+    const perms = req.user.permissions || [];
+    const ok =
+      needed.some((p) => perms.includes(p)) ||
+      (needed.includes("secretaria:manage") && req.user.role === "prefeito");
+    if (!ok) {
+      return next(new HttpError(403, "FORBIDDEN", "Permissão insuficiente"));
+    }
+    next();
+  };
+}
+
 export async function assertMunicipioAccess(
   user: AuthUser,
   municipioId: string,

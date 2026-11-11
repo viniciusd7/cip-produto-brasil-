@@ -13,6 +13,8 @@ export function TitularForm({
   token: string;
   secretariaId: string;
   initial: {
+    nome?: string | null;
+    sigla?: string | null;
     titularNome?: string | null;
     titularCargo?: string | null;
     titularTelefone?: string | null;
@@ -37,6 +39,8 @@ export function TitularForm({
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
+        nome: String(form.get("nome") || "").trim() || undefined,
+        sigla: String(form.get("sigla") || "").trim().toUpperCase() || null,
         titularNome: String(form.get("titularNome") || "") || null,
         titularCargo: String(form.get("titularCargo") || "") || null,
         titularTelefone: String(form.get("titularTelefone") || "") || null,
@@ -46,7 +50,7 @@ export function TitularForm({
     const json = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) {
-      setError(json?.error?.message || "Não foi possível salvar o titular.");
+      setError(json?.error?.message || "Não foi possível salvar a pasta.");
       return;
     }
     setOk(true);
@@ -56,6 +60,29 @@ export function TitularForm({
   return (
     <form onSubmit={onSubmit} className="stack">
       <div className="form-grid form-grid--2">
+        <div>
+          <label htmlFor="nome">Nome da secretaria</label>
+          <input
+            id="nome"
+            name="nome"
+            required
+            minLength={3}
+            defaultValue={initial.nome || ""}
+            placeholder="Ex.: Secretaria de Educação"
+          />
+        </div>
+        <div>
+          <label htmlFor="sigla">Sigla</label>
+          <input
+            id="sigla"
+            name="sigla"
+            minLength={2}
+            maxLength={12}
+            defaultValue={initial.sigla || ""}
+            placeholder="Ex.: SME"
+            style={{ textTransform: "uppercase" }}
+          />
+        </div>
         <div>
           <label htmlFor="titularNome">Nome do titular</label>
           <input
@@ -95,9 +122,9 @@ export function TitularForm({
         </div>
       </div>
       {error && <p style={{ color: "var(--cip-danger)", margin: 0 }}>{error}</p>}
-      {ok && <p className="dashboard-muted">Titular atualizado.</p>}
+      {ok && <p className="dashboard-muted">Pasta atualizada.</p>}
       <Button type="submit" disabled={saving}>
-        {saving ? "Salvando..." : "Salvar titular"}
+        {saving ? "Salvando..." : "Salvar pasta"}
       </Button>
     </form>
   );

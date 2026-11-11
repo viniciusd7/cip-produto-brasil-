@@ -23,6 +23,7 @@ export const PERMISSIONS = {
   INICIATIVA_WRITE: "iniciativa:write",
   MARCO_WRITE: "marco:write",
   EVIDENCIA_VALIDATE: "evidencia:validate",
+  SECRETARIA_MANAGE: "secretaria:manage",
   IMPORT_RUN: "import:run",
   REPORT_EXPORT: "report:export",
   AUDIT_READ: "audit:read",
@@ -34,6 +35,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, PermissionCode[]> = {
   admin: Object.values(PERMISSIONS),
   prefeito: [
     PERMISSIONS.INICIATIVA_READ,
+    PERMISSIONS.SECRETARIA_MANAGE,
     PERMISSIONS.REPORT_EXPORT,
     PERMISSIONS.AUDIT_READ,
   ],

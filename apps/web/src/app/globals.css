@@ -1025,10 +1025,122 @@ label {
   gap: 18px;
 }
 
+.projeto-metas-destaque {
+  display: grid;
+  gap: 12px;
+}
+
+.projeto-indicador-chip--estrategica {
+  border-color: rgba(0, 51, 160, 0.35);
+  background: linear-gradient(180deg, rgba(0, 51, 160, 0.08), var(--cip-surface));
+}
+
 .projeto-indicadores {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
+}
+
+.tb-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 12px;
+  overflow-x: auto;
+}
+
+.tb-col {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 220px;
+  border: 1px solid var(--cip-border);
+  border-radius: 14px;
+  background: rgba(16, 18, 27, 0.45);
+}
+
+.tb-col__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--cip-border);
+  font-size: 13px;
+}
+
+.tb-col__head span {
+  color: var(--cip-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tb-col__body {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  align-content: start;
+}
+
+.tb-col__empty {
+  margin: 8px 4px;
+  font-size: 13px;
+}
+
+.tb-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--cip-border);
+  border-radius: 12px;
+  background: var(--cip-surface);
+}
+
+.tb-card__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.tb-card__head strong {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.tb-card__meta {
+  font-size: 12px;
+  color: var(--cip-muted);
+}
+
+.tb-progress {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(0, 51, 160, 0.12);
+  overflow: hidden;
+}
+
+.tb-progress__bar {
+  height: 100%;
+  background: linear-gradient(90deg, #0033a0, #e6003d);
+}
+
+.tb-subs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.tb-subs li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+}
+
+@media (max-width: 1100px) {
+  .tb-board {
+    grid-template-columns: repeat(4, minmax(220px, 1fr));
+  }
 }
 
 .projeto-indicador-chip {

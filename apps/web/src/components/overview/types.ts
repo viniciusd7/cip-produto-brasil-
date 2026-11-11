@@ -108,6 +108,54 @@ export type OverviewResponse = {
       iniciativaNome: string;
       href?: string;
     }>;
+    estrategia?: {
+      metas: Array<{
+        id: string;
+        nome: string;
+        codigo?: string | null;
+        secretariaNome?: string | null;
+        indicador?: string | null;
+        valorBase?: string | null;
+        alvo?: string | null;
+        unidade?: string | null;
+        perspectivaBsc?: string | null;
+        resultadoChaveOkr?: string | null;
+        projetos: number;
+        desvio: number | null;
+        aguardandoMedicao: boolean;
+        medicaoAtual: {
+          dataCorte: string;
+          valorRealizado: string;
+          valorEsperado: string | null;
+          fonte: string | null;
+        } | null;
+        medicaoAnterior: {
+          dataCorte: string;
+          valorRealizado: string;
+        } | null;
+      }>;
+      porPerspectivaBsc: Array<{
+        perspectiva: string;
+        total: number;
+        comMedicao: number;
+      }>;
+      alertasOrcamento: Array<{
+        id: string;
+        tipo: string;
+        titulo: string;
+        statusConferencia: string;
+      }>;
+      alertaEquipamentos: Array<{
+        id: string;
+        nome: string;
+        frentesComAtraso: Array<{
+          iniciativaId: string;
+          nome: string;
+          secretaria: string;
+          atrasos: number;
+        }>;
+      }> | null;
+    };
   };
   meta?: { dataReferencia?: string; fonte?: string; metodoVersao?: string };
 };

@@ -8,6 +8,7 @@ import { apiFetch } from "@/lib/api";
 import { canValidateRole, canWriteRole } from "@/lib/roles";
 import { DadosExternos } from "@/components/dados-externos";
 import { ProjetoDocumento, type ProjetoDocData, type SecretariaRef } from "./projeto-documento";
+import { DossieGovernanca } from "./dossie-governanca";
 
 type DetailResponse = { data: ProjetoDocData & {
   descricao?: string | null;
@@ -16,6 +17,13 @@ type DetailResponse = { data: ProjetoDocData & {
   dataReferencia?: string | null;
   confiabilidade?: string | null;
   compromissos?: Array<{ compromisso: { titulo: string; codigo?: string | null } }>;
+  equipamentos?: Array<{
+    equipamentoId: string;
+    tipoVinculo: string;
+    validado: boolean;
+    equipamento: { id: string; nome: string; tipo?: string | null };
+  }>;
+  marcos?: Array<{ id: string; descricao: string }>;
 }};
 
 export default async function IniciativaPage({
@@ -112,6 +120,14 @@ export default async function IniciativaPage({
           todasSecretarias={todasSecretarias.data || []}
         />
       </Suspense>
+
+      <DossieGovernanca
+        iniciativaId={item.id}
+        canWrite={canWrite}
+        token={token}
+        equipamentosIniciais={item.equipamentos || []}
+        marcos={(item.marcos || []).map((m) => ({ id: m.id, descricao: m.descricao }))}
+      />
     </div>
   );
 }

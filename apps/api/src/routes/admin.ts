@@ -2,7 +2,12 @@ import { Router } from "express";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@cip/db";
-import { requireAuth, requirePermission } from "../middleware/auth";
+import {
+  requireAnyPermission,
+  requireAuth,
+  requirePermission,
+} from "../middleware/auth";
+import { HttpError } from "../middleware/error";
 import { writeAudit } from "../services/audit";
 import {
   promoteToTitular,
@@ -13,6 +18,19 @@ import {
 export const adminRouter = Router();
 
 adminRouter.use(requireAuth);
+
+/** Gabinete (manage) ou secretário/equipe (write) editam pastas. */
+const requireSecretariaWrite = requireAnyPermission(
+  "secretaria:manage",
+  "iniciativa:write",
+);
+
+function normalizeSigla(raw: string | null | undefined): string | null | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === null) return null;
+  const cleaned = raw.trim().toUpperCase();
+  return cleaned || null;
+}
 
 adminRouter.get(
   "/secretarias",
@@ -30,7 +48,78 @@ adminRouter.get(
   },
 );
 
+const secretariaCreateSchema = z.object({
+  nome: z.string().trim().min(3).max(120),
+  sigla: z
+    .string()
+    .trim()
+    .min(2)
+    .max(12)
+    .optional()
+    .or(z.literal(""))
+    .nullable(),
+});
+
+adminRouter.post(
+  "/secretarias",
+  requireSecretariaWrite,
+  async (req, res, next) => {
+    try {
+      const body = secretariaCreateSchema.parse(req.body);
+      const municipioId = req.user!.municipioId;
+      const nome = body.nome.trim();
+      const sigla = normalizeSigla(body.sigla ?? null) ?? null;
+
+      const conflitoNome = await prisma.secretaria.findFirst({
+        where: { municipioId, nome },
+      });
+      if (conflitoNome) {
+        throw new HttpError(
+          409,
+          "DUPLICATE_NOME",
+          "Já existe uma secretaria com este nome no município",
+        );
+      }
+      if (sigla) {
+        const conflitoSigla = await prisma.secretaria.findFirst({
+          where: { municipioId, active: true, sigla },
+        });
+        if (conflitoSigla) {
+          throw new HttpError(
+            409,
+            "DUPLICATE_SIGLA",
+            "Já existe uma secretaria ativa com esta sigla",
+          );
+        }
+      }
+
+      const created = await prisma.secretaria.create({
+        data: {
+          municipioId,
+          nome,
+          sigla,
+          active: true,
+        },
+      });
+
+      await writeAudit({
+        user: req.user,
+        action: "SECRETARIA_CREATE",
+        entity: "Secretaria",
+        entityId: created.id,
+        after: { nome: created.nome, sigla: created.sigla },
+        ip: req.ip,
+      });
+
+      res.status(201).json({ data: created });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 const secretariaTitularSchema = z.object({
+  nome: z.string().trim().min(3).max(120).optional(),
   titularNome: z.string().min(2).nullable().optional(),
   titularCargo: z.string().nullable().optional(),
   titularTelefone: z.string().nullable().optional(),
@@ -40,7 +129,7 @@ const secretariaTitularSchema = z.object({
 
 adminRouter.patch(
   "/secretarias/:id",
-  requirePermission("iniciativa:write"),
+  requireSecretariaWrite,
   async (req, res, next) => {
     try {
       const body = secretariaTitularSchema.parse(req.body);
@@ -51,6 +140,43 @@ adminRouter.patch(
         return res.status(404).json({
           error: { code: "NOT_FOUND", message: "Secretaria não encontrada" },
         });
+      }
+
+      const nome = body.nome === undefined ? undefined : body.nome.trim();
+      const sigla = normalizeSigla(body.sigla);
+
+      if (nome && nome !== existing.nome) {
+        const conflitoNome = await prisma.secretaria.findFirst({
+          where: {
+            municipioId: existing.municipioId,
+            nome,
+            NOT: { id: existing.id },
+          },
+        });
+        if (conflitoNome) {
+          throw new HttpError(
+            409,
+            "DUPLICATE_NOME",
+            "Já existe uma secretaria com este nome no município",
+          );
+        }
+      }
+      if (sigla && sigla !== existing.sigla) {
+        const conflitoSigla = await prisma.secretaria.findFirst({
+          where: {
+            municipioId: existing.municipioId,
+            active: true,
+            sigla,
+            NOT: { id: existing.id },
+          },
+        });
+        if (conflitoSigla) {
+          throw new HttpError(
+            409,
+            "DUPLICATE_SIGLA",
+            "Já existe uma secretaria ativa com esta sigla",
+          );
+        }
       }
 
       const titularEmail =
@@ -64,6 +190,7 @@ adminRouter.patch(
         const row = await tx.secretaria.update({
           where: { id: existing.id },
           data: {
+            nome,
             titularNome:
               body.titularNome === undefined ? undefined : body.titularNome,
             titularCargo:
@@ -73,7 +200,7 @@ adminRouter.patch(
                 ? undefined
                 : body.titularTelefone,
             titularEmail,
-            sigla: body.sigla === undefined ? undefined : body.sigla,
+            sigla,
           },
         });
 
@@ -106,14 +233,18 @@ adminRouter.patch(
 
       await writeAudit({
         user: req.user,
-        action: "SECRETARIA_TITULAR_UPDATE",
+        action: "SECRETARIA_UPDATE",
         entity: "Secretaria",
         entityId: updated.id,
         before: {
+          nome: existing.nome,
+          sigla: existing.sigla,
           titularNome: existing.titularNome,
           titularTelefone: existing.titularTelefone,
         },
         after: {
+          nome: updated.nome,
+          sigla: updated.sigla,
           titularNome: updated.titularNome,
           titularTelefone: updated.titularTelefone,
         },
@@ -231,7 +362,7 @@ adminRouter.get(
 
 adminRouter.post(
   "/secretarias/:id/pessoas",
-  requirePermission("iniciativa:write"),
+  requireSecretariaWrite,
   async (req, res, next) => {
     try {
       const body = pessoaSchema.parse(req.body);
@@ -290,7 +421,7 @@ adminRouter.post(
 
 adminRouter.patch(
   "/secretarias/:id/pessoas/:pessoaId",
-  requirePermission("iniciativa:write"),
+  requireSecretariaWrite,
   async (req, res, next) => {
     try {
       const body = pessoaPatchSchema.parse(req.body);

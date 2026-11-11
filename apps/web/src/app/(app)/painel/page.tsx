@@ -1,16 +1,25 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
-import { GovernoOverview } from "@/components/overview/governo-overview";
-import type { OverviewResponse } from "@/components/overview/types";
+import {
+  CenarioSecretaria,
+  type CenarioSecretariaResponse,
+} from "@/components/overview/cenario-secretaria";
 
-export default async function PainelPage() {
+export default async function PainelPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ secretariaId?: string }>;
+}) {
+  const sp = await searchParams;
   const session = await getServerSession(authOptions);
-  const payload = await apiFetch<OverviewResponse>("/dashboard/resumo", {
-    token: session?.accessToken,
-  });
+  const qs = sp.secretariaId ? `?secretariaId=${sp.secretariaId}` : "";
+  const payload = await apiFetch<CenarioSecretariaResponse>(
+    `/dashboard/cenario-secretaria${qs}`,
+    { token: session?.accessToken },
+  );
   return (
-    <GovernoOverview
+    <CenarioSecretaria
       payload={payload}
       municipio={session?.user?.municipioNome || "Prefeitura conectada"}
       role={session?.user?.role}

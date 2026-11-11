@@ -559,6 +559,9 @@ export function NovoProjetoWizard({
       if (escopoComNomeVazio(escopo)) {
         throw new Error("Dê nome a todas as metas, tarefas e subtarefas do escopo");
       }
+      if (!escopo.some((n) => n.nivel === "META")) {
+        throw new Error("Inclua ao menos uma meta de execução antes de concluir o escopo");
+      }
 
       const selected = Object.values(equipePorSecretaria)
         .flat()

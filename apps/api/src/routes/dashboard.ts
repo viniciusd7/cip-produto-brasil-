@@ -316,6 +316,111 @@ dashboardRouter.get("/resumo", async (req, res, next) => {
       })),
     };
 
+    const parseNum = (v: string | null | undefined) => {
+      if (!v) return null;
+      const n = Number(String(v).replace(",", ".").replace(/[^\d.-]/g, ""));
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const metasEstrategicas = await prisma.metaEstrategica.findMany({
+      where: { plano: { municipioId } },
+      include: {
+        secretaria: true,
+        plano: true,
+        medicoes: { orderBy: { dataCorte: "desc" }, take: 2 },
+        _count: { select: { iniciativas: true } },
+      },
+      orderBy: { nome: "asc" },
+    });
+
+    const estrategiaMetas = metasEstrategicas.map((m) => {
+      const atual = m.medicoes[0];
+      const anterior = m.medicoes[1];
+      const realizado = parseNum(atual?.valorRealizado ?? null);
+      const esperado = parseNum(atual?.valorEsperado ?? null);
+      const desvio =
+        realizado != null && esperado != null ? realizado - esperado : null;
+      return {
+        id: m.id,
+        nome: m.nome,
+        codigo: m.codigo,
+        secretariaId: m.secretariaId,
+        secretariaNome: m.secretaria?.nome ?? null,
+        indicador: m.indicador,
+        valorBase: m.valorBase,
+        alvo: m.alvo,
+        unidade: m.unidade,
+        periodicidade: m.periodicidade,
+        statusValidacao: m.statusValidacao,
+        perspectivaBsc: m.perspectivaBsc,
+        resultadoChaveOkr: m.resultadoChaveOkr,
+        projetos: m._count.iniciativas,
+        medicaoAtual: atual
+          ? {
+              dataCorte: atual.dataCorte.toISOString(),
+              valorRealizado: atual.valorRealizado,
+              valorEsperado: atual.valorEsperado,
+              fonte: atual.fonte,
+              confiabilidade: atual.confiabilidade,
+            }
+          : null,
+        medicaoAnterior: anterior
+          ? {
+              dataCorte: anterior.dataCorte.toISOString(),
+              valorRealizado: anterior.valorRealizado,
+            }
+          : null,
+        desvio,
+        aguardandoMedicao: !atual,
+      };
+    });
+
+    const docsPendentes = await prisma.documentoConhecimento.findMany({
+      where: {
+        municipioId,
+        tipo: { in: ["PPA", "LDO", "LOA"] },
+        statusConferencia: { not: "CONFERIDO" },
+      },
+      select: { id: true, tipo: true, titulo: true, statusConferencia: true },
+    });
+
+    const equipamentosAlerta = await prisma.equipamentoPublico.findMany({
+      where: { municipioId },
+      include: {
+        iniciativas: {
+          include: {
+            iniciativa: {
+              include: {
+                marcos: { include: { reprogramacoes: true } },
+                secretariaPrincipal: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    const alertaEquipamentos = equipamentosAlerta
+      .map((eq) => {
+        const frentes = eq.iniciativas.map((v) => {
+          const ini = v.iniciativa;
+          const atrasos = ini.marcos.filter(
+            (marco) =>
+              prazoStatus(marco, ini.dataReferencia ?? dataRef) === "VENCIDO",
+          ).length;
+          return {
+            iniciativaId: ini.id,
+            nome: ini.nome,
+            secretaria: ini.secretariaPrincipal.nome,
+            atrasos,
+          };
+        });
+        const comAtraso = frentes.filter((f) => f.atrasos > 0);
+        return comAtraso.length
+          ? { id: eq.id, nome: eq.nome, frentesComAtraso: comAtraso }
+          : null;
+      })
+      .filter(Boolean);
+
     res.json({
       data: {
         governo: {
@@ -462,11 +567,208 @@ dashboardRouter.get("/resumo", async (req, res, next) => {
             })),
           ),
         ].slice(0, 40),
+        estrategia: {
+          metas: estrategiaMetas,
+          porPerspectivaBsc: ["FINANCEIRA", "CLIENTES", "PROCESSOS", "APRENDIZADO"].map(
+            (p) => ({
+              perspectiva: p,
+              total: estrategiaMetas.filter((m) => m.perspectivaBsc === p).length,
+              comMedicao: estrategiaMetas.filter(
+                (m) => m.perspectivaBsc === p && m.medicaoAtual,
+              ).length,
+            }),
+          ),
+          alertasOrcamento: docsPendentes,
+          alertaEquipamentos,
+        },
       },
       meta: {
         dataReferencia: dataRef.toISOString(),
         fonte,
         metodoVersao: GRAVIDADE_METODO_VERSAO,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+dashboardRouter.get("/cenario-secretaria", async (req, res, next) => {
+  try {
+    const municipioId = req.user!.municipioId;
+    const secretariaIdParam = String(req.query.secretariaId || "").trim();
+
+    const secretarias = await prisma.secretaria.findMany({
+      where: { municipioId, active: true },
+      orderBy: { nome: "asc" },
+      select: {
+        id: true,
+        nome: true,
+        sigla: true,
+        titularNome: true,
+        titularCargo: true,
+      },
+    });
+
+    if (!secretarias.length) {
+      return res.json({
+        data: { secretarias: [], selected: null },
+        meta: { message: "Nenhuma secretaria cadastrada" },
+      });
+    }
+
+    const selectedId =
+      (secretariaIdParam &&
+        secretarias.some((s) => s.id === secretariaIdParam) &&
+        secretariaIdParam) ||
+      secretarias[0].id;
+
+    const selectedMeta = secretarias.find((s) => s.id === selectedId)!;
+
+    const parseNum = (v: string | null | undefined) => {
+      if (!v) return null;
+      const n = Number(String(v).replace(",", ".").replace(/[^\d.-]/g, ""));
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const metasEstrategicas = await prisma.metaEstrategica.findMany({
+      where: {
+        plano: { municipioId },
+        OR: [{ secretariaId: selectedId }, { secretariaId: null }],
+      },
+      include: {
+        medicoes: { orderBy: { dataCorte: "desc" }, take: 2 },
+        _count: { select: { iniciativas: true } },
+      },
+      orderBy: { nome: "asc" },
+    });
+
+    const metasEstrategicasDaPasta = metasEstrategicas.filter(
+      (m) => m.secretariaId === selectedId,
+    );
+
+    const iniciativas = await prisma.iniciativa.findMany({
+      where: { municipioId, secretariaPrincipalId: selectedId },
+      include: {
+        metasExecucao: true,
+        marcos: true,
+        metaEstrategica: true,
+      },
+      orderBy: { atualizadoEm: "desc" },
+    });
+
+    const dataRef =
+      iniciativas.find((i) => i.dataReferencia)?.dataReferencia ?? new Date();
+
+    const metaConcluida = (status: string) => {
+      const v = status.toUpperCase();
+      return v.includes("CONCLUID") || v === "ENCERRADA" || v === "ATINGIDA";
+    };
+
+    const metasExecucao = iniciativas.flatMap((ini) =>
+      ini.metasExecucao.map((meta) => {
+        const prazoSt = metaConcluida(meta.status)
+          ? "CONCLUIDO"
+          : prazoStatus({ prazoVigente: meta.prazo, concluidoEm: null }, dataRef);
+        return {
+          id: meta.id,
+          nome: meta.nome,
+          indicador: meta.indicador,
+          alvo: meta.alvo,
+          valorAtual: meta.valorAtual,
+          unidade: meta.unidade,
+          prazo: meta.prazo?.toISOString() ?? null,
+          status: meta.status,
+          prazoStatus: prazoSt,
+          iniciativaId: ini.id,
+          iniciativaNome: ini.nome,
+          iniciativaCodigo: ini.codigo,
+          metaEstrategicaNome: ini.metaEstrategica?.nome ?? null,
+        };
+      }),
+    );
+
+    const marcos = iniciativas.flatMap((ini) =>
+      ini.marcos.map((m) => prazoStatus(m, ini.dataReferencia ?? dataRef)),
+    );
+    const totalTarefas = marcos.length;
+    const concluidas = marcos.filter((st) => st === "CONCLUIDO").length;
+    const atrasadas = marcos.filter((st) => st === "VENCIDO").length;
+    const semPrazo = marcos.filter((st) => st === "SEM_PRAZO").length;
+    const noPrazo = marcos.filter((st) => st === "NO_PRAZO").length;
+
+    const metasComValor = metasExecucao.filter((m) => !!m.valorAtual?.trim()).length;
+    const metasAtrasadas = metasExecucao.filter((m) => m.prazoStatus === "VENCIDO").length;
+
+    const estrategiaCards = metasEstrategicasDaPasta.map((m) => {
+      const atual = m.medicoes[0];
+      const realizado = parseNum(atual?.valorRealizado ?? null);
+      const esperado = parseNum(atual?.valorEsperado ?? null);
+      return {
+        id: m.id,
+        nome: m.nome,
+        codigo: m.codigo,
+        indicador: m.indicador,
+        valorBase: m.valorBase,
+        alvo: m.alvo,
+        unidade: m.unidade,
+        periodicidade: m.periodicidade,
+        statusValidacao: m.statusValidacao,
+        perspectivaBsc: m.perspectivaBsc,
+        resultadoChaveOkr: m.resultadoChaveOkr,
+        projetos: m._count.iniciativas,
+        medicaoAtual: atual
+          ? {
+              dataCorte: atual.dataCorte.toISOString(),
+              valorRealizado: atual.valorRealizado,
+              valorEsperado: atual.valorEsperado,
+              fonte: atual.fonte,
+            }
+          : null,
+        desvio:
+          realizado != null && esperado != null ? realizado - esperado : null,
+        aguardandoMedicao: !atual,
+      };
+    });
+
+    res.json({
+      data: {
+        secretarias: secretarias.map((s) => ({
+          id: s.id,
+          nome: s.nome,
+          sigla: s.sigla,
+          titularNome: s.titularNome,
+        })),
+        selected: {
+          id: selectedMeta.id,
+          nome: selectedMeta.nome,
+          sigla: selectedMeta.sigla,
+          titularNome: selectedMeta.titularNome,
+          titularCargo: selectedMeta.titularCargo,
+        },
+        metasEstrategicas: estrategiaCards,
+        metasExecucao,
+        indicadores: {
+          projetos: iniciativas.length,
+          metasExecucao: metasExecucao.length,
+          metasComValor,
+          coberturaMetas: metasExecucao.length
+            ? Math.round((metasComValor / metasExecucao.length) * 1000) / 10
+            : 0,
+          metasAtrasadas,
+          totalTarefas,
+          concluidas,
+          atrasadas,
+          semPrazo,
+          noPrazo,
+          pctConclusao: totalTarefas
+            ? Math.round((concluidas / totalTarefas) * 1000) / 10
+            : 0,
+        },
+      },
+      meta: {
+        dataReferencia: dataRef.toISOString(),
+        fonte: "Cenário por secretaria · CIP",
       },
     });
   } catch (err) {
@@ -493,6 +795,7 @@ dashboardRouter.get("/pasta-resumo", async (req, res, next) => {
       where: { municipioId },
       include: {
         secretariaPrincipal: true,
+        secretarias: { select: { secretariaId: true, papel: true } },
         marcos: { include: { reprogramacoes: true } },
         impedimentos: {
           where: { status: { in: ["ABERTO", "EM_ENCAMINHAMENTO"] } },
@@ -503,8 +806,28 @@ dashboardRouter.get("/pasta-resumo", async (req, res, next) => {
     const dataRef =
       iniciativas.find((i) => i.dataReferencia)?.dataReferencia ?? new Date();
 
+    const mapProjeto = (i: (typeof iniciativas)[number]) => ({
+      id: i.id,
+      codigo: i.codigo,
+      nome: i.nome,
+      ciclo: i.ciclo,
+      estruturante: i.estruturante,
+      bloqueioLabel: i.bloqueioLabel,
+      pendencias: i.impedimentos.length,
+      atrasadas: i.marcos.filter(
+        (m) => prazoStatus(m, i.dataReferencia ?? dataRef) === "VENCIDO",
+      ).length,
+      secretariaPrincipalNome: i.secretariaPrincipal.nome,
+    });
+
     const scored = secretarias.map((s) => {
-      const inis = iniciativas.filter((i) => i.secretariaPrincipalId === s.id);
+      const principais = iniciativas.filter((i) => i.secretariaPrincipalId === s.id);
+      const correlacionados = iniciativas.filter(
+        (i) =>
+          i.secretariaPrincipalId !== s.id &&
+          i.secretarias.some((v) => v.secretariaId === s.id),
+      );
+      const inis = principais;
       const marcos = inis.flatMap((i) =>
         i.marcos.map((m) => ({
           st: prazoStatus(m, i.dataReferencia ?? dataRef),
@@ -558,17 +881,10 @@ dashboardRouter.get("/pasta-resumo", async (req, res, next) => {
           semPrazo: sem,
           concluidas: conc,
         },
-        projetos: inis.map((i) => ({
-          id: i.id,
-          codigo: i.codigo,
-          nome: i.nome,
-          ciclo: i.ciclo,
-          estruturante: i.estruturante,
-          pendencias: i.impedimentos.length,
-          atrasadas: i.marcos.filter(
-            (m) => prazoStatus(m, i.dataReferencia ?? dataRef) === "VENCIDO",
-          ).length,
-        })),
+        projetosPrincipais: principais.map(mapProjeto),
+        projetosCorrelacionados: correlacionados.map(mapProjeto),
+        /** @deprecated use projetosPrincipais */
+        projetos: principais.map(mapProjeto),
       };
     });
 
@@ -607,7 +923,9 @@ dashboardRouter.get("/pasta-resumo", async (req, res, next) => {
         classificacao: focus.classificacao,
         pctAtraso: focus.pctAtraso,
         tarefasStatus: focus.tarefasStatus,
-        projetos: focus.projetos,
+        projetosPrincipais: focus.projetosPrincipais,
+        projetosCorrelacionados: focus.projetosCorrelacionados,
+        projetos: focus.projetosPrincipais,
       },
       meta: {
         dataReferencia: dataRef.toISOString(),
