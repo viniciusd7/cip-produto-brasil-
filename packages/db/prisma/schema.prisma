@@ -15,11 +15,13 @@ model User {
   name         String
   passwordHash String
   active       Boolean  @default(true)
+  isPlatformAdmin Boolean @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   roles                 UserRole[]
   vinculos              VinculoUsuarioMunicipio[]
+  prefeiturasConsultor  Municipio[]               @relation("MunicipioConsultorResponsavel")
   sessions              SessionToken[]
   auditLogs             AuditLog[]                @relation("AuditActor")
   reprogramacoes        Reprogramacao[]
@@ -87,20 +89,27 @@ model SessionToken {
 // ========== Organização municipal ==========
 
 model Municipio {
-  id        String   @id @default(cuid())
-  nome      String
-  uf        String   @db.VarChar(2)
-  ibgeCode  String?  @unique
+  id                     String   @id @default(cuid())
+  nome                   String
+  uf                     String   @db.VarChar(2)
+  ibgeCode               String?  @unique
   /**
    * CNPJ do órgão (só dígitos) para consultas Transferegov/PNCP.
    */
-  cnpjOrgao String?  @db.VarChar(14)
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  cnpjOrgao              String?  @db.VarChar(14)
+  mandatoInicio          DateTime?
+  mandatoFim             DateTime?
+  prefeitoNome           String?
+  prefeitoTelefone       String?
+  prefeitoEmail          String?
+  consultorResponsavelId String?
+  active                 Boolean  @default(true)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   secretarias           Secretaria[]
   vinculos              VinculoUsuarioMunicipio[]
+  consultorResponsavel  User?                    @relation("MunicipioConsultorResponsavel", fields: [consultorResponsavelId], references: [id], onDelete: SetNull)
   compromissos          Compromisso[]
   iniciativas           Iniciativa[]
   equipamentos          EquipamentoPublico[]
@@ -112,6 +121,8 @@ model Municipio {
   sugestoesIa           SugestaoIA[]
   solicitacoesValidacao SolicitacaoValidacao[]
   medicoes              Medicao[]
+
+  @@index([consultorResponsavelId])
 }
 
 model VinculoUsuarioMunicipio {
@@ -119,6 +130,7 @@ model VinculoUsuarioMunicipio {
   userId       String
   municipioId  String
   secretariaId String?
+  roleCode     String      @default("leitura")
   principal    Boolean     @default(true)
   createdAt    DateTime    @default(now())
   user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)

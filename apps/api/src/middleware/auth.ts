@@ -14,6 +14,7 @@ export interface AuthUser {
   municipioId: string;
   municipioNome: string;
   secretariaId?: string | null;
+  isPlatformAdmin: boolean;
   permissions: PermissionCode[];
 }
 
@@ -73,57 +74,75 @@ export async function requireAuth(
   }
 
   try {
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: { active: true, isPlatformAdmin: true },
+    });
+    if (!user?.active) {
+      throw new HttpError(
+        401,
+        "UNAUTHORIZED",
+        "Usuário inativo ou não encontrado",
+      );
+    }
+
+    if (user.isPlatformAdmin && !decoded.municipioId) {
+      req.user = {
+        ...decoded,
+        role: "admin",
+        municipioId: "",
+        municipioNome: "Gestão central CIP",
+        secretariaId: null,
+        isPlatformAdmin: true,
+        permissions: permissionsForRole("admin"),
+      };
+      next();
+      return;
+    }
+
+    const municipio = await prisma.municipio.findFirst({
+      where: { id: decoded.municipioId, active: true },
+      select: { id: true, nome: true },
+    });
+    if (!municipio) {
+      throw new HttpError(401, "UNAUTHORIZED", "Prefeitura inativa ou inexistente");
+    }
+
     const vinculo = await prisma.vinculoUsuarioMunicipio.findUnique({
       where: {
         userId_municipioId: {
           userId: decoded.id,
-          municipioId: decoded.municipioId,
+          municipioId: municipio.id,
         },
       },
-      select: {
-        municipioId: true,
-        municipio: { select: { nome: true } },
-        user: {
-          select: {
-            active: true,
-            roles: { select: { role: { select: { code: true } } } },
-          },
-        },
-      },
+      select: { roleCode: true, secretariaId: true },
     });
-    if (!vinculo || !vinculo.user.active) {
+    if (!vinculo && !user.isPlatformAdmin) {
       throw new HttpError(
         401,
         "UNAUTHORIZED",
-        "Usuário inativo ou sem vínculo municipal",
+        "Usuário sem vínculo com esta prefeitura",
       );
     }
 
-    const rawRole = vinculo.user.roles[0]?.role.code;
+    const rawRole = vinculo?.roleCode || "admin";
     const role = (
-      rawRole && rawRole in ROLE_PERMISSIONS ? rawRole : "leitura"
+      user.isPlatformAdmin
+        ? "admin"
+        : rawRole &&
+            rawRole !== "admin" &&
+            rawRole in ROLE_PERMISSIONS
+          ? rawRole
+          : "leitura"
     ) as RoleCode;
-    const secretariaId =
-      role === "gestor"
-        ? (
-            await prisma.vinculoUsuarioMunicipio.findUnique({
-              where: {
-                userId_municipioId: {
-                  userId: decoded.id,
-                  municipioId: vinculo.municipioId,
-                },
-              },
-              select: { secretariaId: true },
-            })
-          )?.secretariaId ?? null
-        : null;
 
     req.user = {
       ...decoded,
       role,
-      municipioId: vinculo.municipioId,
-      municipioNome: vinculo.municipio.nome,
-      secretariaId,
+      municipioId: municipio.id,
+      municipioNome: municipio.nome,
+      secretariaId: role === "gestor" ? vinculo?.secretariaId ?? null : null,
+      isPlatformAdmin: user.isPlatformAdmin,
       permissions: permissionsForRole(role),
     };
     next();
@@ -137,12 +156,41 @@ export function requirePermission(...needed: PermissionCode[]) {
     if (!req.user) {
       return next(new HttpError(401, "UNAUTHORIZED", "Não autenticado"));
     }
+    if (!req.user!.municipioId) {
+      return next(
+        new HttpError(
+          409,
+          "TENANT_CONTEXT_REQUIRED",
+          "Selecione uma prefeitura antes de acessar esta área",
+        ),
+      );
+    }
     const ok = needed.every((p) => req.user!.permissions.includes(p));
     if (!ok) {
       return next(new HttpError(403, "FORBIDDEN", "Permissão insuficiente"));
     }
     next();
   };
+}
+
+export function requirePlatformAdmin(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+) {
+  if (!req.user) {
+    return next(new HttpError(401, "UNAUTHORIZED", "Não autenticado"));
+  }
+  if (!req.user.isPlatformAdmin) {
+    return next(
+      new HttpError(
+        403,
+        "PLATFORM_ADMIN_REQUIRED",
+        "Ação exclusiva da administração central da CIP",
+      ),
+    );
+  }
+  next();
 }
 
 /**
@@ -156,6 +204,15 @@ export function requireAnyPermission(
   return (req: Request, _res: Response, next: NextFunction) => {
     if (!req.user) {
       return next(new HttpError(401, "UNAUTHORIZED", "Não autenticado"));
+    }
+    if (!req.user.municipioId) {
+      return next(
+        new HttpError(
+          409,
+          "TENANT_CONTEXT_REQUIRED",
+          "Selecione uma prefeitura antes de acessar esta área",
+        ),
+      );
     }
     const perms = req.user.permissions || [];
     const ok =

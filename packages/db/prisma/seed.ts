@@ -963,21 +963,29 @@ async function main() {
       email: "admin@cip.local",
       name: "Admin CIP",
       roleId: adminRole.id,
+      roleCode: "leitura",
+      isPlatformAdmin: true,
     },
     {
       email: "prefeito@cmd.local",
       name: "Gabinete do Prefeito CMD",
       roleId: prefeitoRole.id,
+      roleCode: "prefeito",
+      isPlatformAdmin: false,
     },
     {
       email: "gestor@cmd.local",
       name: "Gestor Municipal CMD",
       roleId: gestorRole.id,
+      roleCode: "gestor",
+      isPlatformAdmin: false,
     },
     {
       email: "analista@cmd.local",
       name: "Analista Técnico CMD",
       roleId: analistaRole.id,
+      roleCode: "analista",
+      isPlatformAdmin: false,
     },
   ];
 
@@ -985,12 +993,17 @@ async function main() {
     // Não redefine passwordHash no update — evita resetar senhas em reseed.
     const user = await prisma.user.upsert({
       where: { email: u.email },
-      update: { name: u.name, active: true },
+      update: {
+        name: u.name,
+        active: true,
+        isPlatformAdmin: u.isPlatformAdmin,
+      },
       create: {
         email: u.email,
         name: u.name,
         passwordHash,
         active: true,
+        isPlatformAdmin: u.isPlatformAdmin,
       },
     });
     await prisma.userRole.upsert({
@@ -1005,11 +1018,13 @@ async function main() {
       update: {
         principal: true,
         ...(u.roleId === gestorRole.id ? { secretariaId: secretarias.GAB } : {}),
+        roleCode: u.roleCode,
       },
       create: {
         userId: user.id,
         municipioId: municipio.id,
         ...(u.roleId === gestorRole.id ? { secretariaId: secretarias.GAB } : {}),
+        roleCode: u.roleCode,
         principal: true,
       },
     });

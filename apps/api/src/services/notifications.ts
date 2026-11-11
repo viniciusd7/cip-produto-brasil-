@@ -21,7 +21,7 @@ export interface NotificationPort {
 export async function avisarSecretaria(iniciativaId: string, texto: string, tipo = "AVISO", autorId?: string, db: Prisma.TransactionClient = prisma) {
   const iniciativa = await db.iniciativa.findUniqueOrThrow({ where: { id: iniciativaId }, include: { secretariaPrincipal: true } });
   const email = iniciativa.secretariaPrincipal.titularEmail;
-  const titular = email ? await db.user.findFirst({ where: { email, active: true, vinculos: { some: { municipioId: iniciativa.municipioId } }, roles: { some: { role: { code: "gestor" } } } } }) : null;
+  const titular = email ? await db.user.findFirst({ where: { email, active: true, vinculos: { some: { municipioId: iniciativa.municipioId, roleCode: "gestor" } } } }) : null;
   return db.comunicado.create({ data: { iniciativaId, autorId, destinatarioId: titular?.id, destinoPapel: titular ? null : "gestor", texto, tipo } });
 }
 export const notifications: NotificationPort = {

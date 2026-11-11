@@ -7,6 +7,7 @@ import { signOut, useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
 import { PAINEL_TOC } from "@cip/shared";
 import { BrandLogo } from "@/components/brand-logo";
+import { TenantSwitcher } from "@/components/tenant-switcher";
 import { s as overview } from "@/components/overview/ov";
 import {
   getNavForRole,
@@ -19,11 +20,13 @@ export function AppShell({
   initialRole,
   initialName,
   initialMunicipio,
+  initialIsPlatformAdmin,
 }: {
   children: React.ReactNode;
   initialRole?: string;
   initialName?: string | null;
   initialMunicipio?: string | null;
+  initialIsPlatformAdmin?: boolean;
 }) {
   const pathname = usePathname();
   const { data } = useSession();
@@ -32,10 +35,17 @@ export function AppShell({
   const menuToggleRef = useRef<HTMLButtonElement>(null);
   const railRef = useRef<HTMLElement>(null);
   const role = data?.user?.role || initialRole;
-  const visibleNav = getNavForRole(role);
+  const isCentralCip = Boolean(
+    (data?.user?.isPlatformAdmin ?? initialIsPlatformAdmin) &&
+      !(data?.user?.municipioId || ""),
+  );
+  const visibleNav = isCentralCip
+    ? getNavForRole(role).filter((item) => item.href === "/administracao")
+    : getNavForRole(role);
   const nextStep = getNextStepForRole(role);
-  const flowSteps =
-    role === "gestor"
+  const flowSteps = isCentralCip
+    ? ["Prefeituras", "Consultores", "Equipes", "Acessos"]
+    : role === "gestor"
       ? ["Minha pasta", "Projetos", "Tarefas", "Evidências"]
       : role === "analista"
         ? ["Secretarias", "Projetos", "Tarefas", "Evidências"]
@@ -132,7 +142,7 @@ export function AppShell({
           <span>Governo em perspectiva</span>
         </div>
         <div className="app-topbar__actions">
-          {["gestor", "analista", "admin"].includes(role || "") && (
+          {!isCentralCip && ["gestor", "analista", "admin"].includes(role || "") && (
             <AvisosBadge token={data?.accessToken} compact />
           )}
           <button
@@ -171,9 +181,9 @@ export function AppShell({
         </div>
 
         <div className="tenant-block">
-          <span>Prefeitura conectada</span>
-          <strong>{municipioNome || "Município"}</strong>
-          <small>{getRoleLabel(role)}</small>
+          <span>{isCentralCip ? "Console da plataforma" : "Prefeitura conectada"}</span>
+          <TenantSwitcher initialMunicipio={municipioNome} />
+          {!isCentralCip && <small>{getRoleLabel(role)}</small>}
         </div>
 
         <div className="journey-strip" aria-label="Seu próximo passo">

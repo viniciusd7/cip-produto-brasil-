@@ -97,10 +97,8 @@ export function UsuarioForm({
             onChange={(event) => setRoleCode(event.target.value)}
           >
             <option value="gestor">Secretário</option>
-            <option value="analista">Consultor</option>
             <option value="prefeito">Prefeito</option>
             <option value="leitura">Somente leitura</option>
-            <option value="admin">Administrador</option>
           </select>
         </div>
         {roleCode === "gestor" && (

@@ -12,6 +12,7 @@ declare module "next-auth" {
       municipioId: string;
       municipioNome: string;
       secretariaId?: string | null;
+      isPlatformAdmin: boolean;
     };
   }
 
@@ -21,6 +22,7 @@ declare module "next-auth" {
     municipioNome?: string;
     secretariaId?: string | null;
     accessToken?: string;
+    isPlatformAdmin?: boolean;
   }
 }
 
@@ -31,5 +33,6 @@ declare module "next-auth/jwt" {
     municipioId?: string;
     municipioNome?: string;
     secretariaId?: string | null;
+    isPlatformAdmin?: boolean;
   }
 }

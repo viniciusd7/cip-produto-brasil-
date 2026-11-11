@@ -5,6 +5,7 @@ import { prisma } from "@cip/db";
 import {
   assertSecretariaAccess,
   iniciativaScopeFilter,
+  requirePlatformAdmin,
   requireAnyPermission,
   requireAuth,
   requirePermission,
@@ -20,6 +21,584 @@ import {
 export const adminRouter = Router();
 
 adminRouter.use(requireAuth);
+
+const municipioOnboardingSchema = z.object({
+  nome: z.string().trim().min(2).max(120),
+  uf: z.string().trim().toUpperCase().regex(/^[A-Z]{2}$/),
+  ibgeCode: z.string().trim().regex(/^\d{7}$/).nullable().optional(),
+  cnpjOrgao: z.string().trim().regex(/^\d{14}$/).nullable().optional(),
+  mandatoInicio: z.string().datetime().nullable().optional(),
+  mandatoFim: z.string().datetime().nullable().optional(),
+  prefeitoNome: z.string().trim().min(2).max(120),
+  prefeitoTelefone: z.string().trim().min(8).max(30),
+  prefeitoEmail: z.string().trim().email(),
+});
+
+adminRouter.get(
+  "/municipios",
+  requirePlatformAdmin,
+  async (_req, res, next) => {
+    try {
+      const municipios = await prisma.municipio.findMany({
+        include: {
+          consultorResponsavel: {
+            select: { id: true, name: true, email: true, active: true },
+          },
+          _count: { select: { secretarias: true, iniciativas: true } },
+        },
+        orderBy: [{ active: "desc" }, { nome: "asc" }],
+      });
+      res.json({
+        data: municipios.map((municipio) => ({
+          id: municipio.id,
+          nome: municipio.nome,
+          uf: municipio.uf,
+          ibgeCode: municipio.ibgeCode,
+          cnpjOrgao: municipio.cnpjOrgao,
+          mandatoInicio: municipio.mandatoInicio?.toISOString() ?? null,
+          mandatoFim: municipio.mandatoFim?.toISOString() ?? null,
+          prefeitoNome: municipio.prefeitoNome,
+          prefeitoTelefone: municipio.prefeitoTelefone,
+          prefeitoEmail: municipio.prefeitoEmail,
+          active: municipio.active,
+          consultorResponsavel: municipio.consultorResponsavel,
+          secretarias: municipio._count.secretarias,
+          projetos: municipio._count.iniciativas,
+        })),
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+adminRouter.post(
+  "/municipios",
+  requirePlatformAdmin,
+  async (req, res, next) => {
+    try {
+      const body = municipioOnboardingSchema.parse(req.body);
+      const mandatoInicio = body.mandatoInicio
+        ? new Date(body.mandatoInicio)
+        : null;
+      const mandatoFim = body.mandatoFim ? new Date(body.mandatoFim) : null;
+      if (mandatoInicio && mandatoFim && mandatoFim < mandatoInicio) {
+        throw new HttpError(
+          422,
+          "INVALID_MANDATE_PERIOD",
+          "O fim do mandato precisa ser posterior ao início",
+        );
+      }
+      const existing = body.ibgeCode
+        ? await prisma.municipio.findUnique({ where: { ibgeCode: body.ibgeCode } })
+        : await prisma.municipio.findFirst({
+            where: { nome: body.nome, uf: body.uf },
+          });
+      if (existing) {
+        throw new HttpError(
+          409,
+          "MUNICIPIO_ALREADY_EXISTS",
+          "Esta prefeitura já está cadastrada",
+        );
+      }
+
+      const municipio = await prisma.municipio.create({
+        data: {
+          nome: body.nome,
+          uf: body.uf,
+          ibgeCode: body.ibgeCode || null,
+          cnpjOrgao: body.cnpjOrgao || null,
+          mandatoInicio,
+          mandatoFim,
+          prefeitoNome: body.prefeitoNome,
+          prefeitoTelefone: body.prefeitoTelefone,
+          prefeitoEmail: body.prefeitoEmail.toLowerCase(),
+        },
+      });
+      await writeAudit({
+        user: req.user,
+        action: "MUNICIPIO_ONBOARD",
+        entity: "Municipio",
+        entityId: municipio.id,
+        after: {
+          nome: municipio.nome,
+          uf: municipio.uf,
+          ibgeCode: municipio.ibgeCode,
+          prefeitoEmail: municipio.prefeitoEmail,
+        },
+        ip: req.ip,
+      });
+      res.status(201).json({ data: municipio });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+adminRouter.patch(
+  "/municipios/:id",
+  requirePlatformAdmin,
+  async (req, res, next) => {
+    try {
+      const body = municipioOnboardingSchema.partial().extend({
+        active: z.boolean().optional(),
+      }).parse(req.body);
+      const existing = await prisma.municipio.findUnique({
+        where: { id: req.params.id },
+      });
+      if (!existing) {
+        throw new HttpError(404, "TENANT_NOT_FOUND", "Prefeitura não encontrada");
+      }
+      const start = body.mandatoInicio === undefined
+        ? existing.mandatoInicio
+        : body.mandatoInicio
+          ? new Date(body.mandatoInicio)
+          : null;
+      const end = body.mandatoFim === undefined
+        ? existing.mandatoFim
+        : body.mandatoFim
+          ? new Date(body.mandatoFim)
+          : null;
+      if (start && end && end < start) {
+        throw new HttpError(
+          422,
+          "INVALID_MANDATE_PERIOD",
+          "O fim do mandato precisa ser posterior ao início",
+        );
+      }
+      const municipio = await prisma.municipio.update({
+        where: { id: existing.id },
+        data: {
+          nome: body.nome,
+          uf: body.uf,
+          ibgeCode: body.ibgeCode,
+          cnpjOrgao: body.cnpjOrgao,
+          mandatoInicio:
+            body.mandatoInicio === undefined
+              ? undefined
+              : body.mandatoInicio
+                ? new Date(body.mandatoInicio)
+                : null,
+          mandatoFim:
+            body.mandatoFim === undefined
+              ? undefined
+              : body.mandatoFim
+                ? new Date(body.mandatoFim)
+                : null,
+          prefeitoNome: body.prefeitoNome,
+          prefeitoTelefone: body.prefeitoTelefone,
+          prefeitoEmail: body.prefeitoEmail?.toLowerCase(),
+          active: body.active,
+        },
+      });
+      await writeAudit({
+        user: { ...req.user!, municipioId: existing.id },
+        action: "MUNICIPIO_UPDATE",
+        entity: "Municipio",
+        entityId: municipio.id,
+        before: {
+          nome: existing.nome,
+          active: existing.active,
+          mandatoInicio: existing.mandatoInicio,
+          mandatoFim: existing.mandatoFim,
+        },
+        after: {
+          nome: municipio.nome,
+          active: municipio.active,
+          mandatoInicio: municipio.mandatoInicio,
+          mandatoFim: municipio.mandatoFim,
+        },
+        ip: req.ip,
+      });
+      res.json({ data: municipio });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+adminRouter.get(
+  "/consultores",
+  requirePlatformAdmin,
+  async (_req, res, next) => {
+    try {
+      const consultores = await prisma.user.findMany({
+        where: {
+          active: true,
+          isPlatformAdmin: false,
+          vinculos: { some: { roleCode: "analista" } },
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          vinculos: {
+            where: { roleCode: "analista" },
+            select: { municipioId: true, municipio: { select: { nome: true } } },
+          },
+        },
+        orderBy: { name: "asc" },
+      });
+      res.json({
+        data: consultores.map((consultor) => ({
+          id: consultor.id,
+          name: consultor.name,
+          email: consultor.email,
+          municipios: consultor.vinculos.map((v) => ({
+            id: v.municipioId,
+            nome: v.municipio.nome,
+          })),
+        })),
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+adminRouter.post(
+  "/consultores",
+  requirePlatformAdmin,
+  async (req, res, next) => {
+    try {
+      const body = z.object({
+        name: z.string().trim().min(2).max(120),
+        email: z.string().email(),
+        password: z.string().min(8),
+        municipioId: z.string().min(1),
+      }).parse(req.body);
+      const email = body.email.trim().toLowerCase();
+      const municipio = await prisma.municipio.findFirst({
+        where: { id: body.municipioId, active: true },
+        select: { id: true, consultorResponsavelId: true },
+      });
+      if (!municipio) {
+        throw new HttpError(404, "TENANT_NOT_FOUND", "Prefeitura não encontrada ou inativa");
+      }
+      if (await prisma.user.findUnique({ where: { email }, select: { id: true } })) {
+        throw new HttpError(
+          409,
+          "EMAIL_IN_USE",
+          "Este e-mail já possui uma conta. Se já for consultor, atribua a conta existente.",
+        );
+      }
+
+      const user = await prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
+          data: {
+            name: body.name,
+            email,
+            passwordHash: await bcrypt.hash(body.password, 10),
+            vinculos: {
+              create: {
+                municipioId: municipio.id,
+                roleCode: "analista",
+                principal: true,
+              },
+            },
+          },
+          select: { id: true, name: true, email: true },
+        });
+        if (
+          municipio.consultorResponsavelId &&
+          municipio.consultorResponsavelId !== created.id
+        ) {
+          await tx.vinculoUsuarioMunicipio.deleteMany({
+            where: {
+              userId: municipio.consultorResponsavelId,
+              municipioId: municipio.id,
+              roleCode: "analista",
+            },
+          });
+        }
+        await tx.municipio.update({
+          where: { id: municipio.id },
+          data: { consultorResponsavelId: created.id },
+        });
+        return created;
+      });
+      await writeAudit({
+        user: { ...req.user!, municipioId: municipio.id },
+        action: "CONSULTANT_CREATE_AND_ASSIGN",
+        entity: "Municipio",
+        entityId: municipio.id,
+        after: { consultorId: user.id },
+        ip: req.ip,
+      });
+      res.status(201).json({ data: user });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+adminRouter.post(
+  "/municipios/:id/consultor",
+  requirePlatformAdmin,
+  async (req, res, next) => {
+    try {
+      const { consultorId } = z
+        .object({ consultorId: z.string().nullable() })
+        .parse(req.body);
+      const municipio = await prisma.municipio.findUnique({
+        where: { id: req.params.id },
+        select: { id: true, consultorResponsavelId: true },
+      });
+      if (!municipio) {
+        throw new HttpError(404, "TENANT_NOT_FOUND", "Prefeitura não encontrada");
+      }
+      const consultor = consultorId
+        ? await prisma.user.findFirst({
+            where: { id: consultorId, active: true, isPlatformAdmin: false },
+            select: { id: true, name: true, email: true },
+          })
+        : null;
+      if (consultorId && !consultor) {
+        throw new HttpError(
+          422,
+          "INVALID_CONSULTOR",
+          "Selecione uma conta ativa de consultor",
+        );
+      }
+
+      await prisma.$transaction(async (tx) => {
+        if (consultor) {
+          const current = await tx.vinculoUsuarioMunicipio.findUnique({
+            where: {
+              userId_municipioId: {
+                userId: consultor.id,
+                municipioId: municipio.id,
+              },
+            },
+            select: { roleCode: true },
+          });
+          if (current && current.roleCode !== "analista") {
+            throw new HttpError(
+              409,
+              "USER_ROLE_CONFLICT",
+              "A conta selecionada já possui outro papel nesta prefeitura",
+            );
+          }
+          await tx.vinculoUsuarioMunicipio.upsert({
+            where: {
+              userId_municipioId: {
+                userId: consultor.id,
+                municipioId: municipio.id,
+              },
+            },
+            create: {
+              userId: consultor.id,
+              municipioId: municipio.id,
+              roleCode: "analista",
+              principal: true,
+            },
+            update: { roleCode: "analista" },
+          });
+        }
+
+        const previousConsultorId = municipio.consultorResponsavelId;
+        if (
+          previousConsultorId &&
+          previousConsultorId !== consultor?.id
+        ) {
+          await tx.vinculoUsuarioMunicipio.deleteMany({
+            where: {
+              userId: previousConsultorId,
+              municipioId: municipio.id,
+              roleCode: "analista",
+            },
+          });
+        }
+        await tx.municipio.update({
+          where: { id: municipio.id },
+          data: { consultorResponsavelId: consultor?.id ?? null },
+        });
+      });
+      await writeAudit({
+        user: { ...req.user!, municipioId: municipio.id },
+        action: "MUNICIPIO_CONSULTOR_ASSIGN",
+        entity: "Municipio",
+        entityId: municipio.id,
+        before: { consultorId: municipio.consultorResponsavelId },
+        after: { consultorId },
+        ip: req.ip,
+      });
+      res.json({ ok: true, data: { consultor } });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+adminRouter.get(
+  "/municipios/:id/usuarios",
+  requirePlatformAdmin,
+  async (req, res, next) => {
+    try {
+      const municipio = await prisma.municipio.findUnique({
+        where: { id: req.params.id },
+        select: {
+          id: true,
+          nome: true,
+          secretarias: {
+            where: { active: true },
+            select: { id: true, nome: true, sigla: true },
+            orderBy: { nome: "asc" },
+          },
+          vinculos: {
+            include: {
+              user: { select: { id: true, name: true, email: true, active: true } },
+              secretaria: { select: { id: true, nome: true } },
+            },
+            orderBy: { user: { name: "asc" } },
+          },
+        },
+      });
+      if (!municipio) {
+        throw new HttpError(404, "TENANT_NOT_FOUND", "Prefeitura não encontrada");
+      }
+      res.json({
+        data: {
+          id: municipio.id,
+          nome: municipio.nome,
+          secretarias: municipio.secretarias,
+          usuarios: municipio.vinculos.map((vinculo) => ({
+            id: vinculo.user.id,
+            name: vinculo.user.name,
+            email: vinculo.user.email,
+            active: vinculo.user.active,
+            roleCode: vinculo.roleCode,
+            secretariaId: vinculo.secretariaId,
+            secretariaNome: vinculo.secretaria?.nome ?? null,
+          })),
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+adminRouter.post(
+  "/municipios/:id/usuarios",
+  requirePlatformAdmin,
+  async (req, res, next) => {
+    try {
+      const body = z.object({
+        name: z.string().trim().min(2).max(120),
+        email: z.string().email(),
+        password: z.string().min(6).optional(),
+        roleCode: z.enum(["prefeito", "gestor", "leitura"]),
+        secretariaId: z.string().optional(),
+      }).parse(req.body);
+      const municipio = await prisma.municipio.findUnique({
+        where: { id: req.params.id },
+        select: { id: true },
+      });
+      if (!municipio) {
+        throw new HttpError(404, "TENANT_NOT_FOUND", "Prefeitura não encontrada");
+      }
+      const secretaria =
+        body.roleCode === "gestor"
+          ? await prisma.secretaria.findFirst({
+              where: {
+                id: body.secretariaId,
+                municipioId: municipio.id,
+                active: true,
+              },
+              select: { id: true },
+            })
+          : null;
+      if (body.roleCode === "gestor" && !secretaria) {
+        throw new HttpError(
+          422,
+          "INVALID_SECRETARIA",
+          "Selecione uma secretaria ativa desta prefeitura",
+        );
+      }
+      if (
+        body.roleCode === "prefeito" &&
+        await prisma.vinculoUsuarioMunicipio.count({
+          where: { municipioId: municipio.id, roleCode: "prefeito" },
+        })
+      ) {
+        throw new HttpError(
+          409,
+          "PREFEITO_ALREADY_ASSIGNED",
+          "Esta prefeitura já possui um usuário com perfil prefeito",
+        );
+      }
+
+      const email = body.email.trim().toLowerCase();
+      const existingUser = await prisma.user.findUnique({ where: { email } });
+      if (existingUser?.isPlatformAdmin) {
+        throw new HttpError(
+          409,
+          "PLATFORM_ACCOUNT_CANNOT_BE_MUNICIPAL",
+          "Use uma conta municipal para atribuir este papel",
+        );
+      }
+      const existingVinculo = existingUser
+        ? await prisma.vinculoUsuarioMunicipio.findUnique({
+            where: {
+              userId_municipioId: {
+                userId: existingUser.id,
+                municipioId: municipio.id,
+              },
+            },
+          })
+        : null;
+      if (existingVinculo) {
+        throw new HttpError(
+          409,
+          "USER_ALREADY_IN_TENANT",
+          "Este usuário já está vinculado a esta prefeitura",
+        );
+      }
+      if (!existingUser && !body.password) {
+        throw new HttpError(
+          422,
+          "PASSWORD_REQUIRED",
+          "Informe uma senha inicial para uma nova conta",
+        );
+      }
+
+      const user = await prisma.$transaction(async (tx) => {
+        const linkedUser = existingUser || await tx.user.create({
+          data: {
+            name: body.name,
+            email,
+            passwordHash: await bcrypt.hash(body.password!, 10),
+            active: true,
+          },
+        });
+        await tx.vinculoUsuarioMunicipio.create({
+          data: {
+            userId: linkedUser.id,
+            municipioId: municipio.id,
+            secretariaId: secretaria?.id,
+            roleCode: body.roleCode,
+            principal: true,
+          },
+        });
+        return linkedUser;
+      });
+      await writeAudit({
+        user: { ...req.user!, municipioId: municipio.id },
+        action: "MUNICIPAL_USER_CREATE",
+        entity: "User",
+        entityId: user.id,
+        after: { email: user.email, role: body.roleCode, municipioId: municipio.id },
+        ip: req.ip,
+      });
+      res.status(201).json({
+        data: { id: user.id, name: user.name, email: user.email },
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 /** Gabinete e consultoria podem editar cadastros das pastas. */
 const requireSecretariaWrite = requireAnyPermission(
@@ -606,9 +1185,9 @@ adminRouter.get(
           vinculos: { some: { municipioId: req.user!.municipioId } },
         },
         include: {
-          roles: { include: { role: true } },
           vinculos: {
-            include: { municipio: true, secretaria: true },
+            where: { municipioId: req.user!.municipioId },
+            include: { secretaria: true },
           },
         },
         orderBy: { name: "asc" },
@@ -619,14 +1198,10 @@ adminRouter.get(
           name: u.name,
           email: u.email,
           active: u.active,
-          roles: u.roles.map((r) => r.role.code),
-          municipios: u.vinculos.map((v) => v.municipio.nome),
-          secretarias: u.vinculos
-            .filter((v) => v.municipioId === req.user!.municipioId)
-            .map((v) => v.secretaria?.nome ?? null),
-          secretariaId:
-            u.vinculos.find((v) => v.municipioId === req.user!.municipioId)
-              ?.secretariaId ?? null,
+          roles: u.vinculos.map((v) => v.roleCode),
+          municipios: [req.user!.municipioNome],
+          secretarias: u.vinculos.map((v) => v.secretaria?.nome ?? null),
+          secretariaId: u.vinculos[0]?.secretariaId ?? null,
         })),
       });
     } catch (err) {
@@ -639,7 +1214,7 @@ const userSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
   password: z.string().min(6),
-  roleCode: z.enum(["admin", "prefeito", "gestor", "analista", "leitura"]),
+  roleCode: z.enum(["prefeito", "gestor", "leitura"]),
   secretariaId: z.string().optional(),
 });
 
@@ -650,19 +1225,34 @@ adminRouter.post(
     try {
       const body = userSchema.parse(req.body);
       const email = body.email.trim().toLowerCase();
-      const emailExiste = await prisma.user.findUnique({ where: { email } });
-      if (emailExiste) {
-        throw new HttpError(
-          409,
-          "EMAIL_IN_USE",
-          "Já existe um usuário cadastrado com este e-mail",
-        );
-      }
       if (body.roleCode === "gestor" && !body.secretariaId) {
         throw new HttpError(
           422,
           "SECRETARIA_REQUIRED",
           "Selecione a secretaria do secretário",
+        );
+      }
+      if (
+        body.roleCode === "prefeito" &&
+        (await prisma.vinculoUsuarioMunicipio.count({
+          where: {
+            municipioId: req.user!.municipioId,
+            roleCode: "prefeito",
+          },
+        }))
+      ) {
+        throw new HttpError(
+          409,
+          "PREFEITO_ALREADY_ASSIGNED",
+          "Esta prefeitura já possui um usuário com perfil prefeito",
+        );
+      }
+      const existingUser = await prisma.user.findUnique({ where: { email } });
+      if (existingUser) {
+        throw new HttpError(
+          409,
+          "USER_EXISTS_CONTACT_CIP",
+          "Este e-mail já possui uma conta. A CIP deve fazer o vínculo com esta prefeitura.",
         );
       }
       const secretaria =
@@ -683,20 +1273,17 @@ adminRouter.post(
           "A secretaria selecionada não pertence ao município ou está inativa",
         );
       }
-      const role = await prisma.role.findUniqueOrThrow({
-        where: { code: body.roleCode },
-      });
       const passwordHash = await bcrypt.hash(body.password, 10);
       const user = await prisma.user.create({
         data: {
           name: body.name,
           email,
           passwordHash,
-          roles: { create: { roleId: role.id } },
           vinculos: {
             create: {
               municipioId: req.user!.municipioId,
               secretariaId: secretaria?.id,
+              roleCode: body.roleCode,
               principal: true,
             },
           },
@@ -733,8 +1320,7 @@ adminRouter.patch(
       const usuario = await prisma.user.findFirst({
         where: {
           id: req.params.id,
-          vinculos: { some: { municipioId } },
-          roles: { some: { role: { code: "gestor" } } },
+          vinculos: { some: { municipioId, roleCode: "gestor" } },
         },
         select: { id: true },
       });

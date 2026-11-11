@@ -13,7 +13,41 @@ export const comunicadosRouter = Router();
 comunicadosRouter.use(requireAuth, requirePermission("iniciativa:read"));
 comunicadosRouter.get("/destinatarios", requirePermission("iniciativa:write"), async (req, res, next) => {
   try {
-    const data = await prisma.user.findMany({ where: { active: true, vinculos: { some: { municipioId: req.user!.municipioId } }, roles: { some: { role: { code: { in: ["gestor", "analista", "admin"] } } } } }, select: { id: true, name: true, roles: { select: { role: { select: { name: true } } } } }, orderBy: { name: "asc" } });
+    const users = await prisma.user.findMany({
+      where: {
+        active: true,
+        vinculos: {
+          some: {
+            municipioId: req.user!.municipioId,
+            roleCode: { in: ["gestor", "analista", "admin"] },
+          },
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        vinculos: {
+          where: {
+            municipioId: req.user!.municipioId,
+            roleCode: { in: ["gestor", "analista", "admin"] },
+          },
+          select: { roleCode: true },
+        },
+      },
+      orderBy: { name: "asc" },
+    });
+    const roleLabels: Record<string, string> = {
+      gestor: "Secretário",
+      analista: "Consultor",
+      admin: "Administração",
+    };
+    const data = users.map((user) => ({
+      id: user.id,
+      name: user.name,
+      roles: user.vinculos.map((vinculo) => ({
+        role: { name: roleLabels[vinculo.roleCode] || "Acesso" },
+      })),
+    }));
     res.json({ data });
   } catch (err) { next(err); }
 });
@@ -38,7 +72,18 @@ comunicadosRouter.post("/", requirePermission("iniciativa:write"), async (req, r
     const ini = await prisma.iniciativa.findUnique({ where: { id: body.iniciativaId } });
     if (!ini) throw new HttpError(404, "NOT_FOUND", "Projeto não encontrado");
     await assertMunicipioAccess(req.user!, ini.municipioId);
-    const destino = await prisma.user.findFirst({ where: { id: body.destinatarioId, active: true, vinculos: { some: { municipioId: req.user!.municipioId } }, roles: { some: { role: { code: { in: ["gestor", "analista", "admin"] } } } } } });
+    const destino = await prisma.user.findFirst({
+      where: {
+        id: body.destinatarioId,
+        active: true,
+        vinculos: {
+          some: {
+            municipioId: req.user!.municipioId,
+            roleCode: { in: ["gestor", "analista", "admin"] },
+          },
+        },
+      },
+    });
     if (!destino) throw new HttpError(422, "INVALID_DESTINO", "Destinatário indisponível neste município");
     const data = await prisma.comunicado.create({ data: { ...body, autorId: req.user!.id } });
     res.status(201).json({ data });

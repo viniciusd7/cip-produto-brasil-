@@ -4,11 +4,19 @@ import { authOptions } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 import { UsuarioForm } from "./usuario-form";
 import { SecretariaAssignment } from "./secretaria-assignment";
+import { PlatformAdminConsole } from "./platform-admin-console";
 
 export default async function AdministracaoPage() {
   const session = await getServerSession(authOptions);
   const token = session?.accessToken;
   const role = session?.user?.role;
+  if (
+    role === "admin" &&
+    session?.user?.isPlatformAdmin &&
+    !session?.user?.municipioId
+  ) {
+    return <PlatformAdminConsole token={token || ""} />;
+  }
 
   const [secretarias, tipos, equipamentos] = await Promise.all([
     apiFetch<{ data: Array<{ id: string; nome: string; sigla?: string | null }> }>(
@@ -45,7 +53,7 @@ export default async function AdministracaoPage() {
     actor?: { name: string } | null;
   }> = [];
 
-  if (role === "admin") {
+  if (role === "admin" || role === "analista") {
     const [u, a] = await Promise.all([
       apiFetch<{
         data: Array<{
@@ -58,15 +66,17 @@ export default async function AdministracaoPage() {
           secretariaId: string | null;
         }>;
       }>("/admin/usuarios", { token }),
-      apiFetch<{
-        data: Array<{
-          id: string;
-          action: string;
-          entity: string;
-          createdAt: string;
-          actor?: { name: string } | null;
-        }>;
-      }>("/admin/auditoria", { token }),
+      role === "admin"
+        ? apiFetch<{
+            data: Array<{
+              id: string;
+              action: string;
+              entity: string;
+              createdAt: string;
+              actor?: { name: string } | null;
+            }>;
+          }>("/admin/auditoria", { token })
+        : Promise.resolve({ data: [] }),
     ]);
     usuarios = u.data;
     auditoria = a.data;
@@ -127,9 +137,9 @@ export default async function AdministracaoPage() {
         </Card>
       </div>
 
-      {role === "admin" ? (
+      {role === "admin" || role === "analista" ? (
         <>
-          <Card title="Usuários do município">
+          <Card title={role === "admin" ? "Usuários do município" : "Equipe da prefeitura"}>
             <UsuarioForm
               token={session?.accessToken || ""}
               secretarias={secretarias.data}
@@ -176,34 +186,36 @@ export default async function AdministracaoPage() {
             </table>
           </Card>
 
-          <Card title="Auditoria recente">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Quando</th>
-                  <th>Ação</th>
-                  <th>Entidade</th>
-                  <th>Autor</th>
-                </tr>
-              </thead>
-              <tbody>
-                {auditoria.slice(0, 20).map((a) => (
-                  <tr key={a.id}>
-                    <td>{new Date(a.createdAt).toLocaleString("pt-BR")}</td>
-                    <td>{a.action}</td>
-                    <td>{a.entity}</td>
-                    <td>{a.actor?.name || "—"}</td>
+          {role === "admin" && (
+            <Card title="Auditoria recente">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Quando</th>
+                    <th>Ação</th>
+                    <th>Entidade</th>
+                    <th>Autor</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
+                </thead>
+                <tbody>
+                  {auditoria.slice(0, 20).map((a) => (
+                    <tr key={a.id}>
+                      <td>{new Date(a.createdAt).toLocaleString("pt-BR")}</td>
+                      <td>{a.action}</td>
+                      <td>{a.entity}</td>
+                      <td>{a.actor?.name || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          )}
         </>
       ) : (
         <Card title="Área restrita">
           <p>
             Gestão de usuários e auditoria completa disponível para perfil{" "}
-            <strong>admin</strong>.
+            <strong>admin</strong> ou <strong>consultor</strong>.
           </p>
         </Card>
       )}

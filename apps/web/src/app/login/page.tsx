@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@cip/ui";
 import { BrandLogo } from "@/components/brand-logo";
 import { getHomeForRole } from "@/lib/roles";
+import { API_URL } from "@/lib/api";
 
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 const DEMO_PASSWORD = "Cip@2026";
@@ -16,12 +17,23 @@ const DEMO_ACCOUNTS = [
   { email: "analista@cmd.local", label: "Consultor — projetos" },
 ] as const;
 
+type TenantOption = {
+  id: string;
+  nome: string;
+  uf: string;
+  role: string;
+  secretariaNome?: string | null;
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [tenantOptions, setTenantOptions] = useState<TenantOption[] | null>(null);
+  const [pendingEmail, setPendingEmail] = useState("");
+  const [pendingPassword, setPendingPassword] = useState("");
 
   function fillDemo(email: string) {
     if (!DEMO_MODE) return;
@@ -38,25 +50,78 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
     const form = new FormData(e.currentTarget);
+    try {
+      const email = String(form.get("email") || "").trim();
+      const password = String(form.get("password") || "");
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, preview: true }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(
+          result?.error?.message || "Credenciais inválidas. Verifique e-mail e senha.",
+        );
+      }
+      const data = result.data as {
+        isPlatformAdmin: boolean;
+        requiresSelection: boolean;
+        tenants: TenantOption[];
+      };
+      setPendingEmail(email);
+      setPendingPassword(password);
+      if (data.requiresSelection) {
+        setTenantOptions(data.tenants);
+        setLoading(false);
+        return;
+      }
+      await establishSession(email, password, data.tenants[0]?.id);
+    } catch (error) {
+      setLoading(false);
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível iniciar a sessão.",
+      );
+    }
+  }
+
+  async function establishSession(email: string, password: string, municipioId?: string) {
     const result = await signIn("credentials", {
-      email: String(form.get("email") || ""),
-      password: String(form.get("password") || ""),
+      email,
+      password,
+      ...(municipioId ? { municipioId } : {}),
       redirect: false,
     });
     setLoading(false);
     if (result?.error) {
-      setError("Credenciais inválidas. Verifique e-mail e senha.");
+      setError("Não foi possível abrir o acesso para esta prefeitura.");
       return;
     }
+    setPendingPassword("");
 
     try {
-      const res = await fetch("/api/auth/session");
-      const session = await res.json();
+      const response = await fetch("/api/auth/session");
+      const session = await response.json();
       router.push(getHomeForRole(session?.user?.role));
     } catch {
       router.push("/painel");
     }
     router.refresh();
+  }
+
+  async function selectTenant(municipioId: string) {
+    const password = pendingPassword;
+    if (!pendingEmail || !password || !municipioId) {
+      setError("Entre novamente para escolher uma prefeitura.");
+      setTenantOptions(null);
+      setPendingPassword("");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    await establishSession(pendingEmail, password, municipioId);
   }
 
   return (
@@ -104,46 +169,92 @@ export default function LoginPage() {
 
       <section className="login-panel" aria-label="Acesso ao painel">
         <p className="login-panel__eyebrow">Acesso ao painel</p>
-        <h2 className="login-panel__title">Entrar</h2>
+        <h2 className="login-panel__title">
+          {tenantOptions ? "Escolha a prefeitura" : "Entrar"}
+        </h2>
         <p className="login-panel__hint">
-          O papel define a visão: prefeito vê o cenário; secretário opera a
-          pasta; equipe executa os projetos.
+          {tenantOptions
+            ? "Sua conta tem acesso a mais de uma prefeitura. Escolha onde deseja trabalhar agora."
+            : "Acesse o ambiente municipal ou a gestão central da CIP com suas credenciais."}
         </p>
 
-        <form onSubmit={onSubmit} className="login-form">
-          <div>
-            <label htmlFor="email">E-mail</label>
-            <input
-              ref={emailRef}
-              id="email"
-              name="email"
-              type="email"
-              required
-              autoComplete="username"
-              placeholder="voce@prefeitura.gov.br"
-            />
+        {tenantOptions ? (
+          <div className="login-form">
+            {tenantOptions.map((tenant) => (
+              <button
+                key={tenant.id}
+                type="button"
+                className="tenant-choice"
+                disabled={loading}
+                onClick={() => void selectTenant(tenant.id)}
+              >
+                <strong>{tenant.nome} ({tenant.uf})</strong>
+                <span>
+                  {tenant.role === "gestor"
+                    ? `Secretário${tenant.secretariaNome ? ` · ${tenant.secretariaNome}` : ""}`
+                    : tenant.role === "analista"
+                      ? "Consultor"
+                      : tenant.role === "prefeito"
+                        ? "Prefeito"
+                        : "Acesso de consulta"}
+                </span>
+              </button>
+            ))}
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setTenantOptions(null);
+                setPendingEmail("");
+                setPendingPassword("");
+                setError("");
+              }}
+            >
+              Voltar ao login
+            </Button>
           </div>
-          <div>
-            <label htmlFor="password">Senha</label>
-            <input
-              ref={passwordRef}
-              id="password"
-              name="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              placeholder="Sua senha"
-            />
-          </div>
-          {error && (
-            <p className="login-form__error" role="alert">
-              {error}
-            </p>
-          )}
-          <Button type="submit" disabled={loading}>
-            {loading ? "Entrando…" : "Entrar no painel"}
-          </Button>
-        </form>
+        ) : (
+          <form onSubmit={onSubmit} className="login-form">
+            <div>
+              <label htmlFor="email">E-mail</label>
+              <input
+                ref={emailRef}
+                id="email"
+                name="email"
+                type="email"
+                required
+                autoComplete="username"
+                placeholder="voce@prefeitura.gov.br"
+              />
+            </div>
+            <div>
+              <label htmlFor="password">Senha</label>
+              <input
+                ref={passwordRef}
+                id="password"
+                name="password"
+                type="password"
+                required
+                autoComplete="current-password"
+                placeholder="Sua senha"
+              />
+            </div>
+            {error && (
+              <p className="login-form__error" role="alert">
+                {error}
+              </p>
+            )}
+            <Button type="submit" disabled={loading}>
+              {loading ? "Entrando…" : "Entrar no painel"}
+            </Button>
+          </form>
+        )}
+
+        {error && tenantOptions && (
+          <p className="login-form__error" role="alert">
+            {error}
+          </p>
+        )}
 
         {DEMO_MODE ? (
           <div className="login-demo">

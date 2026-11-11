@@ -27,6 +27,7 @@ export default async function AppLayout({
       initialRole={session.user?.role}
       initialName={session.user?.name}
       initialMunicipio={session.user?.municipioNome}
+      initialIsPlatformAdmin={session.user?.isPlatformAdmin}
     >
       {children}
     </AppShell>

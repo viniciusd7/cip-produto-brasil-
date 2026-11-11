@@ -126,7 +126,7 @@ export function getNavForRole(role?: string | null): NavItem[] {
       allow.add(h),
     );
   } else if (r === "analista") {
-    ["/secretarias", "/carteira", "/acoes", "/pendencias", "/relatorios"].forEach((h) =>
+    ["/secretarias", "/carteira", "/acoes", "/pendencias", "/relatorios", "/administracao"].forEach((h) =>
       allow.add(h),
     );
   } else {

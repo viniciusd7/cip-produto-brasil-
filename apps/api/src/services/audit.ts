@@ -13,7 +13,7 @@ export async function writeAudit(params: {
   await prisma.auditLog.create({
     data: {
       actorId: params.user?.id,
-      municipioId: params.user?.municipioId,
+      municipioId: params.user?.municipioId || undefined,
       action: params.action,
       entity: params.entity,
       entityId: params.entityId,

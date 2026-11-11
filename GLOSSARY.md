@@ -1,0 +1,35 @@
+# Gestão municipal multi-prefeitura
+
+Este contexto descreve como a CIP organiza o acesso e a operação de várias prefeituras na plataforma.
+
+## Plataforma e acesso
+
+**Prefeitura (tenant)**:
+Uma prefeitura cliente e seu espaço isolado de dados e operação na plataforma.
+_Avoid_: conta, município ativo (quando se refere à organização inteira)
+
+**Vínculo municipal**:
+Relação de uma pessoa com uma prefeitura, que determina seu papel e, quando aplicável, sua secretaria naquele espaço.
+_Avoid_: papel global
+
+**Contexto ativo**:
+A prefeitura em que a pessoa está operando na sessão atual; só pode ser escolhida entre vínculos autorizados.
+_Avoid_: tenant padrão (quando se refere à escolha atual da sessão)
+
+**Administrador CIP**:
+Pessoa da equipe da CIP com acesso de gestão da plataforma, capaz de cadastrar prefeituras e administrar seus vínculos.
+_Avoid_: administrador municipal
+
+## Operação municipal
+
+**Consultor responsável**:
+Consultor designado pela CIP para acompanhar uma prefeitura; pode ser responsável por mais de uma.
+_Avoid_: tenant owner
+
+**Prefeito**:
+Responsável pelo governo municipal, com acesso ao cenário executivo da prefeitura a que está vinculado.
+_Avoid_: usuário global prefeito
+
+**Secretário**:
+Responsável por uma secretaria de uma prefeitura, com acesso restrito a esse contexto e à sua secretaria.
+_Avoid_: gestor global
