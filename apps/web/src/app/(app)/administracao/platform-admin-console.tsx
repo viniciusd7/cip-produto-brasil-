@@ -256,7 +256,12 @@ export function PlatformAdminConsole({ token }: { token: string }) {
                     type="button"
                     className="platform-link-button"
                     disabled={busy}
-                    onClick={() => setMunicipioId(municipio.id)}
+                    onClick={() => {
+                      setMunicipioId(municipio.id);
+                      document
+                        .getElementById("equipe-municipal")
+                        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
                   >
                     Gerir equipe
                   </button>
@@ -377,7 +382,7 @@ export function PlatformAdminConsole({ token }: { token: string }) {
         </form>
       </section>
 
-      <section className="platform-section">
+      <section className="platform-section" id="equipe-municipal">
         <h2>Equipe municipal</h2>
         <label className="platform-field platform-field--select">
           Prefeitura

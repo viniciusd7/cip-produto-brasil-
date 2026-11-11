@@ -64,15 +64,11 @@ async function loadBloco(
 export function DadosExternos({ token }: { token: string }) {
   const [tg, setTg] = useState<Bloco | null>(null);
   const [pncp, setPncp] = useState<Bloco | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(token));
 
   useEffect(() => {
-    if (!token) {
-      setLoading(false);
-      return;
-    }
+    if (!token) return;
     let cancelled = false;
-    setLoading(true);
     Promise.all([
       loadBloco(token, "/integracoes/transferegov/propostas"),
       loadBloco(token, "/integracoes/pncp/contratacoes"),

@@ -1,10 +1,26 @@
+import { NextResponse } from "next/server";
 import { withAuth } from "next-auth/middleware";
 
-export default withAuth({
-  pages: {
-    signIn: "/login",
+export default withAuth(
+  function middleware(req) {
+    const token = req.nextauth.token;
+    const { pathname } = req.nextUrl;
+    // Admin CIP sem prefeitura ativa só tem acesso ao console central.
+    if (
+      token?.isPlatformAdmin &&
+      !token.municipioId &&
+      pathname !== "/administracao"
+    ) {
+      return NextResponse.redirect(new URL("/administracao", req.url));
+    }
+    return NextResponse.next();
   },
-});
+  {
+    pages: {
+      signIn: "/login",
+    },
+  },
+);
 
 export const config = {
   matcher: [
@@ -19,5 +35,6 @@ export const config = {
     "/administracao/:path*",
     "/relatorios/:path*",
     "/importacao/:path*",
+    "/comunicados/:path*",
   ],
 };

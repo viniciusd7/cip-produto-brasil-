@@ -85,7 +85,8 @@ export function DossieGovernanca({
   }
 
   useEffect(() => {
-    void load();
+    const timer = setTimeout(() => void load(), 0);
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [iniciativaId]);
 
