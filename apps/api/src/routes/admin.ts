@@ -600,7 +600,7 @@ adminRouter.post(
   },
 );
 
-/** Gabinete e consultoria podem editar cadastros das pastas. */
+/** Só a consultoria (e o admin CIP) edita cadastros das pastas; o gabinete apenas acompanha. */
 const requireSecretariaWrite = requireAnyPermission(
   "secretaria:manage",
   "iniciativa:write",

@@ -41,7 +41,7 @@ export function AppShell({
       !(data?.user?.municipioId || ""),
   );
   const visibleNav = isCentralCip
-    ? getNavForRole(role).filter((item) => item.href === "/administracao")
+    ? getNavForRole(role).filter((item) => item.href === "/equipe")
     : getNavForRole(role);
   const nextStep = getNextStepForRole(role);
   const flowSteps = isCentralCip

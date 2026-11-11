@@ -14,17 +14,22 @@
 
 | Papel | Conta demo | Home | Permissões operacionais |
 |---|---|---|---|
-| Prefeito | `prefeito@cmd.local` | `/painel` (board Azimov com seções) | Não |
+| Prefeito | `prefeito@cmd.local` | `/painel` (cenário em um olhar: situação geral, semáforo das secretarias, metas e atenção) | Não — somente leitura de toda a prefeitura |
 | Secretário (`gestor`) | `gestor@cmd.local` | `/minha-pasta` (carteira visual da secretaria e tarefas) | Somente envio de evidências |
-| Consultor (`analista`) | `analista@cmd.local` | `/carteira` | Sim: plano, metas, indicadores, projetos e tarefas |
+| Consultor (`analista`) | `analista@cmd.local` | `/carteira` | Sim: secretarias, equipe (`/equipe`), plano, metas, indicadores, projetos e tarefas |
 | Leitura | — | `/painel` | Não |
-| Admin CIP | `admin@cip.local` | `/administracao` | Sim: usuários e cadastros |
+| Admin CIP | `admin@cip.local` | `gestao.<domínio>/` (console separado; local: `http://gestao.localhost:3000`) | Sim: prefeituras, consultores e prefeito responsável |
 
 Senha demo: ver [`docs/DEMO.md`](DEMO.md) (somente ambiente local).
 
+## Agenda e prestação de contas
+
+- **Agenda** (`/pendencias`): “O que precisa ser feito”, agrupado por urgência com cores (atrasado, esta semana, mais adiante, sem prazo), faixa dos próximos 7 dias e andamento por projeto.
+- **Prestação de contas** (`/relatorios`): documento executivo com identidade CIP — resumo com veredito, desempenho por secretaria, metas, pontos de atenção e próximos passos; “Salvar PDF / imprimir” gera A4 limpo, CSV continua disponível.
+
 ## 1) Prefeito
 
-1. Login → panorama municipal consolidado (`#visao` → `#metodo`), sem escolher uma secretaria antes
+1. Login → cenário em um olhar (`#visao` → `#detalhes`): medidor de entregas em dia, semáforo das secretarias, metas estratégicas e de execução, e o que precisa de atenção; a análise completa fica atrás de “Ver análise detalhada”
 2. Visão de todas as secretarias ativas, incluindo as que ainda não têm projetos, com indicadores, metas, agenda e prioridades
 3. Drill para o cenário detalhado de uma secretaria e, dali, para projetos; sem formulários de edição
 

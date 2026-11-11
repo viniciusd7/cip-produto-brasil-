@@ -15,14 +15,13 @@ export function canSubmitEvidenceRole(role?: string | null) {
   return ["admin", "gestor", "analista"].includes(normalizeRole(role));
 }
 
-/** Gabinete e admin cadastram pastas, siglas e responsáveis. */
+/** Consultoria cadastra pastas, siglas e responsáveis; o prefeito só acompanha. */
 export function canManageSecretariaRole(role?: string | null) {
-  return ["admin", "prefeito"].includes(normalizeRole(role));
+  return ["admin", "analista"].includes(normalizeRole(role));
 }
 
-/** Edição de secretaria: gabinete (manage) ou consultoria/equipe (write). */
 export function canEditSecretariaRole(role?: string | null) {
-  return canManageSecretariaRole(role) || canWriteRole(role);
+  return canManageSecretariaRole(role);
 }
 
 export function canValidateRole(role?: string | null) {
@@ -32,7 +31,7 @@ export function canValidateRole(role?: string | null) {
 export function getHomeForRole(role?: string | null) {
   switch (normalizeRole(role)) {
     case "admin":
-      return "/administracao";
+      return "/painel";
     case "gestor":
       return "/minha-pasta";
     case "analista":
@@ -81,9 +80,9 @@ export function getNextStepForRole(role?: string | null): {
       };
     case "admin":
       return {
-        href: "/administracao",
-        label: "Administrar plataforma",
-        hint: "Usuários, cadastros e importação",
+        href: "/equipe",
+        label: "Equipe da prefeitura",
+        hint: "Prefeito, secretários e acessos",
       };
     default:
       return {
@@ -111,7 +110,7 @@ const ALL_NAV: NavItem[] = [
   { href: "/notificacoes", label: "Notificações", icon: "🔔" },
   { href: "/comunicados", label: "Avisos e conversas", icon: "✉" },
   { href: "/importacao", label: "Importação" },
-  { href: "/administracao", label: "Administração" },
+  { href: "/equipe", label: "Equipe" },
 ];
 
 export function getNavForRole(role?: string | null): NavItem[] {
@@ -138,7 +137,7 @@ export function getNavForRole(role?: string | null): NavItem[] {
       "/validacoes",
       "/pendencias",
       "/relatorios",
-      "/administracao",
+      "/equipe",
     ].forEach((h) =>
       allow.add(h),
     );

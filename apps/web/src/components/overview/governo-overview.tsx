@@ -16,6 +16,7 @@ import {
 import { CLASS_GROUPS, SERIES } from "@cip/shared";
 import { getNextStepForRole, getRoleLabel } from "@/lib/roles";
 import type { OverviewResponse, SecretariaOverview } from "./types";
+import { GovernoGlance } from "./governo-glance";
 import { s } from "./ov";
 
 const groups = CLASS_GROUPS;
@@ -80,6 +81,7 @@ function recommendation(p: SecretariaOverview) {
 export function GovernoOverview({ payload, municipio, role }: { payload: OverviewResponse; municipio: string; role?: string }) {
   const { governo, porSecretaria, agenda, projetosEstruturantes, pendencias, tarefasPedemAcao, metas, estrategia } = payload.data;
   const metasResumo = metas || { total: 0, comIndicador: 0, comValor: 0, cobertura: 0, atrasadas: 0, semPrazo: 0, concluidas: 0, pedemAcao: [] as NonNullable<OverviewResponse["data"]["metas"]>["pedemAcao"] };
+  const [detalhe, setDetalhe] = useState(false);
   const [tab, setTab] = useState("compare");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("");
@@ -114,7 +116,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
 
   function chooseGroup(key: string) {
     setFilter((prev) => (prev === key ? "" : key));
-    document.getElementById("secretarias")?.scrollIntoView({ block: "start" });
+    document.getElementById("saude-secretarias")?.scrollIntoView({ block: "start" });
   }
 
   return (
@@ -131,6 +133,20 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
         </div>
       </header>
 
+      <GovernoGlance data={payload.data} />
+
+      <section id="detalhes" className="gl-detalhes">
+        <button type="button" className="gl-detalhes__botao" aria-expanded={detalhe} aria-controls="analise-detalhada" onClick={() => setDetalhe((v) => !v)}>
+          <span>
+            <strong>{detalhe ? "Ocultar análise detalhada" : "Ver análise detalhada"}</strong>
+            <small>Gráficos comparativos, saúde de cada pasta, entraves, prestação e critérios de leitura.</small>
+          </span>
+          <b aria-hidden="true">{detalhe ? "−" : "+"}</b>
+        </button>
+      </section>
+
+      {detalhe && (
+      <div id="analise-detalhada">
       {estrategia && (
         <section id="estrategia" className={s.chapter} style={{ marginBottom: 24 }}>
           <div className={s.panel} style={{ padding: 20 }}>
@@ -186,7 +202,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
       )}
 
       {/* ——— #visao ——— */}
-      <section id="visao" className={s.chapter}>
+      <section id="panorama" className={s.chapter}>
         <div className={s.heroGrid}>
           <div className={`${s.panel} ${s.summary}`}>
             <p className={s.kicker}>Cenário do governo / carteira de projetos</p>
@@ -371,7 +387,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
       </section>
 
       {/* ——— #secretarias ——— */}
-      <section id="secretarias" className={s.healthSection}>
+      <section id="saude-secretarias" className={s.healthSection}>
         <div className={s.sectionHead}>
           <div>
             <p className={s.kicker}>Do cenário global à cobrança pontual</p>
@@ -668,6 +684,8 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
           <p>{payload.meta?.fonte || "Base operacional CIP"} · posição em {shortDate}. Dados do município {municipio}. Atualizações de projetos podem ter datas de referência diferentes. A aba de linha do tempo informa quando ainda não há série consolidada.</p>
         </details>
       </section>
+      </div>
+      )}
 
       <footer className={s.boardFooter}>
         <span>CIP · Centro de Inteligência Pública</span>

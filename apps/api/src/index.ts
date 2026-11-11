@@ -21,7 +21,11 @@ authSecret();
 
 const app = express();
 const port = Number(process.env.API_PORT || 4000);
-const origin = process.env.CORS_ORIGIN || "http://localhost:3000";
+// Lista separada por vírgula: ambiente das prefeituras e console gestao.<domínio>.
+const origin = (process.env.CORS_ORIGIN || "http://localhost:3000,http://gestao.localhost:3000")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
 
 app.use(
   cors({

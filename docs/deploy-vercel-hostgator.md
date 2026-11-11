@@ -31,7 +31,7 @@ pnpm db:migrate:deploy
 - Env:
   - `DATABASE_URL` (MySQL remoto acessível da Vercel — não use `localhost`)
   - `NEXTAUTH_SECRET` / `JWT_SECRET` (mesmo do web)
-  - `CORS_ORIGIN` = URL do front (ex.: `https://cip-painel.vercel.app`)
+  - `CORS_ORIGIN` = URLs do front separadas por vírgula: prefeituras e console (ex.: `https://app.cipinteligenciapublica.com.br,https://gestao.cipinteligenciapublica.com.br`)
 - Produção atual: https://cip-painel-api.vercel.app
 
 > Em contas HostGator com MySQL remoto lento, aumente timeout de connection do Prisma e use connection pooling se disponível.
@@ -67,4 +67,15 @@ Para deploy automático no push, conecte o repositório no dashboard Vercel
 
 ## 5. Domínio CIP
 
-Aponte o domínio (ex.: `app.cipinteligenciapublica.com.br`) para o projeto web na Vercel e atualize `NEXTAUTH_URL`/`CORS_ORIGIN`.
+A plataforma usa dois endereços servidos pelo mesmo projeto web:
+
+| Endereço | Quem acessa | O que abre |
+|---|---|---|
+| `app.cipinteligenciapublica.com.br` | Consultores, prefeitos e secretários | Ambiente da prefeitura (implantação, cenário, pastas) |
+| `gestao.cipinteligenciapublica.com.br` | Somente equipe CIP (admin da plataforma) | Console: prefeituras, prefeito e mandato, consultores |
+
+1. Aponte os dois domínios para o projeto web na Vercel.
+2. Env do web: `GESTAO_HOST=gestao.cipinteligenciapublica.com.br`, `NEXT_PUBLIC_GESTAO_URL=https://gestao.cipinteligenciapublica.com.br`, `NEXT_PUBLIC_APP_URL=https://app.cipinteligenciapublica.com.br`.
+3. Env da API: `CORS_ORIGIN` com os dois endereços.
+
+As sessões são separadas por host: entrar no console não abre sessão no ambiente das prefeituras e vice-versa. Contas da equipe CIP são recusadas no ambiente das prefeituras, e contas municipais são recusadas no console.

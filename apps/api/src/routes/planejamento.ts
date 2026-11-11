@@ -645,7 +645,7 @@ planejamentoRouter.get(
 
       const etapas = [
         { id: "secretarias", titulo: "Cadastrar secretarias", feito: secretarias.length > 0, detalhe: `${secretarias.length} secretaria(s)`, href: "/secretarias" },
-        { id: "equipe", titulo: "Vincular prefeito e secretários", feito: (porPapel.prefeito ?? 0) > 0 && secretarias.length > 0 && secretariasSemSecretario === 0, detalhe: `${porPapel.prefeito ?? 0} prefeito · ${porPapel.gestor ?? 0} secretário(s) · ${secretariasSemSecretario} secretaria(s) sem secretário`, href: "/administracao" },
+        { id: "equipe", titulo: "Vincular prefeito e secretários", feito: (porPapel.prefeito ?? 0) > 0 && secretarias.length > 0 && secretariasSemSecretario === 0, detalhe: `${porPapel.prefeito ?? 0} prefeito · ${porPapel.gestor ?? 0} secretário(s) · ${secretariasSemSecretario} secretaria(s) sem secretário`, href: "/equipe" },
         { id: "plano", titulo: "Registrar o plano de governo", feito: planos > 0, detalhe: `${planos} plano(s)`, href: "/planejamento" },
         { id: "metas", titulo: "Definir metas estratégicas por secretaria", feito: metas.length > 0, detalhe: `${metas.length} meta(s)`, href: "/planejamento" },
         { id: "indicadores", titulo: "Associar indicadores às metas", feito: metas.length > 0 && metasSemIndicador === 0, detalhe: `${indicadores} indicador(es) · ${metasSemIndicador} meta(s) sem indicador`, href: "/planejamento" },

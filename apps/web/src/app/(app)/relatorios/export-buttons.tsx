@@ -24,8 +24,11 @@ export function ExportButtons({
 
   return (
     <div className="chip-row">
-      <Button type="button" onClick={downloadCsv}>
-        Exportar CSV
+      <Button type="button" onClick={() => window.print()}>
+        Salvar PDF / imprimir
+      </Button>
+      <Button type="button" variant="secondary" onClick={downloadCsv}>
+        Planilha (CSV)
       </Button>
     </div>
   );

@@ -195,8 +195,6 @@ export function requirePlatformAdmin(
 
 /**
  * Aceita qualquer uma das permissões listadas.
- * Gabinete (prefeito) também passa em rotas de secretaria mesmo com token
- * antigo, enquanto o papel no JWT já for "prefeito".
  */
 export function requireAnyPermission(
   ...needed: PermissionCode[]
@@ -215,9 +213,7 @@ export function requireAnyPermission(
       );
     }
     const perms = req.user.permissions || [];
-    const ok =
-      needed.some((p) => perms.includes(p)) ||
-      (needed.includes("secretaria:manage") && req.user.role === "prefeito");
+    const ok = needed.some((p) => perms.includes(p));
     if (!ok) {
       return next(new HttpError(403, "FORBIDDEN", "Permissão insuficiente"));
     }

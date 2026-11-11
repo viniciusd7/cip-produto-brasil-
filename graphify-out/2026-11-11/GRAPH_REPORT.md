@@ -1,25 +1,25 @@
 # Graph Report - cip projeto  (2026-11-11)
 
 ## Corpus Check
-- 172 files · ~98,810 words
+- 173 files · ~99,120 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1217 nodes · 1860 edges · 80 communities (63 shown, 14 thin omitted)
+- 1221 nodes · 1868 edges · 81 communities (67 shown, 11 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 20 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `ced007b5`
+- Built from commit: `a2243c6f`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- tarefas-board.tsx
+- projeto-documento.tsx
 - dependencies
 - CIP — Plataforma de Inteligência de Gestão Municipal
 - shared/package.json
-- lib/roles.ts
+- app-shell.tsx
 - status.ts
 - api/src/index.ts
 - wizard-engine.ts
@@ -46,23 +46,23 @@
 - estruturante-modelo-snapshot.ts
 - compilerOptions
 - db/package.json
-- execucao.ts
+- notifications.ts
 - plano-estrutura.tsx
 - compilerOptions
 - ui/package.json
 - src/types.ts
-- planejamento.ts
+- governo-overview.tsx
 - index.tsx
-- middleware/auth.ts
-- api.ts
-- projeto-documento.tsx
-- sugestoes.ts
+- execucao.ts
+- administracao/page.tsx
+- lib/roles.ts
+- planejamento.ts
 - Relatório executivo CIP — fórmulas e mapeamento
-- comunicacao-projeto.tsx
+- login/page.tsx
 - importacao/page.tsx
 - Relatório de Implementação: Correções de Segurança — CIP
 - verify-gestao.cjs
-- acoes/page.tsx
+- api.ts
 - relatorios/page.tsx
 - app/layout.tsx
 - Deploy — Vercel + MySQL HostGator
@@ -82,19 +82,20 @@
 - PlatformAdminConsole
 - Aderência ao dossiê Izabela (08/11/2026)
 - Arquitetura — CIP Gestão Municipal
-- dossie-governanca.tsx
-- evidencia-actions.tsx
+- tenant-switcher.tsx
+- secretarias/page.tsx
 - Fluxo operacional municipal
 - Gestão municipal multi-prefeitura
 - Segurança — CIP Plataforma
-- evidencia-form.tsx
+- implantacao/page.tsx
 - notificacoes-lista.tsx
 - README.md
 - 0001-per-tenant-roles-and-platform-admin.md
 - 0002-validacao-de-conclusao-pela-consultoria.md
+- sugerir-tarefas.tsx
 
 ## God Nodes (most connected - your core abstractions)
-1. `apiFetch()` - 49 edges
+1. `apiFetch()` - 51 edges
 2. `HttpError` - 30 edges
 3. `authOptions` - 22 edges
 4. `requireAuth()` - 17 edges
@@ -108,23 +109,23 @@
 ## Surprising Connections (you probably didn't know these)
 - `carregarAlvo()` --calls--> `HttpError`  [EXTRACTED]
   apps/api/src/routes/execucao.ts → apps/api/src/middleware/error.ts
-- `cachedFetch()` --calls--> `HttpError`  [EXTRACTED]
-  apps/api/src/routes/integracoes.ts → apps/api/src/middleware/error.ts
-- `assertAlvosIndicador()` --calls--> `HttpError`  [EXTRACTED]
-  apps/api/src/routes/planejamento.ts → apps/api/src/middleware/error.ts
 - `ModelosAdminPage()` --calls--> `apiFetch()`  [EXTRACTED]
   apps/web/src/app/(app)/administracao/modelos/page.tsx → apps/web/src/lib/api.ts
+- `AdministracaoPage()` --calls--> `apiFetch()`  [EXTRACTED]
+  apps/web/src/app/(app)/administracao/page.tsx → apps/web/src/lib/api.ts
 - `estado()` --calls--> `evaluateWizard()`  [EXTRACTED]
   packages/shared/src/wizard-prioridade.test.ts → packages/shared/src/wizard-engine.ts
+- `requireAnyPermission()` --calls--> `HttpError`  [EXTRACTED]
+  apps/api/src/middleware/auth.ts → apps/api/src/middleware/error.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (80 total, 14 thin omitted)
+## Communities (81 total, 11 thin omitted)
 
-### Community 0 - "tarefas-board.tsx"
-Cohesion: 0.11
-Nodes (13): DesdobramentoForms(), ItemTextoEditor(), ProjetoDocMarco, ProjetoDocMeta, ReprogramarTarefa(), ResponsavelEditor(), SubtarefaToggle(), TarefaAcoes() (+5 more)
+### Community 0 - "projeto-documento.tsx"
+Cohesion: 0.06
+Nodes (25): DesdobramentoForms(), EvidenciaCard(), EvidenciaForm(), MarcoOption, ItemTextoEditor(), Aba, ABAS, GRUPOS_DOCUMENTO (+17 more)
 
 ### Community 1 - "dependencies"
 Cohesion: 0.05
@@ -138,9 +139,9 @@ Nodes (15): CIP — Plataforma de Inteligência de Gestão Municipal, Deploy, Do
 Cohesion: 0.11
 Nodes (18): devDependencies, tsx, @types/node, typescript, exports, tsx, @types/node, typescript (+10 more)
 
-### Community 4 - "lib/roles.ts"
-Cohesion: 0.05
-Nodes (48): IniciativaPage(), SecretariaDetailPage(), NovaSecretariaForm(), classLabel(), Dash, SecretariasPage(), ValidacoesPage(), DEMO_ACCOUNTS (+40 more)
+### Community 4 - "app-shell.tsx"
+Cohesion: 0.18
+Nodes (8): AppShell(), AvisosBadge(), NotificacoesBadge(), CenarioSecretaria(), tonePrazo(), s, getNavForRole(), getNextStepForRole()
 
 ### Community 5 - "status.ts"
 Cohesion: 0.08
@@ -148,7 +149,7 @@ Nodes (22): Aplicabilidade, CICLO_INICIATIVA, CLASSIFICACAO_PROJETO, Classificac
 
 ### Community 6 - "api/src/index.ts"
 Cohesion: 0.09
-Nodes (29): app, port, authSecret(), permissionsForRole(), requireAuth(), requirePermission(), signAccessToken(), errorHandler() (+21 more)
+Nodes (38): app, port, assertIniciativaAccess(), assertMunicipioAccess(), assertSecretariaAccess(), authSecret(), AuthUser, Express (+30 more)
 
 ### Community 7 - "wizard-engine.ts"
 Cohesion: 0.12
@@ -159,8 +160,8 @@ Cohesion: 0.07
 Nodes (28): compilerOptions, allowJs, esModuleInterop, incremental, isolatedModules, jsx, lib, module (+20 more)
 
 ### Community 9 - "iniciativas.ts"
-Cohesion: 0.09
-Nodes (24): createSchema, decisaoSchema, dependenciaSchema, evidenciaSchema, impedimentoSchema, marcoPatchSchema, marcoSchema, metaExecSchema (+16 more)
+Cohesion: 0.08
+Nodes (25): createSchema, decisaoSchema, dependenciaSchema, evidenciaSchema, impedimentoSchema, iniciativasRouter, marcoPatchSchema, marcoSchema (+17 more)
 
 ### Community 10 - "wizard.ts"
 Cohesion: 0.14
@@ -175,12 +176,12 @@ Cohesion: 0.11
 Nodes (25): buildAcaoDiariaPerguntas(), GRUPOS_ACAO, MODELO_ACAO_DIARIA, TemaAcao, TEMAS, toPergunta(), GRUPOS_CONDICOES, buildPlanoGovernoPerguntas() (+17 more)
 
 ### Community 13 - "apiFetch"
-Cohesion: 0.14
-Nodes (16): AdministracaoPage(), AppLayout(), Metas, Modelos, NovoProjetoPage(), Secretarias, NotificacoesLista(), marcar() (+8 more)
+Cohesion: 0.15
+Nodes (15): AppLayout(), Metas, Modelos, NovoProjetoPage(), Secretarias, NotificacoesLista(), marcar(), marcarTodas() (+7 more)
 
 ### Community 14 - "dashboard.ts"
-Cohesion: 0.22
-Nodes (15): iniciativaScopeFilter(), dashboardRouter, MarcoAgg, MetaAgg, statusPor(), buildSecretariaReport(), ClassificacaoSecretaria, classificarSecretaria() (+7 more)
+Cohesion: 0.20
+Nodes (16): iniciativaScopeFilter(), dashboardRouter, MarcoAgg, MetaAgg, statusPor(), buildSecretariaReport(), reportsRouter, ClassificacaoSecretaria (+8 more)
 
 ### Community 15 - "wizard-prioridade.test.ts"
 Cohesion: 0.25
@@ -191,8 +192,8 @@ Cohesion: 0.18
 Nodes (16): CatalogoSnapshotPartial, etiquetaEspera(), GrupoCondicaoId, PERGUNTAS_ATUAIS, QUIZ_P03, QUIZ_P03_BASE, QUIZ_P03_ENRIQUECIDO, QUIZ_P03_EXTRA (+8 more)
 
 ### Community 17 - "lib/auth.ts"
-Cohesion: 0.15
-Nodes (8): handler, ListResponse, ano(), Implantacao, ImplantacaoPage(), DashboardResponse, authOptions, LoginResponse
+Cohesion: 0.13
+Nodes (7): handler, ListResponse, DashboardResponse, Aviso, ComunicacaoProjeto(), authOptions, LoginResponse
 
 ### Community 18 - "status-tones.ts"
 Cohesion: 0.12
@@ -208,15 +209,19 @@ Nodes (38): 1. **apps/api/src/middleware/tarefa-auth.ts** (114 linhas), 2. **app
 
 ### Community 21 - "admin.ts"
 Cohesion: 0.15
-Nodes (13): requireAnyPermission(), requirePlatformAdmin(), municipioOnboardingSchema, pessoaPatchSchema, pessoaSchema, requireSecretariaWrite, secretariaCreateSchema, secretariaTitularSchema (+5 more)
+Nodes (13): requireAnyPermission(), adminRouter, municipioOnboardingSchema, pessoaPatchSchema, pessoaSchema, requireSecretariaWrite, secretariaCreateSchema, secretariaTitularSchema (+5 more)
 
 ### Community 22 - "devDependencies"
 Cohesion: 0.05
 Nodes (41): dependencies, @cip/shared, @cip/ui, next, next-auth, react, react-dom, recharts (+33 more)
 
+### Community 23 - "DossieGovernanca"
+Cohesion: 0.14
+Nodes (6): Dependencia, DossieGovernanca(), Equipamento, HistoricoItem, Sugestao, VinculoEquip
+
 ### Community 24 - "secretarias/[id]/page.tsx"
-Cohesion: 0.23
-Nodes (5): EquipeAddForm(), EquipeLista(), PessoaPasta, Detail, TitularForm()
+Cohesion: 0.20
+Nodes (7): EquipeAddForm(), EquipeLista(), PessoaPasta, Detail, SecretariaDetailPage(), TitularForm(), canEditSecretariaRole()
 
 ### Community 25 - "compilerOptions"
 Cohesion: 0.14
@@ -228,7 +233,7 @@ Nodes (13): compilerOptions, declaration, esModuleInterop, jsx, module, moduleRe
 
 ### Community 27 - "minha-pasta/page.tsx"
 Cohesion: 0.06
-Nodes (40): data(), IndicadorPasta, MetaEstrategicaPasta, MetaExecucaoPasta, MetasSecretaria(), toneProgresso(), AgendaResponse, classLabel() (+32 more)
+Nodes (39): data(), IndicadorPasta, MetaEstrategicaPasta, MetaExecucaoPasta, MetasSecretaria(), toneProgresso(), AgendaResponse, classLabel() (+31 more)
 
 ### Community 28 - "estruturante-modelo-snapshot.ts"
 Cohesion: 0.23
@@ -242,9 +247,9 @@ Nodes (13): compilerOptions, esModuleInterop, module, outDir, resolveJsonModule,
 Cohesion: 0.06
 Nodes (33): dependencies, bcryptjs, @prisma/client, devDependencies, prisma, tsx, @types/bcryptjs, @types/node (+25 more)
 
-### Community 31 - "execucao.ts"
-Cohesion: 0.08
-Nodes (22): carregarAlvo(), decidirSchema, execucaoRouter, notificacoesRouter, PayloadConclusao, reprogramarSchema, solicitacaoSchema, TZ (+14 more)
+### Community 31 - "notifications.ts"
+Cohesion: 0.11
+Nodes (17): avisarSecretaria(), BloqueioNotifyCtx, canais, canalInterno, CanalNotificacao, canalSmtp, canalWhatsApp, consultoresDaPrefeitura() (+9 more)
 
 ### Community 32 - "plano-estrutura.tsx"
 Cohesion: 0.06
@@ -262,33 +267,37 @@ Nodes (25): devDependencies, react, react-dom, @types/react, @types/react-dom, t
 Cohesion: 0.15
 Nodes (16): PermissionCode, PERMISSIONS, ROLE_LABELS, ROLE_PERMISSIONS, RoleCode, ROLES, CicloIniciativa, EntraveStatus (+8 more)
 
-### Community 36 - "planejamento.ts"
-Cohesion: 0.15
-Nodes (13): assertAlvosIndicador(), indicadorSchema, medicaoIndicadorSchema, medicaoSchema, metaSchema, planejamentoRouter, planoSchema, SugestaoPayload (+5 more)
+### Community 36 - "governo-overview.tsx"
+Cohesion: 0.23
+Nodes (11): CenarioSecretariaResponse, GovernoOverview(), health(), normalize(), number(), percent(), Radar(), recommendation() (+3 more)
 
 ### Community 37 - "index.tsx"
 Cohesion: 0.24
 Nodes (3): Button(), Card(), cn()
 
-### Community 38 - "middleware/auth.ts"
-Cohesion: 0.29
-Nodes (10): assertIniciativaAccess(), assertMunicipioAccess(), assertSecretariaAccess(), AuthUser, Express, Request, HttpError, assertMarcoAccess() (+2 more)
+### Community 38 - "execucao.ts"
+Cohesion: 0.20
+Nodes (8): carregarAlvo(), decidirSchema, execucaoRouter, notificacoesRouter, PayloadConclusao, reprogramarSchema, solicitacaoSchema, TZ
 
-### Community 39 - "api.ts"
-Cohesion: 0.18
-Nodes (8): Consultant, Municipality, MunicipalityUsers, MunicipalUser, SecretariaAssignment(), SecretariaOption, SecretariaOption, UsuarioForm()
-
-### Community 40 - "projeto-documento.tsx"
-Cohesion: 0.18
-Nodes (10): DetailResponse, Aba, ABAS, GRUPOS_DOCUMENTO, metaProgress(), ProjetoDocData, ProjetoDocumento(), respostaLegivel() (+2 more)
-
-### Community 41 - "sugestoes.ts"
+### Community 39 - "administracao/page.tsx"
 Cohesion: 0.15
-Nodes (9): ContextoMeta, GENERICOS, provedorAtivo, provedorHeuristico, SugestaoIndicador, SugestaoTarefa, SuggestionProvider, Tema (+1 more)
+Nodes (9): AdministracaoPage(), Consultant, Municipality, MunicipalityUsers, MunicipalUser, SecretariaAssignment(), SecretariaOption, SecretariaOption (+1 more)
+
+### Community 40 - "lib/roles.ts"
+Cohesion: 0.29
+Nodes (10): DetailResponse, IniciativaPage(), ValidacoesPage(), ALL_NAV, AppRole, canSubmitEvidenceRole(), canValidateRole(), canWriteRole() (+2 more)
+
+### Community 41 - "planejamento.ts"
+Cohesion: 0.10
+Nodes (18): indicadorSchema, medicaoIndicadorSchema, medicaoSchema, metaSchema, planejamentoRouter, planoSchema, SugestaoPayload, numeroIndicador() (+10 more)
 
 ### Community 42 - "Relatório executivo CIP — fórmulas e mapeamento"
 Cohesion: 0.25
 Nodes (7): Classificação de secretaria, Indicadores, Metas de execução, Relatório executivo CIP — fórmulas e mapeamento, Telas, Unidades, Versão metodológica
+
+### Community 43 - "login/page.tsx"
+Cohesion: 0.27
+Nodes (7): DEMO_ACCOUNTS, LoginPage(), establishSession(), onSubmit(), selectTenant(), TenantOption, BrandLogo()
 
 ### Community 44 - "importacao/page.tsx"
 Cohesion: 0.33
@@ -301,6 +310,10 @@ Nodes (10): 1. ✅ Middleware de Autorização por Tarefa, 2. ✅ Testes de Segu
 ### Community 46 - "verify-gestao.cjs"
 Cohesion: 0.33
 Nodes (4): assert, { prisma }, { ROLE_PERMISSIONS }, { signAccessToken }
+
+### Community 47 - "api.ts"
+Cohesion: 0.25
+Nodes (4): AcaoForm(), InitiativesResponse, EvidenciaItem, EvidenciaMedia()
 
 ### Community 49 - "app/layout.tsx"
 Cohesion: 0.40
@@ -350,13 +363,13 @@ Nodes (6): Aderência ao dossiê Izabela (08/11/2026), Camadas, Critérios de ac
 Cohesion: 0.29
 Nodes (6): Arquitetura — CIP Gestão Municipal, Dimensões de status, Observabilidade mínima, Segurança, Separação front / back, Visão geral
 
-### Community 68 - "dossie-governanca.tsx"
-Cohesion: 0.33
-Nodes (5): Dependencia, Equipamento, HistoricoItem, Sugestao, VinculoEquip
+### Community 68 - "tenant-switcher.tsx"
+Cohesion: 0.28
+Nodes (7): Home(), ContextResponse, TenantOption, TenantSwitcher(), onChange(), TenantSwitchResponse, getHomeForRole()
 
-### Community 69 - "evidencia-actions.tsx"
-Cohesion: 0.40
-Nodes (3): EvidenciaCard(), EvidenciaItem, EvidenciaMedia()
+### Community 69 - "secretarias/page.tsx"
+Cohesion: 0.36
+Nodes (5): NovaSecretariaForm(), classLabel(), Dash, SecretariasPage(), canManageSecretariaRole()
 
 ### Community 70 - "Fluxo operacional municipal"
 Cohesion: 0.33
@@ -370,26 +383,30 @@ Nodes (4): Gestão municipal multi-prefeitura, Operação municipal, Plano de go
 Cohesion: 0.40
 Nodes (4): Controles mínimos antes de publicar, Propriedade, Relato, Segurança — CIP Plataforma
 
+### Community 73 - "implantacao/page.tsx"
+Cohesion: 0.67
+Nodes (3): ano(), Implantacao, ImplantacaoPage()
+
 ### Community 74 - "notificacoes-lista.tsx"
 Cohesion: 0.50
 Nodes (3): fmt, Notificacao, TIPOS
 
 ## Knowledge Gaps
-- **525 isolated node(s):** `name`, `version`, `private`, `dev`, `build` (+520 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 640 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **14 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **526 isolated node(s):** `name`, `version`, `private`, `dev`, `build` (+521 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 642 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **11 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `apiFetch()` connect `apiFetch` to `modelos/page.tsx`, `PlatformAdminConsole`, `plano-estrutura.tsx`, `lib/roles.ts`, `api.ts`, `projeto-documento.tsx`, `notificacoes-lista.tsx`, `importacao/page.tsx`, `acoes/page.tsx`, `relatorios/page.tsx`, `lib/auth.ts`, `secretarias/[id]/page.tsx`, `minha-pasta/page.tsx`?**
-  _High betweenness centrality (0.022) - this node is a cross-community bridge._
+- **Why does `apiFetch()` connect `apiFetch` to `modelos/page.tsx`, `PlatformAdminConsole`, `plano-estrutura.tsx`, `governo-overview.tsx`, `secretarias/page.tsx`, `tenant-switcher.tsx`, `administracao/page.tsx`, `lib/roles.ts`, `implantacao/page.tsx`, `notificacoes-lista.tsx`, `importacao/page.tsx`, `api.ts`, `sugerir-tarefas.tsx`, `lib/auth.ts`, `relatorios/page.tsx`, `secretarias/[id]/page.tsx`, `minha-pasta/page.tsx`?**
+  _High betweenness centrality (0.023) - this node is a cross-community bridge._
 - **Are the 13 inferred relationships involving `requireAuth()` (e.g. with `admin.ts` and `routes/auth.ts`) actually correct?**
   _`requireAuth()` has 13 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `name`, `version`, `private` to the rest of the system?**
-  _525 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `tarefas-board.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.11 - nodes in this community are weakly interconnected._
+  _526 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `projeto-documento.tsx` be split into smaller, more focused modules?**
+  _Cohesion score 0.0613107822410148 - nodes in this community are weakly interconnected._
 - **Should `dependencies` be split into smaller, more focused modules?**
   _Cohesion score 0.046511627906976744 - nodes in this community are weakly interconnected._
 - **Should `CIP — Plataforma de Inteligência de Gestão Municipal` be split into smaller, more focused modules?**
