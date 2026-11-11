@@ -137,6 +137,9 @@ export function CenarioSecretaria({
         </div>
         <div className={s.headerActions}>
           <span className={s.date}>◷ {dataRef}</span>
+          <Link href="/painel" className={s.button}>
+            Cenário geral
+          </Link>
           {canManage && (
             <Link href={`/secretarias/${selected.id}`} className={s.button}>
               Gerir estrutura ↗

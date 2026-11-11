@@ -34,6 +34,12 @@ export function AppShell({
   const role = data?.user?.role || initialRole;
   const visibleNav = getNavForRole(role);
   const nextStep = getNextStepForRole(role);
+  const flowSteps =
+    role === "gestor"
+      ? ["Minha pasta", "Projetos", "Tarefas", "Evidências"]
+      : role === "analista"
+        ? ["Secretarias", "Projetos", "Tarefas", "Evidências"]
+        : ["Cenário", "Pasta", "Projeto", "Cobrança"];
   const userName = data?.user?.name || initialName;
   const municipioNome = data?.user?.municipioNome || initialMunicipio;
   const onPainel = pathname === "/painel";
@@ -180,10 +186,9 @@ export function AppShell({
             </span>
           </Link>
           <ol className="flow-mini">
-            <li>Cenário</li>
-            <li>Minha pasta</li>
-            <li>Projeto</li>
-            <li>Cobrança</li>
+            {flowSteps.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
           </ol>
         </div>
 

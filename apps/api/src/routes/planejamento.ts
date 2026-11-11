@@ -2,7 +2,11 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "@cip/db";
 import { HttpError } from "../middleware/error";
-import { requireAuth, requirePermission } from "../middleware/auth";
+import {
+  iniciativaScopeFilter,
+  requireAuth,
+  requirePermission,
+} from "../middleware/auth";
 import { writeAudit } from "../services/audit";
 
 export const planejamentoRouter = Router();
@@ -20,8 +24,28 @@ planejamentoRouter.get(
           metas: {
             include: {
               secretaria: true,
-              _count: { select: { iniciativas: true } },
+              _count: {
+                select: {
+                  iniciativas:
+                    req.user!.role === "gestor"
+                      ? { where: { AND: [iniciativaScopeFilter(req.user!)] } }
+                      : true,
+                },
+              },
             },
+            ...(req.user!.role === "gestor"
+              ? {
+                  where: {
+                    OR: [
+                      {
+                        secretariaId:
+                          req.user!.secretariaId || "__no_secretaria__",
+                      },
+                      { secretariaId: null },
+                    ],
+                  },
+                }
+              : {}),
             orderBy: { codigo: "asc" },
           },
         },

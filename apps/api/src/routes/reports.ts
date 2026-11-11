@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { prisma } from "@cip/db";
-import { requireAuth, requirePermission } from "../middleware/auth";
+import {
+  iniciativaScopeFilter,
+  requireAuth,
+  requirePermission,
+} from "../middleware/auth";
 import { prazoStatus } from "../services/prazo";
 import {
   classificarSecretaria,
@@ -14,9 +18,9 @@ export const reportsRouter = Router();
 
 reportsRouter.use(requireAuth, requirePermission("report:export"));
 
-async function buildSecretariaReport(municipioId: string) {
+async function buildSecretariaReport(municipioId: string, user: NonNullable<import("express").Request["user"]>) {
   const iniciativas = await prisma.iniciativa.findMany({
-    where: { municipioId },
+    where: { municipioId, AND: [iniciativaScopeFilter(user)] },
     include: {
       secretariaPrincipal: true,
       marcos: { include: { reprogramacoes: true } },
@@ -24,7 +28,13 @@ async function buildSecretariaReport(municipioId: string) {
     },
   });
   const secretarias = await prisma.secretaria.findMany({
-    where: { municipioId, active: true },
+    where: {
+      municipioId,
+      active: true,
+      ...(user.role === "gestor"
+        ? { id: user.secretariaId || "__no_secretaria__" }
+        : {}),
+    },
     orderBy: { nome: "asc" },
   });
   const dataRef =
@@ -152,7 +162,7 @@ async function buildSecretariaReport(municipioId: string) {
 reportsRouter.get("/executivo.json", async (req, res, next) => {
   try {
     const municipioId = req.user!.municipioId;
-    const porSecretaria = await buildSecretariaReport(municipioId);
+    const porSecretaria = await buildSecretariaReport(municipioId, req.user!);
     res.json({
       data: {
         geradoEm: new Date().toISOString(),
@@ -170,7 +180,7 @@ reportsRouter.get("/executivo.json", async (req, res, next) => {
 reportsRouter.get("/executivo.csv", async (req, res, next) => {
   try {
     const municipioId = req.user!.municipioId;
-    const porSecretaria = await buildSecretariaReport(municipioId);
+    const porSecretaria = await buildSecretariaReport(municipioId, req.user!);
     const header = [
       "secretaria",
       "classificacao",
@@ -224,7 +234,7 @@ reportsRouter.get("/executivo.csv", async (req, res, next) => {
 
 reportsRouter.get("/secretarias.json", async (req, res, next) => {
   try {
-    const rows = await buildSecretariaReport(req.user!.municipioId);
+    const rows = await buildSecretariaReport(req.user!.municipioId, req.user!);
     res.json({
       data: rows,
       meta: { metodoVersao: GRAVIDADE_METODO_VERSAO },

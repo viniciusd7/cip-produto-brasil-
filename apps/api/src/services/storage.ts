@@ -21,16 +21,21 @@ const ALLOWED_MIME = new Set([
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
 ]);
 
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 export function isAllowedMime(mime: string) {
   return ALLOWED_MIME.has(mime);
 }
 
-export function inferTipoFromMime(mime: string): "FOTO" | "DOCUMENTO" {
-  return mime.startsWith("image/") ? "FOTO" : "DOCUMENTO";
+export function inferTipoFromMime(mime: string): "FOTO" | "VIDEO" | "DOCUMENTO" {
+  if (mime.startsWith("image/")) return "FOTO";
+  if (mime.startsWith("video/")) return "VIDEO";
+  return "DOCUMENTO";
 }
 
 /** Porta de storage local — trocável por Blob depois. */

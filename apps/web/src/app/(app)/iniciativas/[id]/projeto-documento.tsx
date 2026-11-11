@@ -154,6 +154,7 @@ const ABAS: Array<{ id: Aba; label: string }> = [
 export function ProjetoDocumento({
   item,
   canWrite,
+  canSubmitEvidence,
   canValidate,
   token,
   equipe,
@@ -161,6 +162,7 @@ export function ProjetoDocumento({
 }: {
   item: ProjetoDocData;
   canWrite: boolean;
+  canSubmitEvidence: boolean;
   canValidate: boolean;
   token: string;
   /** Nomes da equipe das pastas envolvidas (sugestões de responsável). */
@@ -170,6 +172,7 @@ export function ProjetoDocumento({
   const router = useRouter();
   const searchParams = useSearchParams();
   const raw = searchParams.get("aba");
+  const requestedMarcoId = searchParams.get("marcoId");
   const aba: Aba =
     raw === "visao" || raw === "evidencias" || raw === "andamento"
       ? raw
@@ -617,14 +620,19 @@ export function ProjetoDocumento({
         <div className="stack">
           <Card
             title="Registro de evidências"
-            subtitle="Foto ou documento + o que foi feito — o gestor valida e atualiza indicadores"
+            subtitle="Registre o avanço com foto, vídeo ou documento. A consultoria valida."
           >
-            {canWrite && (
+            {canSubmitEvidence && (
               <div style={{ marginBottom: 16 }}>
                 <EvidenciaForm
                   token={token}
                   iniciativaId={item.id}
                   marcos={marcoOptions}
+                  initialMarcoId={
+                    marcoOptions.some((marco) => marco.id === requestedMarcoId)
+                      ? requestedMarcoId ?? undefined
+                      : undefined
+                  }
                 />
               </div>
             )}

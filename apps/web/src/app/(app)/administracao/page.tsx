@@ -2,6 +2,8 @@ import { getServerSession } from "next-auth";
 import { Badge, Card, PageHeader } from "@cip/ui";
 import { authOptions } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
+import { UsuarioForm } from "./usuario-form";
+import { SecretariaAssignment } from "./secretaria-assignment";
 
 export default async function AdministracaoPage() {
   const session = await getServerSession(authOptions);
@@ -32,6 +34,8 @@ export default async function AdministracaoPage() {
     email: string;
     roles: string[];
     active: boolean;
+    secretarias: Array<string | null>;
+    secretariaId: string | null;
   }> = [];
   let auditoria: Array<{
     id: string;
@@ -50,6 +54,8 @@ export default async function AdministracaoPage() {
           email: string;
           roles: string[];
           active: boolean;
+          secretarias: Array<string | null>;
+          secretariaId: string | null;
         }>;
       }>("/admin/usuarios", { token }),
       apiFetch<{
@@ -124,12 +130,17 @@ export default async function AdministracaoPage() {
       {role === "admin" ? (
         <>
           <Card title="Usuários do município">
+            <UsuarioForm
+              token={session?.accessToken || ""}
+              secretarias={secretarias.data}
+            />
             <table className="table">
               <thead>
                 <tr>
                   <th>Nome</th>
                   <th>E-mail</th>
                   <th>Papéis</th>
+                  <th>Secretaria</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -144,6 +155,15 @@ export default async function AdministracaoPage() {
                           {r}
                         </Badge>
                       ))}
+                    </td>
+                    <td>
+                      <SecretariaAssignment
+                        userId={u.id}
+                        initialId={u.secretariaId}
+                        isSecretary={u.roles.includes("gestor")}
+                        secretarias={secretarias.data}
+                        token={session?.accessToken || ""}
+                      />
                     </td>
                     <td>
                       <Badge tone={u.active ? "success" : "danger"}>

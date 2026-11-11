@@ -2740,6 +2740,15 @@ label {
   border: 1px solid var(--cip-border);
 }
 
+.evidencia-card__video {
+  display: block;
+  width: min(100%, 720px);
+  max-height: 420px;
+  border: 1px solid var(--cip-border);
+  border-radius: 10px;
+  background: #101820;
+}
+
 .evidencia-card__file {
   display: inline-flex;
   align-items: center;
@@ -2763,3 +2772,248 @@ label {
 .projeto-folder p { font-size: 13px; color: var(--cip-muted); }
 .projeto-folder__tab { display: inline-block; padding: 4px 10px; background: var(--cip-sky); color: var(--cip-ink); border: 1px solid var(--cip-border); border-radius: 6px; font-size: 12px; font-weight: 650; }
 .projeto-pasta > summary { font-weight: 700; cursor: pointer; padding: 14px; background: var(--cip-surface-soft); color: var(--cip-ink); border: 1px solid var(--cip-border); border-radius: 8px; }
+
+.projetos-secretaria__heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 18px;
+}
+
+.projetos-secretaria__summary,
+.projetos-secretaria__filters,
+.projeto-visao-card__top,
+.projeto-visao-card__metrics,
+.agenda-projeto__badges,
+.agenda-projeto__metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.projetos-secretaria__summary {
+  color: var(--cip-muted);
+  font-size: 12px;
+}
+
+.projetos-secretaria__summary span,
+.projeto-visao-card__metrics span,
+.agenda-projeto__metrics span {
+  padding: 6px 9px;
+  border: 1px solid var(--cip-border);
+  border-radius: 999px;
+  background: var(--cip-surface);
+}
+
+.projetos-secretaria__summary strong,
+.projeto-visao-card__metrics strong,
+.agenda-projeto__metrics strong {
+  color: var(--cip-ink);
+}
+
+.projetos-secretaria__toolbar {
+  display: grid;
+  gap: 12px;
+}
+
+.projetos-secretaria__search input {
+  width: 100%;
+  min-height: var(--cip-touch);
+  padding: 9px 12px;
+  border: 1px solid var(--cip-border);
+  border-radius: 10px;
+  background: var(--cip-surface);
+  color: var(--cip-ink);
+}
+
+.projetos-secretaria__filters button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: var(--cip-touch);
+  padding: 7px 10px;
+  border: 1px solid var(--cip-border);
+  border-radius: 999px;
+  background: var(--cip-surface);
+  color: var(--cip-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.projetos-secretaria__filters button[aria-pressed="true"] {
+  border-color: var(--cip-blue);
+  background: rgba(124, 156, 255, 0.12);
+}
+
+.projetos-secretaria__filters button span {
+  color: var(--cip-muted);
+  font-size: 11px;
+}
+
+.projetos-secretaria__grid,
+.agenda-projetos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  gap: 14px;
+}
+
+.projeto-visao-card,
+.agenda-projeto {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--cip-border);
+  border-radius: 14px;
+  background: var(--cip-surface);
+}
+
+.projeto-visao-card__top,
+.agenda-projeto__header,
+.agenda-projeto__progress-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.projeto-visao-card__title span,
+.agenda-projeto__eyebrow {
+  color: var(--cip-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.projeto-visao-card__title h3,
+.agenda-projeto__header h2 {
+  margin: 5px 0 0;
+  color: var(--cip-ink);
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.projeto-visao-card__alert {
+  margin: 0;
+  padding: 9px 11px;
+  border-left: 3px solid var(--cip-rose);
+  border-radius: 6px;
+  background: rgba(255, 89, 130, 0.08);
+  color: var(--cip-ink);
+  font-size: 13px;
+}
+
+.projeto-visao-card__progress,
+.agenda-projeto__progress {
+  display: grid;
+  gap: 7px;
+}
+
+.projeto-visao-card__progress > div,
+.agenda-projeto__progress-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--cip-muted);
+  font-size: 12px;
+}
+
+.projeto-visao-card__progress strong,
+.agenda-projeto__progress-label strong {
+  color: var(--cip-ink);
+}
+
+.projeto-visao-card__track,
+.agenda-projeto__progress-track {
+  display: block;
+  overflow: hidden;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--cip-surface-soft);
+}
+
+.projeto-visao-card__track > span,
+.agenda-projeto__progress-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--cip-blue);
+}
+
+.projeto-visao-card__progress small,
+.agenda-projeto__updated {
+  color: var(--cip-muted);
+  font-size: 11px;
+}
+
+.projeto-visao-card__link {
+  color: var(--cip-blue);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.projeto-visao-card__link:hover,
+.projeto-visao-card__link:focus-visible {
+  text-decoration: underline;
+}
+
+.agenda-projeto {
+  grid-column: 1 / -1;
+}
+
+.agenda-projeto__header {
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.agenda-projeto__eyebrow,
+.agenda-projeto__secretarias,
+.agenda-projeto__updated {
+  margin: 0;
+}
+
+.agenda-projeto__secretarias {
+  color: var(--cip-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.agenda-projeto__details {
+  border-top: 1px solid var(--cip-border);
+  padding-top: 10px;
+}
+
+.agenda-projeto__details summary {
+  min-height: var(--cip-touch);
+  display: flex;
+  align-items: center;
+  color: var(--cip-blue);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.agenda-projeto__details .table-scroll {
+  margin-top: 8px;
+}
+
+@media (max-width: 700px) {
+  .projetos-secretaria__heading,
+  .agenda-projeto__header,
+  .projeto-visao-card__top {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .agenda-projeto__badges {
+    align-items: flex-start;
+  }
+
+  .agenda-projeto__badges .cip-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}

@@ -11,6 +11,7 @@ async function main() {
     { code: "iniciativa:read", name: "Ler iniciativas" },
     { code: "iniciativa:write", name: "Editar iniciativas" },
     { code: "marco:write", name: "Editar marcos" },
+    { code: "evidencia:submit", name: "Enviar evidências" },
     { code: "evidencia:validate", name: "Validar evidências" },
     { code: "import:run", name: "Executar importações" },
     { code: "report:export", name: "Exportar relatórios" },
@@ -44,11 +45,8 @@ async function main() {
       name: "Gestor municipal",
       perms: [
         "iniciativa:read",
-        "iniciativa:write",
-        "marco:write",
-        "evidencia:validate",
+        "evidencia:submit",
         "report:export",
-        "audit:read",
       ],
     },
     {
@@ -58,6 +56,8 @@ async function main() {
         "iniciativa:read",
         "iniciativa:write",
         "marco:write",
+        "evidencia:submit",
+        "evidencia:validate",
         "report:export",
       ],
     },
@@ -1002,10 +1002,14 @@ async function main() {
       where: {
         userId_municipioId: { userId: user.id, municipioId: municipio.id },
       },
-      update: { principal: true },
+      update: {
+        principal: true,
+        ...(u.roleId === gestorRole.id ? { secretariaId: secretarias.GAB } : {}),
+      },
       create: {
         userId: user.id,
         municipioId: municipio.id,
+        ...(u.roleId === gestorRole.id ? { secretariaId: secretarias.GAB } : {}),
         principal: true,
       },
     });

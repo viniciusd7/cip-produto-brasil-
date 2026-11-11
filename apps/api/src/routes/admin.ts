@@ -3,6 +3,8 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@cip/db";
 import {
+  assertSecretariaAccess,
+  iniciativaScopeFilter,
   requireAnyPermission,
   requireAuth,
   requirePermission,
@@ -19,7 +21,7 @@ export const adminRouter = Router();
 
 adminRouter.use(requireAuth);
 
-/** Gabinete (manage) ou secretário/equipe (write) editam pastas. */
+/** Gabinete e consultoria podem editar cadastros das pastas. */
 const requireSecretariaWrite = requireAnyPermission(
   "secretaria:manage",
   "iniciativa:write",
@@ -38,7 +40,13 @@ adminRouter.get(
   async (req, res, next) => {
     try {
       const rows = await prisma.secretaria.findMany({
-        where: { municipioId: req.user!.municipioId, active: true },
+        where: {
+          municipioId: req.user!.municipioId,
+          active: true,
+          ...(req.user!.role === "gestor"
+            ? { id: req.user!.secretariaId || "__no_secretaria__" }
+            : {}),
+        },
         orderBy: { nome: "asc" },
       });
       res.json({ data: rows });
@@ -301,6 +309,9 @@ adminRouter.get(
           error: { code: "NOT_FOUND", message: "Secretaria não encontrada" },
         });
       }
+      if (req.user!.role === "gestor") {
+        await assertSecretariaAccess(req.user!, secretaria.id);
+      }
       res.json({ data: secretaria });
     } catch (err) {
       next(err);
@@ -348,6 +359,9 @@ adminRouter.get(
         return res.status(404).json({
           error: { code: "NOT_FOUND", message: "Secretaria não encontrada" },
         });
+      }
+      if (req.user!.role === "gestor") {
+        await assertSecretariaAccess(req.user!, secretaria.id);
       }
       const rows = await prisma.secretariaPessoa.findMany({
         where: { secretariaId: secretaria.id, ativo: true },
@@ -551,9 +565,25 @@ adminRouter.get(
   async (req, res, next) => {
     try {
       const rows = await prisma.equipamentoPublico.findMany({
-        where: { municipioId: req.user!.municipioId },
+        where: {
+          municipioId: req.user!.municipioId,
+          ...(req.user!.role === "gestor"
+            ? {
+                iniciativas: {
+                  some: {
+                    iniciativa: {
+                      AND: [iniciativaScopeFilter(req.user!)],
+                    },
+                  },
+                },
+              }
+            : {}),
+        },
         include: {
           iniciativas: {
+            where: {
+              iniciativa: { AND: [iniciativaScopeFilter(req.user!)] },
+            },
             include: { iniciativa: { select: { id: true, nome: true, codigo: true } } },
           },
         },
@@ -577,7 +607,9 @@ adminRouter.get(
         },
         include: {
           roles: { include: { role: true } },
-          vinculos: { include: { municipio: true } },
+          vinculos: {
+            include: { municipio: true, secretaria: true },
+          },
         },
         orderBy: { name: "asc" },
       });
@@ -589,6 +621,12 @@ adminRouter.get(
           active: u.active,
           roles: u.roles.map((r) => r.role.code),
           municipios: u.vinculos.map((v) => v.municipio.nome),
+          secretarias: u.vinculos
+            .filter((v) => v.municipioId === req.user!.municipioId)
+            .map((v) => v.secretaria?.nome ?? null),
+          secretariaId:
+            u.vinculos.find((v) => v.municipioId === req.user!.municipioId)
+              ?.secretariaId ?? null,
         })),
       });
     } catch (err) {
@@ -602,6 +640,7 @@ const userSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   roleCode: z.enum(["admin", "prefeito", "gestor", "analista", "leitura"]),
+  secretariaId: z.string().optional(),
 });
 
 adminRouter.post(
@@ -610,6 +649,40 @@ adminRouter.post(
   async (req, res, next) => {
     try {
       const body = userSchema.parse(req.body);
+      const email = body.email.trim().toLowerCase();
+      const emailExiste = await prisma.user.findUnique({ where: { email } });
+      if (emailExiste) {
+        throw new HttpError(
+          409,
+          "EMAIL_IN_USE",
+          "Já existe um usuário cadastrado com este e-mail",
+        );
+      }
+      if (body.roleCode === "gestor" && !body.secretariaId) {
+        throw new HttpError(
+          422,
+          "SECRETARIA_REQUIRED",
+          "Selecione a secretaria do secretário",
+        );
+      }
+      const secretaria =
+        body.roleCode === "gestor"
+          ? await prisma.secretaria.findFirst({
+              where: {
+                id: body.secretariaId,
+                municipioId: req.user!.municipioId,
+                active: true,
+              },
+              select: { id: true },
+            })
+          : null;
+      if (body.roleCode === "gestor" && !secretaria) {
+        throw new HttpError(
+          422,
+          "INVALID_SECRETARIA",
+          "A secretaria selecionada não pertence ao município ou está inativa",
+        );
+      }
       const role = await prisma.role.findUniqueOrThrow({
         where: { code: body.roleCode },
       });
@@ -617,12 +690,13 @@ adminRouter.post(
       const user = await prisma.user.create({
         data: {
           name: body.name,
-          email: body.email.toLowerCase(),
+          email,
           passwordHash,
           roles: { create: { roleId: role.id } },
           vinculos: {
             create: {
               municipioId: req.user!.municipioId,
+              secretariaId: secretaria?.id,
               principal: true,
             },
           },
@@ -641,6 +715,62 @@ adminRouter.post(
       res.status(201).json({
         data: { id: user.id, email: user.email, name: user.name },
       });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+adminRouter.patch(
+  "/usuarios/:id/secretaria",
+  requirePermission("users:manage"),
+  async (req, res, next) => {
+    try {
+      const { secretariaId } = z
+        .object({ secretariaId: z.string().min(1) })
+        .parse(req.body);
+      const municipioId = req.user!.municipioId;
+      const usuario = await prisma.user.findFirst({
+        where: {
+          id: req.params.id,
+          vinculos: { some: { municipioId } },
+          roles: { some: { role: { code: "gestor" } } },
+        },
+        select: { id: true },
+      });
+      if (!usuario) {
+        throw new HttpError(
+          404,
+          "GESTOR_NOT_FOUND",
+          "Secretário não encontrado neste município",
+        );
+      }
+
+      const secretaria = await prisma.secretaria.findFirst({
+        where: { id: secretariaId, municipioId, active: true },
+        select: { id: true, nome: true },
+      });
+      if (!secretaria) {
+        throw new HttpError(
+          422,
+          "INVALID_SECRETARIA",
+          "A secretaria selecionada não pertence ao município ou está inativa",
+        );
+      }
+
+      await prisma.vinculoUsuarioMunicipio.update({
+        where: { userId_municipioId: { userId: usuario.id, municipioId } },
+        data: { secretariaId: secretaria.id },
+      });
+      await writeAudit({
+        user: req.user,
+        action: "USER_SECRETARIA_ASSIGN",
+        entity: "User",
+        entityId: usuario.id,
+        after: { secretariaId: secretaria.id, secretaria: secretaria.nome },
+        ip: req.ip,
+      });
+      res.json({ ok: true });
     } catch (err) {
       next(err);
     }

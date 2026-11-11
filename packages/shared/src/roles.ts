@@ -12,7 +12,7 @@ export const ROLE_LABELS: Record<RoleCode, string> = {
   admin: "Administrador",
   prefeito: "Gabinete do Prefeito",
   gestor: "Secretário",
-  analista: "Equipe",
+  analista: "Consultor",
   leitura: "Somente leitura",
 };
 
@@ -22,6 +22,7 @@ export const PERMISSIONS = {
   INICIATIVA_READ: "iniciativa:read",
   INICIATIVA_WRITE: "iniciativa:write",
   MARCO_WRITE: "marco:write",
+  EVIDENCIA_SUBMIT: "evidencia:submit",
   EVIDENCIA_VALIDATE: "evidencia:validate",
   SECRETARIA_MANAGE: "secretaria:manage",
   IMPORT_RUN: "import:run",
@@ -41,16 +42,15 @@ export const ROLE_PERMISSIONS: Record<RoleCode, PermissionCode[]> = {
   ],
   gestor: [
     PERMISSIONS.INICIATIVA_READ,
-    PERMISSIONS.INICIATIVA_WRITE,
-    PERMISSIONS.MARCO_WRITE,
-    PERMISSIONS.EVIDENCIA_VALIDATE,
+    PERMISSIONS.EVIDENCIA_SUBMIT,
     PERMISSIONS.REPORT_EXPORT,
-    PERMISSIONS.AUDIT_READ,
   ],
   analista: [
     PERMISSIONS.INICIATIVA_READ,
     PERMISSIONS.INICIATIVA_WRITE,
     PERMISSIONS.MARCO_WRITE,
+    PERMISSIONS.EVIDENCIA_SUBMIT,
+    PERMISSIONS.EVIDENCIA_VALIDATE,
     PERMISSIONS.REPORT_EXPORT,
   ],
   leitura: [PERMISSIONS.INICIATIVA_READ, PERMISSIONS.REPORT_EXPORT],

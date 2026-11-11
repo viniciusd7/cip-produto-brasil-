@@ -13,7 +13,7 @@ const DEMO_PASSWORD = "Cip@2026";
 const DEMO_ACCOUNTS = [
   { email: "prefeito@cmd.local", label: "Prefeito — cenário" },
   { email: "gestor@cmd.local", label: "Secretário — pasta" },
-  { email: "analista@cmd.local", label: "Equipe — projetos" },
+  { email: "analista@cmd.local", label: "Consultor — projetos" },
 ] as const;
 
 export default function LoginPage() {

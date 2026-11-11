@@ -7,17 +7,17 @@ import { authOptions } from "@/lib/auth";
 import { ApiError, apiFetch } from "@/lib/api";
 import { PastaSaudeResumo } from "@/components/charts/pasta-saude-resumo";
 import { DadosExternos } from "@/components/dados-externos";
+import { canWriteRole } from "@/lib/roles";
+import {
+  TarefasGestao,
+  type TarefaGestaoItem,
+} from "./tarefas-gestao";
+import {
+  ProjetosSecretaria,
+  type ProjetoSecretariaItem,
+} from "./projetos-secretaria";
 
-type ProjetoItem = {
-  id: string;
-  codigo: string;
-  nome: string;
-  ciclo: string;
-  pendencias: number;
-  atrasadas: number;
-  bloqueioLabel?: string | null;
-  secretariaPrincipalNome?: string;
-};
+type ProjetoItem = ProjetoSecretariaItem;
 
 type PastaResumo = {
   data: {
@@ -45,6 +45,10 @@ type PastaResumo = {
   } | null;
 };
 
+type AgendaResponse = {
+  data: { tarefas: TarefaGestaoItem[] };
+};
+
 function classLabel(c: string) {
   const map: Record<string, string> = {
     INTERVENCAO: "Intervenção",
@@ -53,60 +57,6 @@ function classLabel(c: string) {
     DADOS_DEFASADOS: "Dados defasados",
   };
   return map[c] || c;
-}
-
-function ProjetoLista({
-  titulo,
-  descricao,
-  projetos,
-  correlacionado,
-}: {
-  titulo: string;
-  descricao: string;
-  projetos: ProjetoItem[];
-  correlacionado?: boolean;
-}) {
-  return (
-    <section className="pasta-section" aria-labelledby={`${titulo}-title`}>
-      <div className="pasta-section__head">
-        <h2 id={`${titulo}-title`}>{titulo}</h2>
-        <p>{descricao}</p>
-      </div>
-      {!projetos.length ? (
-        <div className="pasta-empty">
-          <p>
-            {correlacionado
-              ? "Nenhum projeto correlacionado nesta pasta."
-              : "Ainda não há projetos principais. Use “Novo projeto” para criar o primeiro."}
-          </p>
-        </div>
-      ) : (
-        <div className="pastas-grid">
-          {projetos.map((p) => (
-            <Link
-              key={p.id}
-              href={`/iniciativas/${p.id}?aba=andamento`}
-              className="projeto-folder"
-            >
-              <div>
-                <h3>{p.nome}</h3>
-                <p>
-                  {p.codigo}
-                  {correlacionado && p.secretariaPrincipalNome
-                    ? ` · titular: ${p.secretariaPrincipalNome}`
-                    : ""}
-                  {p.bloqueioLabel ? ` · ${p.bloqueioLabel}` : ""}
-                </p>
-              </div>
-              <Badge tone={p.atrasadas ? "danger" : "success"}>
-                {p.atrasadas ? `${p.atrasadas} atrasos` : "ok"}
-              </Badge>
-            </Link>
-          ))}
-        </div>
-      )}
-    </section>
-  );
 }
 
 export default async function MinhaPastaPage({
@@ -118,10 +68,20 @@ export default async function MinhaPastaPage({
   const session = await getServerSession(authOptions);
   const qs = sp.secretariaId ? `?secretariaId=${sp.secretariaId}` : "";
   let payload: PastaResumo;
+  let tarefas: TarefaGestaoItem[] = [];
   try {
-    payload = await apiFetch<PastaResumo>(`/dashboard/pasta-resumo${qs}`, {
-      token: session?.accessToken,
-    });
+    const [pastaPayload, agendaPayload] = await Promise.all([
+      apiFetch<PastaResumo>(`/dashboard/pasta-resumo${qs}`, {
+        token: session?.accessToken,
+      }),
+      session?.user?.role === "gestor"
+        ? apiFetch<AgendaResponse>("/dashboard/agenda", {
+            token: session?.accessToken,
+          })
+        : Promise.resolve({ data: { tarefas: [] } }),
+    ]);
+    payload = pastaPayload;
+    tarefas = agendaPayload.data.tarefas;
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) redirect("/login");
     throw err;
@@ -131,7 +91,7 @@ export default async function MinhaPastaPage({
     return (
       <div className="pasta-board">
         <header className="pasta-hero">
-          <p className="pasta-hero__kicker">Minha pasta · gestão</p>
+          <p className="pasta-hero__kicker">Minha secretaria · acompanhamento</p>
           <h1 className="pasta-hero__title">Cadastre uma secretaria</h1>
           <p className="pasta-hero__lead">
             A pasta concentra a saúde das tarefas, os projetos principais e os
@@ -153,10 +113,8 @@ export default async function MinhaPastaPage({
   } = payload.data;
   const principais = projetosPrincipais ?? projetos;
   const correlacionados = projetosCorrelacionados ?? [];
-  const fila = [...principais]
-    .sort((a, b) => b.atrasadas - a.atrasadas || b.pendencias - a.pendencias)
-    .slice(0, 3);
   const novoHref = `/minha-pasta/novo?secretariaId=${secretaria.id}`;
+  const canCreateProject = canWriteRole(session?.user?.role);
   const titulo = secretaria.sigla
     ? `${secretaria.nome} (${secretaria.sigla})`
     : secretaria.nome;
@@ -165,7 +123,7 @@ export default async function MinhaPastaPage({
     <div className="pasta-board">
       <header className="pasta-hero">
         <div className="pasta-hero__main">
-          <p className="pasta-hero__kicker">Minha pasta · preview de gestão</p>
+          <p className="pasta-hero__kicker">Minha secretaria · acompanhamento</p>
           <h1 className="pasta-hero__title">{titulo}</h1>
           <p className="pasta-hero__lead">
             {secretaria.titular.nome || "Titular não cadastrado"}
@@ -184,87 +142,29 @@ export default async function MinhaPastaPage({
               {pctAtraso}% atraso
             </Badge>
           </div>
-          <Link href={novoHref} className="cip-btn cip-btn--primary">
-            Novo projeto
-          </Link>
+          {canCreateProject && (
+            <Link href={novoHref} className="cip-btn cip-btn--primary">
+              Novo projeto
+            </Link>
+          )}
         </div>
       </header>
 
       <section className="pasta-section" aria-labelledby="pasta-saude-title">
         <div className="pasta-section__head">
-          <h2 id="pasta-saude-title">Saúde das tarefas</h2>
-          <p>Contagem do que está no prazo, atrasado, sem data ou concluído.</p>
+          <h2 id="pasta-saude-title">Saúde da secretaria</h2>
+          <p>
+            Tarefas dos projetos sob gestão direta e participação compartilhada.
+          </p>
         </div>
         <div className="pasta-section__surface">
           <PastaSaudeResumo status={tarefasStatus} />
         </div>
       </section>
 
-      <section className="pasta-section" aria-labelledby="pasta-fila-title">
-        <div className="pasta-section__head">
-          <h2 id="pasta-fila-title">Fila de ação</h2>
-          <p>
-            {fila.length
-              ? "Priorize o que está atrasado ou bloqueado nos projetos principais."
-              : "Nenhum projeto crítico na fila."}
-          </p>
-        </div>
-        {!fila.length ? (
-          <div className="pasta-empty">
-            <p>Use “Novo projeto” para abrir o primeiro projeto desta pasta.</p>
-          </div>
-        ) : (
-          <ul className="pasta-fila">
-            {fila.map((p) => (
-              <li key={p.id} className="pasta-fila__item">
-                <div>
-                  <strong>{p.nome}</strong>
-                  <p className="dashboard-muted">
-                    {p.codigo}
-                    {p.bloqueioLabel ? ` · ${p.bloqueioLabel}` : ""}
-                  </p>
-                </div>
-                <div className="pasta-fila__actions">
-                  <Badge
-                    tone={
-                      p.atrasadas
-                        ? "danger"
-                        : p.bloqueioLabel
-                          ? "warning"
-                          : "success"
-                    }
-                  >
-                    {p.bloqueioLabel
-                      ? p.bloqueioLabel
-                      : p.atrasadas
-                        ? `${p.atrasadas} atrasos`
-                        : "ok"}
-                  </Badge>
-                  <Link
-                    href={`/iniciativas/${p.id}?aba=andamento`}
-                    className="cip-btn cip-btn--secondary"
-                  >
-                    Andamento
-                  </Link>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <ProjetosSecretaria projetos={[...principais, ...correlacionados]} />
 
-      <ProjetoLista
-        titulo="Meus projetos"
-        descricao="Projetos em que esta pasta é a responsável principal."
-        projetos={principais}
-      />
-
-      <ProjetoLista
-        titulo="Projetos correlacionados"
-        descricao="Projetos de outras pastas em que esta secretaria participa."
-        projetos={correlacionados}
-        correlacionado
-      />
+      {session?.user?.role === "gestor" && <TarefasGestao tarefas={tarefas} />}
 
       <DadosExternos token={session?.accessToken || ""} />
     </div>

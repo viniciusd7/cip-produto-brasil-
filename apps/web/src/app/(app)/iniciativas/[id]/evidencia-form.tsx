@@ -11,13 +11,15 @@ export function EvidenciaForm({
   token,
   iniciativaId,
   marcos,
+  initialMarcoId,
 }: {
   token: string;
   iniciativaId: string;
   marcos: MarcoOption[];
+  initialMarcoId?: string;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(Boolean(initialMarcoId));
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
   const [fileName, setFileName] = useState("");
@@ -71,8 +73,8 @@ export function EvidenciaForm({
     <form onSubmit={onSubmit} className="quick-task-form evidencia-form">
       <strong className="quick-task-form__title">Nova evidência</strong>
       <p className="dashboard-muted" style={{ margin: 0 }}>
-        Foto ou documento da galeria + o que foi feito. O gestor valida antes de
-        contar como entrega.
+        Envie foto, vídeo ou documento com uma descrição do avanço. A consultoria
+        valida antes de contar como entrega.
       </p>
       <div>
         <label>Título</label>
@@ -99,6 +101,7 @@ export function EvidenciaForm({
           <label>Tipo</label>
           <select name="tipo" defaultValue="FOTO">
             <option value="FOTO">Foto</option>
+            <option value="VIDEO">Vídeo</option>
             <option value="DOCUMENTO">Documento</option>
             <option value="LINK">Link externo</option>
           </select>
@@ -109,13 +112,14 @@ export function EvidenciaForm({
         </div>
       </div>
       <div>
-        <label>Foto ou documento (galeria)</label>
+        <label>Foto, vídeo ou documento</label>
         <input
           name="arquivo"
           type="file"
-          accept="image/*,.pdf,.doc,.docx,application/pdf"
+          accept="image/*,video/mp4,video/webm,video/quicktime,.pdf,.doc,.docx,application/pdf"
           onChange={(e) => setFileName(e.target.files?.[0]?.name || "")}
         />
+        <small>Vídeos de até 25 MB. Formatos aceitos: MP4, WebM e MOV.</small>
         {fileName && (
           <p className="dashboard-muted" style={{ margin: "4px 0 0" }}>
             Selecionado: {fileName}
@@ -123,13 +127,13 @@ export function EvidenciaForm({
         )}
       </div>
       <div>
-        <label>Ou link externo (se não anexar arquivo)</label>
+        <label>Link ou referência externa (se não anexar arquivo)</label>
         <input name="urlOuArquivo" placeholder="https://… ou nº do processo" />
       </div>
       {!!marcos.length && (
         <div>
           <label>Vincular a tarefa</label>
-          <select name="marcoId" defaultValue="">
+          <select name="marcoId" defaultValue={initialMarcoId || ""}>
             <option value="">Projeto (sem tarefa)</option>
             {marcos.map((m) => (
               <option key={m.id} value={m.id}>

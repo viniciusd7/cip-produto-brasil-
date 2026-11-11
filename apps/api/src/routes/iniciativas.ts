@@ -5,7 +5,9 @@ import path from "path";
 import { z } from "zod";
 import { prisma } from "@cip/db";
 import {
+  assertIniciativaAccess,
   assertMunicipioAccess,
+  iniciativaScopeFilter,
   requireAuth,
   requirePermission,
 } from "../middleware/auth";
@@ -43,6 +45,7 @@ iniciativasRouter.get(
       const rows = await prisma.iniciativa.findMany({
         where: {
           municipioId,
+          AND: [iniciativaScopeFilter(req.user!)],
           ...(secretariaId ? { secretariaPrincipalId: secretariaId } : {}),
           ...(ciclo ? { ciclo } : {}),
           ...(q
@@ -149,7 +152,7 @@ iniciativasRouter.get(
       });
 
       if (!item) throw new HttpError(404, "NOT_FOUND", "Iniciativa não encontrada");
-      await assertMunicipioAccess(req.user!, item.municipioId, "Iniciativa");
+      await assertIniciativaAccess(req.user!, item.id);
 
       res.json({
         data: {
@@ -341,7 +344,7 @@ iniciativasRouter.post(
         where: { id: req.params.id },
       });
       if (!ini) throw new HttpError(404, "NOT_FOUND", "Iniciativa não encontrada");
-      await assertMunicipioAccess(req.user!, ini.municipioId, "Iniciativa");
+      await assertIniciativaAccess(req.user!, ini.id);
 
       const body = marcoSchema.parse(req.body);
       if (body.metaExecucaoId) {
@@ -676,7 +679,7 @@ iniciativasRouter.post(
 const evidenciaSchema = z.object({
   titulo: z.string().min(3),
   descricao: z.string().min(3, "Descreva o que foi feito"),
-  tipo: z.enum(["FOTO", "DOCUMENTO", "LINK"]).optional(),
+  tipo: z.enum(["FOTO", "VIDEO", "DOCUMENTO", "LINK"]).optional(),
   urlOuArquivo: z.string().optional(),
   fonte: z.string().optional(),
   marcoId: z.string().optional(),
@@ -684,7 +687,7 @@ const evidenciaSchema = z.object({
 
 iniciativasRouter.post(
   "/:id/evidencias",
-  requirePermission("iniciativa:write"),
+  requirePermission("evidencia:submit"),
   upload.single("arquivo"),
   async (req, res, next) => {
     try {
@@ -692,7 +695,7 @@ iniciativasRouter.post(
         where: { id: req.params.id },
       });
       if (!ini) throw new HttpError(404, "NOT_FOUND", "Iniciativa não encontrada");
-      await assertMunicipioAccess(req.user!, ini.municipioId, "Iniciativa");
+      await assertIniciativaAccess(req.user!, ini.id);
 
       const rawBody = {
         titulo: String(req.body.titulo || ""),
@@ -729,7 +732,7 @@ iniciativasRouter.post(
           throw new HttpError(
             422,
             "INVALID_FILE",
-            "Arquivo não permitido. Use imagem, PDF ou Word.",
+            "Arquivo não permitido. Use imagem, vídeo MP4/WEBM/MOV, PDF ou Word.",
           );
         }
         const stored = await localStorage.save(
@@ -741,9 +744,9 @@ iniciativasRouter.post(
         mimeType = stored.mimeType;
         tamanhoBytes = stored.size;
         arquivoNome = stored.originalName;
-        if (!tipo) tipo = inferTipoFromMime(file.mimetype);
+        tipo = inferTipoFromMime(file.mimetype);
       } else if (body.urlOuArquivo) {
-        if (!tipo) tipo = "LINK";
+        tipo = "LINK";
       }
 
       const row = await prisma.$transaction(async (tx) => {
@@ -810,11 +813,7 @@ iniciativasRouter.get(
       });
       if (!evidencia)
         throw new HttpError(404, "NOT_FOUND", "Evidência não encontrada");
-      await assertMunicipioAccess(
-        req.user!,
-        evidencia.iniciativa.municipioId,
-        "Evidencia",
-      );
+      await assertIniciativaAccess(req.user!, evidencia.iniciativa.id);
 
       if (
         !evidencia.urlOuArquivo ||
@@ -1419,7 +1418,7 @@ iniciativasRouter.get(
         select: { id: true, municipioId: true },
       });
       if (!ini) throw new HttpError(404, "NOT_FOUND", "Iniciativa não encontrada");
-      await assertMunicipioAccess(req.user!, ini.municipioId, "Iniciativa");
+      await assertIniciativaAccess(req.user!, ini.id);
 
       const marcos = await prisma.marcoEntrega.findMany({
         where: { iniciativaId: ini.id },
@@ -1508,7 +1507,7 @@ iniciativasRouter.get(
         select: { id: true, municipioId: true },
       });
       if (!ini) throw new HttpError(404, "NOT_FOUND", "Iniciativa não encontrada");
-      await assertMunicipioAccess(req.user!, ini.municipioId, "Iniciativa");
+      await assertIniciativaAccess(req.user!, ini.id);
       const marcoIds = (
         await prisma.marcoEntrega.findMany({
           where: { iniciativaId: ini.id },

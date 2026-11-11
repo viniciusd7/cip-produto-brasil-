@@ -5,7 +5,11 @@ import { getServerSession } from "next-auth";
 import { Badge, Breadcrumbs, PageHeader, SourceMeta } from "@cip/ui";
 import { authOptions } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
-import { canValidateRole, canWriteRole } from "@/lib/roles";
+import {
+  canSubmitEvidenceRole,
+  canValidateRole,
+  canWriteRole,
+} from "@/lib/roles";
 import { DadosExternos } from "@/components/dados-externos";
 import { ProjetoDocumento, type ProjetoDocData, type SecretariaRef } from "./projeto-documento";
 import { DossieGovernanca } from "./dossie-governanca";
@@ -44,7 +48,12 @@ export default async function IniciativaPage({
   const item = payload.data;
   const token = session?.accessToken || "";
   const canWrite = canWriteRole(session?.user?.role);
+  const canSubmitEvidence = canSubmitEvidenceRole(session?.user?.role);
   const canValidate = canValidateRole(session?.user?.role);
+  const portfolioHref =
+    session?.user?.role === "gestor" ? "/minha-pasta" : "/carteira";
+  const portfolioLabel =
+    session?.user?.role === "gestor" ? "Minha secretaria" : "Projetos";
 
   // Equipe das pastas envolvidas (sugestões de responsável) e lista de secretarias
   // para vincular correlacionadas.
@@ -72,12 +81,12 @@ export default async function IniciativaPage({
     <div className="stack">
       <Breadcrumbs
         items={[
-          { label: "Minha pasta", href: "/minha-pasta" },
+          { label: portfolioLabel, href: portfolioHref },
           {
             label: "Pasta",
             href: `/secretarias/${item.secretariaPrincipal.id}`,
           },
-          { label: "Projeto", href: "/carteira" },
+          { label: "Projeto", href: portfolioHref },
           { label: item.codigo },
         ]}
       />
@@ -89,8 +98,11 @@ export default async function IniciativaPage({
           "Documento do projeto: indicadores, andamento (Meta → Tarefa → Subtarefa) e evidências."
         }
         actions={
-          <Link href="/minha-pasta" style={{ color: "var(--cip-blue)", fontWeight: 600 }}>
-            ← Minha pasta
+          <Link
+            href={portfolioHref}
+            style={{ color: "var(--cip-blue)", fontWeight: 600 }}
+          >
+            ← {portfolioLabel}
           </Link>
         }
       />
@@ -114,6 +126,7 @@ export default async function IniciativaPage({
         <ProjetoDocumento
           item={item}
           canWrite={canWrite}
+          canSubmitEvidence={canSubmitEvidence}
           canValidate={canValidate}
           token={token}
           equipe={equipe}

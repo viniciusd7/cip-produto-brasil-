@@ -66,6 +66,7 @@ function Radar({ pasta, color }: { pasta: SecretariaOverview; color: string }) {
 }
 
 function recommendation(p: SecretariaOverview) {
+  if (!p.projetos) return "Vincular o primeiro projeto a esta secretaria para iniciar o acompanhamento.";
   if (!p.tarefasTotal && !(p.metasTotal || 0)) return "Cadastrar metas de execução e as primeiras tarefas para iniciar o acompanhamento.";
   if (p.classificacao === "DADOS_DEFASADOS") return "Validar a situação das entregas e atualizar a carteira antes da próxima reunião.";
   if ((p.metasAtrasadas || 0) > 0) return `Atualizar as ${p.metasAtrasadas} metas com prazo vencido e registrar o valor atual dos indicadores.`;
@@ -99,7 +100,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
   }));
   const visible = useMemo(() => {
     const priority = ["INTERVENCAO", "DADOS_DEFASADOS", "ACOMPANHAMENTO", "ROTINA"];
-    return porSecretaria.filter((p) => p.projetos > 0)
+    return porSecretaria
       .filter((p) => !filter || (filter === "SEM_PRAZO" ? p.semPrazo > 0 : p.classificacao === filter))
       .filter((p) => normalize(`${p.nome} ${p.sigla || ""} ${p.titular?.nome || ""}`).includes(normalize(query)))
       .sort((a, b) => sort === "name" ? a.nome.localeCompare(b.nome, "pt-BR") : sort === "delay" ? b.pctAtraso - a.pctAtraso : priority.indexOf(a.classificacao) - priority.indexOf(b.classificacao) || b.pctAtraso - a.pctAtraso);
@@ -267,7 +268,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
                     </div>
                     <div className={s.focusMetric}><strong>{focus.projetosComAtraso}</strong><small>com atraso</small></div>
                     <div className={s.focusMetric}><strong>{focus.projetosAtencaoExecutiva}</strong><small>em atenção</small></div>
-                    <Link className={s.button} href={`/secretarias/${focus.id}`}>Abrir pasta ↗</Link>
+                    <Link className={s.button} href={`/painel?secretariaId=${encodeURIComponent(focus.id)}`}>Abrir pasta ↗</Link>
                   </div>
                 )}
                 <p className={s.chartFoot}>As curvas comparam secretarias, não períodos. <a href="#metodo">Critérios de leitura ↗</a></p>
@@ -375,7 +376,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
           <div>
             <p className={s.kicker}>Do cenário global à cobrança pontual</p>
             <h2>A saúde de cada secretaria</h2>
-            <p>Identifique o sinal, entenda a causa e abra a pauta de acompanhamento.</p>
+            <p>Identifique o sinal, entenda a causa e abra o cenário de cada secretaria, inclusive das que ainda não têm projetos.</p>
           </div>
           <Link href="/secretarias" className={s.button}>Todas as pastas ↗</Link>
         </div>
@@ -402,7 +403,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
           </div>
         </div>
         <div className={s.resultMeta}>
-          <span aria-live="polite">{visible.length} de {pastas.length} secretarias com projetos</span>
+          <span aria-live="polite">{visible.length} de {porSecretaria.length} secretarias ativas · {pastas.length} com projetos</span>
           <span>Quanto mais próximo da borda, melhor a dimensão. <a href="#metodo">Como ler ↗</a></span>
         </div>
         <div className={s.healthGrid}>
@@ -412,7 +413,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
             return (
               <article key={p.id} className={`${s.panel} ${s.healthCard}`} style={{ ["--health" as string]: p.tarefasTotal ? g.color : "#929bb4" }}>
                 <div className={s.healthTop}>
-                  <span className={s.healthPill}><i />{p.tarefasTotal ? g.label : "Sem tarefas cadastradas"}</span>
+                  <span className={s.healthPill}><i />{!p.projetos ? "Sem projetos cadastrados" : p.tarefasTotal ? g.label : "Sem tarefas cadastradas"}</span>
                   <small>{p.tarefasTotal} tarefas</small>
                 </div>
                 <h3>{p.nome}</h3>
@@ -433,7 +434,9 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
                     ? `${p.diasSemAtualizacao} dias sem atualizar na data-base. Validar a informação.`
                     : p.abertas
                       ? `${number(p.pctAtraso)}% das tarefas abertas estão atrasadas.`
-                      : p.tarefasTotal
+                      : !p.projetos
+                        ? "Nenhum projeto vinculado a esta secretaria."
+                        : p.tarefasTotal
                         ? "Sem tarefas abertas nesta base."
                         : "Aguardando o registro das primeiras entregas."}
                 </p>
@@ -447,7 +450,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
                 <div className={s.recommendation}><small>Próxima cobrança sugerida</small><p>{recommendation(p)}</p></div>
                 <footer>
                   <small>{p.diasSemAtualizacao == null ? "Sem atualização registrada" : p.diasSemAtualizacao <= 0 ? "Atualizada no dia da base" : `${p.diasSemAtualizacao} dias sem atualizar na base`}</small>
-                  <Link href={`/secretarias/${p.id}`} className={s.button}>Abrir pauta ↗</Link>
+                  <Link href={`/painel?secretariaId=${encodeURIComponent(p.id)}`} className={s.button}>Abrir cenário ↗</Link>
                 </footer>
               </article>
             );
@@ -455,9 +458,9 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
         </div>
         {!visible.length && (
           <div className={s.empty}>
-            {pastas.length
+            {porSecretaria.length
               ? <>Nenhuma secretaria corresponde aos filtros. <button type="button" onClick={() => { setQuery(""); setFilter(""); }}>Limpar filtros</button></>
-              : <>As secretarias aparecerão aqui quando receberem seus primeiros projetos. <Link href="/carteira">Abrir carteira</Link></>}
+              : <>Nenhuma secretaria ativa cadastrada. <Link href="/secretarias">Abrir secretarias</Link></>}
           </div>
         )}
       </section>
@@ -516,19 +519,19 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
           <p className={s.kicker}>Itens que pedem ação</p>
           <div className={s.pendingList}>
             {(tarefasPedemAcao?.atrasadas || []).slice(0, 4).map((t) => (
-              <Link key={`atr-${t.id}`} href={`/iniciativas/${t.iniciativaId}`}>
+              <Link key={`atr-${t.id}`} href={`/iniciativas/${t.iniciativaId}?aba=andamento`}>
                 <span><strong>{t.descricao}</strong><small>Tarefa atrasada · {t.secretaria} · {t.iniciativaNome}</small></span>
                 <b aria-hidden="true">↗</b>
               </Link>
             ))}
             {(tarefasPedemAcao?.vencemEm15d || []).slice(0, 3).map((t) => (
-              <Link key={`v15-${t.id}`} href={`/iniciativas/${t.iniciativaId}`}>
+              <Link key={`v15-${t.id}`} href={`/iniciativas/${t.iniciativaId}?aba=andamento`}>
                 <span><strong>{t.descricao}</strong><small>Vence em até 15 dias · {t.secretaria}</small></span>
                 <b aria-hidden="true">↗</b>
               </Link>
             ))}
             {(tarefasPedemAcao?.semPrazo || []).slice(0, 3).map((t) => (
-              <Link key={`sp-${t.id}`} href={`/iniciativas/${t.iniciativaId}`}>
+              <Link key={`sp-${t.id}`} href={`/iniciativas/${t.iniciativaId}?aba=andamento`}>
                 <span><strong>{t.descricao}</strong><small>Sem prazo · {t.secretaria}</small></span>
                 <b aria-hidden="true">↗</b>
               </Link>

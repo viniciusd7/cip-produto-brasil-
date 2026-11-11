@@ -19,6 +19,7 @@ export function EvidenciaMedia({
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const isImage = Boolean(mimeType?.startsWith("image/"));
+  const isVideo = Boolean(mimeType?.startsWith("video/"));
   const arquivoUrl = `${API_URL}/iniciativas/evidencias/${evidenciaId}/arquivo`;
 
   useEffect(() => {
@@ -51,6 +52,18 @@ export function EvidenciaMedia({
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img src={url} alt={titulo} className="evidencia-card__thumb" />
+    );
+  }
+
+  if (isVideo) {
+    return (
+      <video
+        src={url}
+        controls
+        preload="metadata"
+        className="evidencia-card__video"
+        aria-label={titulo}
+      />
     );
   }
 

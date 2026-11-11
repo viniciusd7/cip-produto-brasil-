@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import type { Prisma } from "@cip/db";
 import jwt from "jsonwebtoken";
 import { prisma } from "@cip/db";
 import type { PermissionCode, RoleCode } from "@cip/shared";
@@ -12,6 +13,7 @@ export interface AuthUser {
   role: RoleCode;
   municipioId: string;
   municipioNome: string;
+  secretariaId?: string | null;
   permissions: PermissionCode[];
 }
 
@@ -42,18 +44,91 @@ export function signAccessToken(payload: AuthUser) {
   return jwt.sign(payload, authSecret(), { expiresIn: "8h" });
 }
 
-export function requireAuth(req: Request, _res: Response, next: NextFunction) {
+export async function requireAuth(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+) {
+  const header = req.headers.authorization;
+  if (!header?.startsWith("Bearer ")) {
+    next(new HttpError(401, "UNAUTHORIZED", "Token ausente"));
+    return;
+  }
+
+  let decoded: AuthUser;
   try {
-    const header = req.headers.authorization;
-    if (!header?.startsWith("Bearer ")) {
-      throw new HttpError(401, "UNAUTHORIZED", "Token ausente");
+    const payload = jwt.verify(header.slice(7), authSecret());
+    if (
+      typeof payload !== "object" ||
+      payload === null ||
+      typeof payload.id !== "string" ||
+      typeof payload.municipioId !== "string"
+    ) {
+      throw new Error("Invalid access token claims");
     }
-    const token = header.slice(7);
-    const decoded = jwt.verify(token, authSecret()) as AuthUser;
-    req.user = decoded;
-    next();
+    decoded = payload as AuthUser;
   } catch {
     next(new HttpError(401, "UNAUTHORIZED", "Sessão inválida ou expirada"));
+    return;
+  }
+
+  try {
+    const vinculo = await prisma.vinculoUsuarioMunicipio.findUnique({
+      where: {
+        userId_municipioId: {
+          userId: decoded.id,
+          municipioId: decoded.municipioId,
+        },
+      },
+      select: {
+        municipioId: true,
+        municipio: { select: { nome: true } },
+        user: {
+          select: {
+            active: true,
+            roles: { select: { role: { select: { code: true } } } },
+          },
+        },
+      },
+    });
+    if (!vinculo || !vinculo.user.active) {
+      throw new HttpError(
+        401,
+        "UNAUTHORIZED",
+        "Usuário inativo ou sem vínculo municipal",
+      );
+    }
+
+    const rawRole = vinculo.user.roles[0]?.role.code;
+    const role = (
+      rawRole && rawRole in ROLE_PERMISSIONS ? rawRole : "leitura"
+    ) as RoleCode;
+    const secretariaId =
+      role === "gestor"
+        ? (
+            await prisma.vinculoUsuarioMunicipio.findUnique({
+              where: {
+                userId_municipioId: {
+                  userId: decoded.id,
+                  municipioId: vinculo.municipioId,
+                },
+              },
+              select: { secretariaId: true },
+            })
+          )?.secretariaId ?? null
+        : null;
+
+    req.user = {
+      ...decoded,
+      role,
+      municipioId: vinculo.municipioId,
+      municipioNome: vinculo.municipio.nome,
+      secretariaId,
+      permissions: permissionsForRole(role),
+    };
+    next();
+  } catch (error) {
+    next(error);
   }
 }
 
@@ -118,6 +193,78 @@ export async function assertMunicipioAccess(
       "Acesso bloqueado entre municípios distintos",
     );
   }
+}
+
+export async function assertSecretariaAccess(
+  user: AuthUser,
+  secretariaId: string,
+) {
+  const secretaria = await prisma.secretaria.findFirst({
+    where: {
+      id: secretariaId,
+      municipioId: user.municipioId,
+      active: true,
+    },
+    select: { id: true },
+  });
+  if (!secretaria) {
+    throw new HttpError(404, "NOT_FOUND", "Secretaria não encontrada");
+  }
+  if (user.role === "gestor" && user.secretariaId !== secretariaId) {
+    throw new HttpError(
+      403,
+      "SECRETARIA_SCOPED",
+      "Acesso restrito à secretaria vinculada ao seu usuário",
+    );
+  }
+}
+
+export async function assertIniciativaAccess(
+  user: AuthUser,
+  iniciativaId: string,
+) {
+  const iniciativa = await prisma.iniciativa.findFirst({
+    where: { id: iniciativaId },
+    select: {
+      id: true,
+      municipioId: true,
+      secretariaPrincipalId: true,
+      secretarias: { select: { secretariaId: true } },
+    },
+  });
+  if (!iniciativa) {
+    throw new HttpError(404, "NOT_FOUND", "Projeto não encontrado");
+  }
+
+  await assertMunicipioAccess(user, iniciativa.municipioId, "Iniciativa");
+  if (user.role === "gestor") {
+    const participates =
+      user.secretariaId === iniciativa.secretariaPrincipalId ||
+      iniciativa.secretarias.some(
+        (vinculo) => vinculo.secretariaId === user.secretariaId,
+      );
+    if (!user.secretariaId || !participates) {
+      throw new HttpError(
+        403,
+        "SECRETARIA_SCOPED",
+        "Projeto fora do escopo da secretaria vinculada ao seu usuário",
+      );
+    }
+  }
+  return iniciativa;
+}
+
+export function iniciativaScopeFilter(
+  user: AuthUser,
+): Prisma.IniciativaWhereInput {
+  if (user.role !== "gestor") return {};
+  if (!user.secretariaId) return { id: { in: [] } };
+  return {
+    OR: [
+      { secretariaPrincipalId: user.secretariaId },
+      { secretarias: { some: { secretariaId: user.secretariaId } } },
+    ],
+  };
 }
 
 export function permissionsForRole(role: RoleCode): PermissionCode[] {

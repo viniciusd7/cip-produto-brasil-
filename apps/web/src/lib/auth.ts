@@ -12,6 +12,7 @@ type LoginResponse = {
       role: string;
       municipioId: string;
       municipioNome: string;
+      secretariaId?: string | null;
     };
   };
 };
@@ -45,6 +46,7 @@ export const authOptions: NextAuthOptions = {
             role: result.data.user.role,
             municipioId: result.data.user.municipioId,
             municipioNome: result.data.user.municipioNome,
+            secretariaId: result.data.user.secretariaId,
             accessToken: result.data.accessToken,
           };
         } catch {
@@ -60,6 +62,7 @@ export const authOptions: NextAuthOptions = {
         token.role = (user as { role?: string }).role;
         token.municipioId = (user as { municipioId?: string }).municipioId;
         token.municipioNome = (user as { municipioNome?: string }).municipioNome;
+        token.secretariaId = (user as { secretariaId?: string | null }).secretariaId;
       }
       return token;
     },
@@ -69,6 +72,8 @@ export const authOptions: NextAuthOptions = {
         session.user.role = (token.role as string) || "leitura";
         session.user.municipioId = (token.municipioId as string) || "";
         session.user.municipioNome = (token.municipioNome as string) || "";
+        session.user.secretariaId =
+          (token.secretariaId as string | null | undefined) ?? null;
         session.accessToken = token.accessToken as string;
       }
       return session;

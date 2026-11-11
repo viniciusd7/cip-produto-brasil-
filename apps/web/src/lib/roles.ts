@@ -8,6 +8,10 @@ export function normalizeRole(role?: string | null): AppRole {
 }
 
 export function canWriteRole(role?: string | null) {
+  return ["admin", "analista"].includes(normalizeRole(role));
+}
+
+export function canSubmitEvidenceRole(role?: string | null) {
   return ["admin", "gestor", "analista"].includes(normalizeRole(role));
 }
 
@@ -16,13 +20,13 @@ export function canManageSecretariaRole(role?: string | null) {
   return ["admin", "prefeito"].includes(normalizeRole(role));
 }
 
-/** Edição de secretaria: gabinete (manage) ou secretário/equipe (write). */
+/** Edição de secretaria: gabinete (manage) ou consultoria/equipe (write). */
 export function canEditSecretariaRole(role?: string | null) {
   return canManageSecretariaRole(role) || canWriteRole(role);
 }
 
 export function canValidateRole(role?: string | null) {
-  return ["admin", "gestor"].includes(normalizeRole(role));
+  return ["admin", "analista"].includes(normalizeRole(role));
 }
 
 export function getHomeForRole(role?: string | null) {
@@ -45,7 +49,7 @@ export function getRoleLabel(role?: string | null) {
     admin: "Administração CIP",
     prefeito: "Gabinete do Prefeito",
     gestor: "Secretário",
-    analista: "Equipe",
+    analista: "Consultor",
     leitura: "Consulta",
   };
   return map[normalizeRole(role)];
@@ -66,14 +70,14 @@ export function getNextStepForRole(role?: string | null): {
     case "gestor":
       return {
         href: "/minha-pasta",
-        label: "Atualizar minha pasta",
-        hint: "Projetos e pendências da secretaria",
+        label: "Abrir minha secretaria",
+        hint: "Acompanhe entregas e envie evidências",
       };
     case "analista":
       return {
         href: "/carteira",
-        label: "Entrar nos projetos",
-        hint: "Tarefas, subtarefas e evidências",
+        label: "Abrir projetos e tarefas",
+        hint: "Metas, prazos, responsáveis e evidências",
       };
     case "admin":
       return {
@@ -92,10 +96,11 @@ export function getNextStepForRole(role?: string | null): {
 
 export type NavItem = { href: string; label: string; icon?: string };
 
-/** Ordem da jornada: Cenário → Minha pasta → Projeto → Cobrança. */
+/** Ordem da jornada: Cenário → Minha secretaria → Projeto → Cobrança. */
 const ALL_NAV: NavItem[] = [
   { href: "/painel", label: "Cenário" },
-  { href: "/minha-pasta", label: "Minha pasta" },
+  { href: "/minha-pasta", label: "Minha secretaria" },
+  { href: "/secretarias", label: "Secretarias" },
   { href: "/carteira", label: "Projetos" },
   { href: "/acoes", label: "Ações" },
   { href: "/planejamento", label: "Plano" },
@@ -113,13 +118,17 @@ export function getNavForRole(role?: string | null): NavItem[] {
   if (r === "admin") {
     ALL_NAV.forEach((n) => allow.add(n.href));
   } else if (r === "prefeito") {
-    ["/painel", "/carteira", "/pendencias", "/relatorios"].forEach((h) => allow.add(h));
+    ["/painel", "/secretarias", "/carteira", "/pendencias", "/relatorios"].forEach((h) =>
+      allow.add(h),
+    );
   } else if (r === "gestor") {
-    ["/painel", "/minha-pasta", "/carteira", "/acoes", "/pendencias"].forEach((h) =>
+    ["/minha-pasta", "/pendencias"].forEach((h) =>
       allow.add(h),
     );
   } else if (r === "analista") {
-    ["/minha-pasta", "/carteira", "/acoes", "/relatorios"].forEach((h) => allow.add(h));
+    ["/secretarias", "/carteira", "/acoes", "/pendencias", "/relatorios"].forEach((h) =>
+      allow.add(h),
+    );
   } else {
     ["/painel", "/relatorios"].forEach((h) => allow.add(h));
   }

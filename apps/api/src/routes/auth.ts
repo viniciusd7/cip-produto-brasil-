@@ -59,6 +59,7 @@ authRouter.post("/login", async (req, res, next) => {
       role,
       municipioId: vinculo.municipioId,
       municipioNome: vinculo.municipio.nome,
+      secretariaId: role === "gestor" ? vinculo.secretariaId : null,
       permissions: permissionsForRole(role),
     };
 
@@ -82,6 +83,7 @@ authRouter.post("/login", async (req, res, next) => {
           role: authUser.role,
           municipioId: authUser.municipioId,
           municipioNome: authUser.municipioNome,
+          secretariaId: authUser.secretariaId,
         },
       },
     });

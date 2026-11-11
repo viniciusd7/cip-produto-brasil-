@@ -11,6 +11,7 @@ declare module "next-auth" {
       role: string;
       municipioId: string;
       municipioNome: string;
+      secretariaId?: string | null;
     };
   }
 
@@ -18,6 +19,7 @@ declare module "next-auth" {
     role?: string;
     municipioId?: string;
     municipioNome?: string;
+    secretariaId?: string | null;
     accessToken?: string;
   }
 }
@@ -28,5 +30,6 @@ declare module "next-auth/jwt" {
     role?: string;
     municipioId?: string;
     municipioNome?: string;
+    secretariaId?: string | null;
   }
 }
