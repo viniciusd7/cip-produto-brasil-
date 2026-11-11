@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { AvisosBadge } from "./avisos-badge";
+import { NotificacoesBadge } from "./notificacoes-badge";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
@@ -142,6 +143,7 @@ export function AppShell({
           <span>Governo em perspectiva</span>
         </div>
         <div className="app-topbar__actions">
+          {!isCentralCip && role !== "leitura" && <NotificacoesBadge token={data?.accessToken} />}
           {!isCentralCip && ["gestor", "analista", "admin"].includes(role || "") && (
             <AvisosBadge token={data?.accessToken} compact />
           )}

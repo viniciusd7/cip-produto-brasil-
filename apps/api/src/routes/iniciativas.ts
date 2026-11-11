@@ -13,6 +13,7 @@ import {
 } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
 import { writeAudit } from "../services/audit";
+import { camposResponsavel, notificarAtribuicao, resolverResponsavel } from "../services/responsaveis";
 import { prazoStatus } from "../services/prazo";
 import {
   inferTipoFromMime,
@@ -329,6 +330,7 @@ const marcoSchema = z.object({
   codigo: z.string().optional(),
   descricao: z.string().min(3),
   responsavel: z.string().optional(),
+  responsavelUserId: z.string().nullable().optional(),
   prazoOriginal: z.string().datetime().nullable().optional(),
   ordem: z.number().int().optional(),
   metaExecucaoId: z.string().optional(),
@@ -360,6 +362,7 @@ iniciativasRouter.post(
           );
         }
       }
+      const responsavelUser = await resolverResponsavel(ini.municipioId, body.responsavelUserId);
       const prazo = body.prazoOriginal ? new Date(body.prazoOriginal) : null;
       const ordem =
         body.ordem ??
@@ -375,12 +378,23 @@ iniciativasRouter.post(
           codigo: body.codigo,
           descricao: body.descricao,
           responsavel: body.responsavel,
+          ...camposResponsavel(responsavelUser),
           prazoOriginal: prazo,
           prazoVigente: prazo,
           ordem,
           metaExecucaoId: body.metaExecucaoId,
           gravidade: body.gravidade,
         },
+      });
+      await notificarAtribuicao({
+        municipioId: ini.municipioId,
+        novo: responsavelUser,
+        autorId: req.user!.id,
+        entidadeTipo: "MARCO",
+        entidadeId: marco.id,
+        rotulo: "uma tarefa",
+        descricao: `${ini.codigo} · ${ini.nome}: ${marco.descricao}${prazo ? ` — prazo ${prazo.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}` : ""}.`,
+        link: `/iniciativas/${ini.id}?aba=andamento`,
       });
 
       await writeAudit({
@@ -973,6 +987,7 @@ const metaExecSchema = z.object({
   alvo: z.string().optional(),
   unidade: z.string().optional(),
   responsavel: z.string().optional(),
+  responsavelUserId: z.string().nullable().optional(),
   prazo: z.string().datetime().optional(),
   ordem: z.number().int().optional(),
   status: z.string().optional(),
@@ -1002,6 +1017,7 @@ iniciativasRouter.post(
         );
       }
 
+      const responsavelUser = await resolverResponsavel(ini.municipioId, body.responsavelUserId);
       const row = await prisma.metaExecucao.create({
         data: {
           iniciativaId: ini.id,
@@ -1012,10 +1028,21 @@ iniciativasRouter.post(
           alvo: body.alvo,
           unidade: body.unidade,
           responsavel: body.responsavel,
+          ...camposResponsavel(responsavelUser),
           prazo: body.prazo ? new Date(body.prazo) : null,
           ordem: body.ordem ?? 0,
           status: body.status || "EM_ANDAMENTO",
         },
+      });
+      await notificarAtribuicao({
+        municipioId: ini.municipioId,
+        novo: responsavelUser,
+        autorId: req.user!.id,
+        entidadeTipo: "META_EXECUCAO",
+        entidadeId: row.id,
+        rotulo: "uma meta de execução",
+        descricao: `${ini.codigo} · ${ini.nome}: ${row.nome}.`,
+        link: `/iniciativas/${ini.id}?aba=andamento`,
       });
 
       await writeAudit({
@@ -1037,6 +1064,8 @@ iniciativasRouter.post(
 const subtarefaSchema = z.object({
   descricao: z.string().min(3),
   responsavel: z.string().optional(),
+  responsavelUserId: z.string().nullable().optional(),
+  prazo: z.string().datetime().nullable().optional(),
   concluida: z.boolean().optional(),
 });
 
@@ -1056,13 +1085,26 @@ iniciativasRouter.post(
         "MarcoEntrega",
       );
       const body = subtarefaSchema.parse(req.body);
+      const responsavelUser = await resolverResponsavel(marco.iniciativa.municipioId, body.responsavelUserId);
       const row = await prisma.subtarefa.create({
         data: {
           marcoId: marco.id,
           descricao: body.descricao,
           responsavel: body.responsavel,
+          ...camposResponsavel(responsavelUser),
+          prazo: body.prazo ? new Date(body.prazo) : null,
           concluida: body.concluida ?? false,
         },
+      });
+      await notificarAtribuicao({
+        municipioId: marco.iniciativa.municipioId,
+        novo: responsavelUser,
+        autorId: req.user!.id,
+        entidadeTipo: "SUBTAREFA",
+        entidadeId: row.id,
+        rotulo: "uma subtarefa",
+        descricao: `${marco.iniciativa.codigo} · ${marco.descricao}: ${row.descricao}.`,
+        link: `/iniciativas/${marco.iniciativaId}?aba=andamento`,
       });
       await writeAudit({
         user: req.user,
@@ -1105,10 +1147,26 @@ iniciativasRouter.patch(
             "Projeto aguardando pré-requisito — não é possível concluir subtarefas",
         );
       }
-      const body = subtarefaSchema.partial().parse(req.body);
+      const { responsavelUserId, prazo, ...body } = subtarefaSchema.partial().parse(req.body);
+      const responsavelUser = await resolverResponsavel(existing.marco.iniciativa.municipioId, responsavelUserId);
       const row = await prisma.subtarefa.update({
         where: { id: existing.id },
-        data: body,
+        data: {
+          ...body,
+          ...camposResponsavel(responsavelUser),
+          ...(prazo !== undefined ? { prazo: prazo ? new Date(prazo) : null } : {}),
+        },
+      });
+      await notificarAtribuicao({
+        municipioId: existing.marco.iniciativa.municipioId,
+        anteriorUserId: existing.responsavelUserId,
+        novo: responsavelUser,
+        autorId: req.user!.id,
+        entidadeTipo: "SUBTAREFA",
+        entidadeId: row.id,
+        rotulo: "uma subtarefa",
+        descricao: `${existing.marco.iniciativa.codigo} · ${existing.marco.descricao}: ${row.descricao}.`,
+        link: `/iniciativas/${existing.marco.iniciativaId}?aba=andamento`,
       });
       res.json({ data: row });
     } catch (err) {
@@ -1239,6 +1297,7 @@ iniciativasRouter.patch(
 
 const metaPatchSchema = z.object({
   responsavel: z.string().max(200).nullable().optional(),
+  responsavelUserId: z.string().nullable().optional(),
 });
 
 iniciativasRouter.patch(
@@ -1248,7 +1307,7 @@ iniciativasRouter.patch(
     try {
       const existing = await prisma.metaExecucao.findUnique({
         where: { id: req.params.id },
-        include: { iniciativa: { select: { municipioId: true } } },
+        include: { iniciativa: { select: { id: true, codigo: true, nome: true, municipioId: true } } },
       });
       if (!existing) throw new HttpError(404, "NOT_FOUND", "Meta não encontrada");
       await assertMunicipioAccess(
@@ -1257,9 +1316,24 @@ iniciativasRouter.patch(
         "MetaExecucao",
       );
       const body = metaPatchSchema.parse(req.body);
+      const responsavelUser = await resolverResponsavel(existing.iniciativa.municipioId, body.responsavelUserId);
       const row = await prisma.metaExecucao.update({
         where: { id: existing.id },
-        data: { responsavel: body.responsavel?.trim() || null },
+        data: {
+          ...(body.responsavel !== undefined ? { responsavel: body.responsavel?.trim() || null } : {}),
+          ...camposResponsavel(responsavelUser),
+        },
+      });
+      await notificarAtribuicao({
+        municipioId: existing.iniciativa.municipioId,
+        anteriorUserId: existing.responsavelUserId,
+        novo: responsavelUser,
+        autorId: req.user!.id,
+        entidadeTipo: "META_EXECUCAO",
+        entidadeId: row.id,
+        rotulo: "uma meta de execução",
+        descricao: `${existing.iniciativa.codigo} · ${existing.iniciativa.nome}: ${row.nome}.`,
+        link: `/iniciativas/${existing.iniciativa.id}?aba=andamento`,
       });
       await writeAudit({
         user: req.user,
@@ -1278,6 +1352,7 @@ iniciativasRouter.patch(
 
 const marcoPatchSchema = z.object({
   responsavel: z.string().max(200).nullable().optional(),
+  responsavelUserId: z.string().nullable().optional(),
   descricao: z.string().min(3).optional(),
 });
 
@@ -1288,7 +1363,7 @@ iniciativasRouter.patch(
     try {
       const existing = await prisma.marcoEntrega.findUnique({
         where: { id: req.params.id },
-        include: { iniciativa: { select: { municipioId: true } } },
+        include: { iniciativa: { select: { id: true, codigo: true, nome: true, municipioId: true } } },
       });
       if (!existing) throw new HttpError(404, "NOT_FOUND", "Tarefa não encontrada");
       await assertMunicipioAccess(
@@ -1297,6 +1372,7 @@ iniciativasRouter.patch(
         "MarcoEntrega",
       );
       const body = marcoPatchSchema.parse(req.body);
+      const responsavelUser = await resolverResponsavel(existing.iniciativa.municipioId, body.responsavelUserId);
       const row = await prisma.marcoEntrega.update({
         where: { id: existing.id },
         data: {
@@ -1304,7 +1380,19 @@ iniciativasRouter.patch(
           ...(body.responsavel !== undefined
             ? { responsavel: body.responsavel?.trim() || null }
             : {}),
+          ...camposResponsavel(responsavelUser),
         },
+      });
+      await notificarAtribuicao({
+        municipioId: existing.iniciativa.municipioId,
+        anteriorUserId: existing.responsavelUserId,
+        novo: responsavelUser,
+        autorId: req.user!.id,
+        entidadeTipo: "MARCO",
+        entidadeId: row.id,
+        rotulo: "uma tarefa",
+        descricao: `${existing.iniciativa.codigo} · ${existing.iniciativa.nome}: ${row.descricao}.`,
+        link: `/iniciativas/${existing.iniciativa.id}?aba=andamento`,
       });
       await writeAudit({
         user: req.user,

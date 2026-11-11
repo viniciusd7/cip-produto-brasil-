@@ -10,14 +10,14 @@ datasource db {
 // ========== Auth / RBAC ==========
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String
-  passwordHash String
-  active       Boolean  @default(true)
-  isPlatformAdmin Boolean @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String   @id @default(cuid())
+  email           String   @unique
+  name            String
+  passwordHash    String
+  active          Boolean  @default(true)
+  isPlatformAdmin Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   roles                 UserRole[]
   vinculos              VinculoUsuarioMunicipio[]
@@ -38,6 +38,12 @@ model User {
   dependenciasCriadas   DependenciaVinculo[]      @relation("DependenciaAutor")
   dependenciasValidadas DependenciaVinculo[]      @relation("DependenciaValidador")
   medicoes              Medicao[]                 @relation("MedicaoAutor")
+  metasEstrategicasResp MetaEstrategica[]         @relation("MetaEstrategicaResponsavel")
+  metasExecucaoResp     MetaExecucao[]            @relation("MetaExecucaoResponsavel")
+  tarefasResp           MarcoEntrega[]            @relation("MarcoResponsavel")
+  subtarefasResp        Subtarefa[]               @relation("SubtarefaResponsavel")
+  indicadoresResp       Indicador[]               @relation("IndicadorResponsavel")
+  notificacoes          Notificacao[]             @relation("NotificacaoDestino")
 }
 
 model Role {
@@ -89,27 +95,27 @@ model SessionToken {
 // ========== Organização municipal ==========
 
 model Municipio {
-  id                     String   @id @default(cuid())
+  id                     String    @id @default(cuid())
   nome                   String
-  uf                     String   @db.VarChar(2)
-  ibgeCode               String?  @unique
+  uf                     String    @db.VarChar(2)
+  ibgeCode               String?   @unique
   /**
    * CNPJ do órgão (só dígitos) para consultas Transferegov/PNCP.
    */
-  cnpjOrgao              String?  @db.VarChar(14)
+  cnpjOrgao              String?   @db.VarChar(14)
   mandatoInicio          DateTime?
   mandatoFim             DateTime?
   prefeitoNome           String?
   prefeitoTelefone       String?
   prefeitoEmail          String?
   consultorResponsavelId String?
-  active                 Boolean  @default(true)
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  active                 Boolean   @default(true)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   secretarias           Secretaria[]
   vinculos              VinculoUsuarioMunicipio[]
-  consultorResponsavel  User?                    @relation("MunicipioConsultorResponsavel", fields: [consultorResponsavelId], references: [id], onDelete: SetNull)
+  consultorResponsavel  User?                     @relation("MunicipioConsultorResponsavel", fields: [consultorResponsavelId], references: [id], onDelete: SetNull)
   compromissos          Compromisso[]
   iniciativas           Iniciativa[]
   equipamentos          EquipamentoPublico[]
@@ -121,6 +127,8 @@ model Municipio {
   sugestoesIa           SugestaoIA[]
   solicitacoesValidacao SolicitacaoValidacao[]
   medicoes              Medicao[]
+  indicadores           Indicador[]
+  notificacoes          Notificacao[]
 
   @@index([consultorResponsavelId])
 }
@@ -216,15 +224,19 @@ model MetaEstrategica {
   statusValidacao   String       @default("PENDENTE") // PENDENTE | VALIDADO | REJEITADO
   perspectivaBsc    String? // FINANCEIRA | CLIENTES | PROCESSOS | APRENDIZADO
   resultadoChaveOkr String?
+  responsavelUserId String?
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   plano             PlanoGoverno @relation(fields: [planoId], references: [id], onDelete: Cascade)
   secretaria        Secretaria?  @relation(fields: [secretariaId], references: [id])
+  responsavelUser   User?        @relation("MetaEstrategicaResponsavel", fields: [responsavelUserId], references: [id], onDelete: SetNull)
   iniciativas       Iniciativa[]
   medicoes          Medicao[]
+  indicadores       Indicador[]
 
   @@index([planoId])
   @@index([secretariaId])
+  @@index([responsavelUserId])
 }
 
 // ========== Compromissos e Iniciativas ==========
@@ -304,27 +316,31 @@ model Iniciativa {
 }
 
 model MetaExecucao {
-  id           String    @id @default(cuid())
-  iniciativaId String
-  codigo       String?
-  nome         String
-  indicador    String?
-  criterio     String?   @db.Text
-  alvo         String?
-  valorAtual   String?
-  unidade      String?
-  responsavel  String?
-  prazo        DateTime?
-  status       String    @default("EM_ANDAMENTO")
-  ordem        Int       @default(0)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                String    @id @default(cuid())
+  iniciativaId      String
+  codigo            String?
+  nome              String
+  indicador         String?
+  criterio          String?   @db.Text
+  alvo              String?
+  valorAtual        String?
+  unidade           String?
+  responsavel       String?
+  responsavelUserId String?
+  prazo             DateTime?
+  status            String    @default("EM_ANDAMENTO")
+  ordem             Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  iniciativa Iniciativa     @relation(fields: [iniciativaId], references: [id], onDelete: Cascade)
-  marcos     MarcoEntrega[]
-  medicoes   Medicao[]
+  iniciativa      Iniciativa     @relation(fields: [iniciativaId], references: [id], onDelete: Cascade)
+  responsavelUser User?          @relation("MetaExecucaoResponsavel", fields: [responsavelUserId], references: [id], onDelete: SetNull)
+  marcos          MarcoEntrega[]
+  medicoes        Medicao[]
+  indicadores     Indicador[]
 
   @@index([iniciativaId])
+  @@index([responsavelUserId])
 }
 
 model Medicao {
@@ -332,6 +348,7 @@ model Medicao {
   municipioId       String
   metaEstrategicaId String?
   metaExecucaoId    String?
+  indicadorId       String?
   dataCorte         DateTime
   valorRealizado    String
   valorEsperado     String?
@@ -344,11 +361,46 @@ model Medicao {
   municipio       Municipio        @relation(fields: [municipioId], references: [id], onDelete: Cascade)
   metaEstrategica MetaEstrategica? @relation(fields: [metaEstrategicaId], references: [id], onDelete: Cascade)
   metaExecucao    MetaExecucao?    @relation(fields: [metaExecucaoId], references: [id], onDelete: Cascade)
+  indicador       Indicador?       @relation(fields: [indicadorId], references: [id], onDelete: Cascade)
   autor           User?            @relation("MedicaoAutor", fields: [autorId], references: [id])
 
   @@index([municipioId])
+  @@index([indicadorId, dataCorte])
   @@index([metaEstrategicaId, dataCorte])
   @@index([metaExecucaoId, dataCorte])
+}
+
+/// Indicador mensurável de uma meta estratégica (ou de execução), com série de medições.
+model Indicador {
+  id                String   @id @default(cuid())
+  municipioId       String
+  metaEstrategicaId String?
+  metaExecucaoId    String?
+  nome              String
+  descricao         String?  @db.Text
+  formula           String?  @db.Text
+  unidade           String?
+  valorBase         String?
+  alvo              String?
+  valorAtual        String?
+  periodicidade     String?
+  fonte             String?
+  polaridade        String   @default("MAIOR_MELHOR") // MAIOR_MELHOR | MENOR_MELHOR
+  responsavelUserId String?
+  ativo             Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  municipio       Municipio        @relation(fields: [municipioId], references: [id], onDelete: Cascade)
+  metaEstrategica MetaEstrategica? @relation(fields: [metaEstrategicaId], references: [id], onDelete: Cascade)
+  metaExecucao    MetaExecucao?    @relation(fields: [metaExecucaoId], references: [id], onDelete: Cascade)
+  responsavelUser User?            @relation("IndicadorResponsavel", fields: [responsavelUserId], references: [id], onDelete: SetNull)
+  medicoes        Medicao[]
+
+  @@index([municipioId])
+  @@index([metaEstrategicaId])
+  @@index([metaExecucaoId])
+  @@index([responsavelUserId])
 }
 
 model IniciativaSecretaria {
@@ -414,6 +466,7 @@ model MarcoEntrega {
   descricao             String    @db.Text
   ordem                 Int       @default(0)
   responsavel           String?
+  responsavelUserId     String?
   prazoOriginal         DateTime?
   prazoVigente          DateTime?
   concluidoEm           DateTime?
@@ -423,30 +476,36 @@ model MarcoEntrega {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  iniciativa     Iniciativa          @relation(fields: [iniciativaId], references: [id], onDelete: Cascade)
-  metaExecucao   MetaExecucao?       @relation(fields: [metaExecucaoId], references: [id])
-  equipamento    EquipamentoPublico? @relation(fields: [equipamentoId], references: [id])
-  reprogramacoes Reprogramacao[]
-  subtarefas     Subtarefa[]
-  evidencias     Evidencia[]
-  impedimentos   Impedimento[]
+  iniciativa      Iniciativa          @relation(fields: [iniciativaId], references: [id], onDelete: Cascade)
+  metaExecucao    MetaExecucao?       @relation(fields: [metaExecucaoId], references: [id])
+  equipamento     EquipamentoPublico? @relation(fields: [equipamentoId], references: [id])
+  responsavelUser User?               @relation("MarcoResponsavel", fields: [responsavelUserId], references: [id], onDelete: SetNull)
+  reprogramacoes  Reprogramacao[]
+  subtarefas      Subtarefa[]
+  evidencias      Evidencia[]
+  impedimentos    Impedimento[]
 
   @@index([iniciativaId])
   @@index([metaExecucaoId])
   @@index([prazoVigente])
+  @@index([responsavelUserId])
 }
 
 model Subtarefa {
-  id          String       @id @default(cuid())
-  marcoId     String
-  descricao   String       @db.Text
-  responsavel String?
-  concluida   Boolean      @default(false)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  marco       MarcoEntrega @relation(fields: [marcoId], references: [id], onDelete: Cascade)
+  id                String       @id @default(cuid())
+  marcoId           String
+  descricao         String       @db.Text
+  responsavel       String?
+  responsavelUserId String?
+  prazo             DateTime?
+  concluida         Boolean      @default(false)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  marco             MarcoEntrega @relation(fields: [marcoId], references: [id], onDelete: Cascade)
+  responsavelUser   User?        @relation("SubtarefaResponsavel", fields: [responsavelUserId], references: [id], onDelete: SetNull)
 
   @@index([marcoId])
+  @@index([responsavelUserId])
 }
 
 model Reprogramacao {
@@ -892,6 +951,7 @@ model SolicitacaoValidacao {
   entidadeId    String
   tipo          String   @default("REVISAO") // REVISAO | APROVACAO | VINCULO
   justificativa String   @db.Text
+  payload       Json?
   status        String   @default("ABERTA") // ABERTA | DECIDIDA | CANCELADA
   autorId       String?
   createdAt     DateTime @default(now())
@@ -917,4 +977,24 @@ model DecisaoValidacao {
   validador   User?                @relation("DecisaoValidador", fields: [validadorId], references: [id])
 
   @@index([solicitacaoId])
+}
+
+/// Notificação interna por usuário; canais externos (SMTP/WhatsApp) consomem a mesma origem.
+model Notificacao {
+  id           String    @id @default(cuid())
+  municipioId  String
+  userId       String
+  tipo         String // ATRIBUICAO | VALIDACAO_PENDENTE | VALIDACAO_DECIDIDA | REPROGRAMACAO
+  titulo       String
+  texto        String    @db.Text
+  link         String?
+  entidadeTipo String?
+  entidadeId   String?
+  lidaEm       DateTime?
+  createdAt    DateTime  @default(now())
+
+  municipio Municipio @relation(fields: [municipioId], references: [id], onDelete: Cascade)
+  user      User      @relation("NotificacaoDestino", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, municipioId, lidaEm])
 }

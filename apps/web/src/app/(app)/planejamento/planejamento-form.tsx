@@ -39,11 +39,6 @@ export function PlanejamentoForm({ token }: { token: string }) {
         codigo: String(form.get("metaCodigo") || "") || undefined,
         secretariaId: String(form.get("secretariaId") || "") || undefined,
         descricao: String(form.get("metaDescricao") || "") || undefined,
-        indicador: String(form.get("indicador") || "") || undefined,
-        valorBase: String(form.get("valorBase") || "") || undefined,
-        alvo: String(form.get("alvo") || "") || undefined,
-        unidade: String(form.get("unidade") || "") || undefined,
-        periodicidade: String(form.get("periodicidade") || "") || undefined,
         perspectivaBsc: String(form.get("perspectivaBsc") || "") || undefined,
         resultadoChaveOkr: String(form.get("resultadoChaveOkr") || "") || undefined,
       }) });
@@ -56,7 +51,7 @@ export function PlanejamentoForm({ token }: { token: string }) {
     router.refresh();
   }
 
-  if (!open) return <Button onClick={() => { setOpen(true); void loadSecretarias(); }}>+ Cadastrar plano e primeira meta</Button>;
+  if (!open) return <Button onClick={() => { setOpen(true); void loadSecretarias(); }}>+ Novo plano de governo</Button>;
 
   return (
     <Card title="Novo plano de governo" subtitle="O cadastro pode começar apenas com o plano; a meta é opcional nesta etapa.">
@@ -75,14 +70,7 @@ export function PlanejamentoForm({ token }: { token: string }) {
           <div><label htmlFor="secretariaId">Unidade responsável</label><select id="secretariaId" name="secretariaId"><option value="">A definir</option>{secretarias.map((s) => <option key={s.id} value={s.id}>{secretariaLabel(s)}</option>)}</select></div>
           <div><label htmlFor="metaDescricao">Descrição da meta</label><input id="metaDescricao" name="metaDescricao" placeholder="Resultado estratégico esperado" /></div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-          <div><label htmlFor="indicador">Indicador</label><input id="indicador" name="indicador" placeholder="Ex.: % cobertura APS" /></div>
-          <div><label htmlFor="valorBase">Linha de base</label><input id="valorBase" name="valorBase" placeholder="Ex.: 42" /></div>
-          <div><label htmlFor="alvo">Alvo</label><input id="alvo" name="alvo" placeholder="Ex.: 70" /></div>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-          <div><label htmlFor="unidade">Unidade</label><input id="unidade" name="unidade" placeholder="%" /></div>
-          <div><label htmlFor="periodicidade">Periodicidade</label><input id="periodicidade" name="periodicidade" placeholder="Mensal / Quinzenal" /></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12 }}>
           <div>
             <label htmlFor="perspectivaBsc">Perspectiva BSC</label>
             <select id="perspectivaBsc" name="perspectivaBsc">
@@ -93,6 +81,7 @@ export function PlanejamentoForm({ token }: { token: string }) {
               <option value="APRENDIZADO">Aprendizado</option>
             </select>
           </div>
+          <p className="dashboard-muted" style={{ alignSelf: "end", margin: 0 }}>Indicadores, responsável e sugestões da IA são adicionados no cartão da meta depois de salvar.</p>
         </div>
         <div><label htmlFor="resultadoChaveOkr">Resultado-chave (OKR)</label><input id="resultadoChaveOkr" name="resultadoChaveOkr" placeholder="KR mensurável do mandato" /></div>
         {error && <p style={{ color: "var(--cip-danger)", margin: 0 }}>{error}</p>}

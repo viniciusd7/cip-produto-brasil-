@@ -12,6 +12,7 @@ import { modelosRouter } from "./routes/modelos";
 import { wizardRouter } from "./routes/wizard";
 import { integracoesRouter } from "./routes/integracoes";
 import { conhecimentoRouter } from "./routes/conhecimento";
+import { execucaoRouter, notificacoesRouter } from "./routes/execucao";
 import { errorHandler } from "./middleware/error";
 import { authSecret } from "./middleware/auth";
 
@@ -51,6 +52,8 @@ app.use("/import", importRouter);
 app.use("/planejamento", planejamentoRouter);
 app.use("/conhecimento", conhecimentoRouter);
 app.use("/integracoes", integracoesRouter);
+app.use("/execucao", execucaoRouter);
+app.use("/notificacoes", notificacoesRouter);
 
 app.use(errorHandler);
 

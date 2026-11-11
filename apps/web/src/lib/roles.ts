@@ -36,7 +36,7 @@ export function getHomeForRole(role?: string | null) {
     case "gestor":
       return "/minha-pasta";
     case "analista":
-      return "/carteira";
+      return "/implantacao";
     case "prefeito":
     case "leitura":
     default:
@@ -75,9 +75,9 @@ export function getNextStepForRole(role?: string | null): {
       };
     case "analista":
       return {
-        href: "/carteira",
-        label: "Abrir projetos e tarefas",
-        hint: "Metas, prazos, responsáveis e evidências",
+        href: "/implantacao",
+        label: "Continuar implantação",
+        hint: "Secretarias, plano, metas, indicadores e tarefas",
       };
     case "admin":
       return {
@@ -99,13 +99,16 @@ export type NavItem = { href: string; label: string; icon?: string };
 /** Ordem da jornada: Cenário → Minha secretaria → Projeto → Cobrança. */
 const ALL_NAV: NavItem[] = [
   { href: "/painel", label: "Cenário" },
+  { href: "/implantacao", label: "Implantação" },
   { href: "/minha-pasta", label: "Minha secretaria" },
   { href: "/secretarias", label: "Secretarias" },
+  { href: "/planejamento", label: "Plano de governo" },
   { href: "/carteira", label: "Projetos" },
-  { href: "/acoes", label: "Ações" },
-  { href: "/planejamento", label: "Plano" },
+  { href: "/acoes", label: "Tarefas" },
+  { href: "/validacoes", label: "Validações" },
   { href: "/pendencias", label: "Agenda" },
   { href: "/relatorios", label: "Prestação" },
+  { href: "/notificacoes", label: "Notificações", icon: "🔔" },
   { href: "/comunicados", label: "Avisos e conversas", icon: "✉" },
   { href: "/importacao", label: "Importação" },
   { href: "/administracao", label: "Administração" },
@@ -126,7 +129,17 @@ export function getNavForRole(role?: string | null): NavItem[] {
       allow.add(h),
     );
   } else if (r === "analista") {
-    ["/secretarias", "/carteira", "/acoes", "/pendencias", "/relatorios", "/administracao"].forEach((h) =>
+    [
+      "/implantacao",
+      "/secretarias",
+      "/planejamento",
+      "/carteira",
+      "/acoes",
+      "/validacoes",
+      "/pendencias",
+      "/relatorios",
+      "/administracao",
+    ].forEach((h) =>
       allow.add(h),
     );
   } else {
@@ -134,6 +147,7 @@ export function getNavForRole(role?: string | null): NavItem[] {
   }
 
   if (["gestor", "analista", "admin"].includes(r)) allow.add("/comunicados");
+  if (r !== "leitura") allow.add("/notificacoes");
 
   let seq = 0;
   return ALL_NAV.filter((n) => allow.has(n.href)).map((n) => {

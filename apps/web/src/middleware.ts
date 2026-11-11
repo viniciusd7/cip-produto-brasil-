@@ -36,5 +36,8 @@ export const config = {
     "/relatorios/:path*",
     "/importacao/:path*",
     "/comunicados/:path*",
+    "/implantacao/:path*",
+    "/validacoes/:path*",
+    "/notificacoes/:path*",
   ],
 };

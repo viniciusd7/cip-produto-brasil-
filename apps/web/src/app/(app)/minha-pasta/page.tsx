@@ -16,6 +16,11 @@ import {
   ProjetosSecretaria,
   type ProjetoSecretariaItem,
 } from "./projetos-secretaria";
+import {
+  MetasSecretaria,
+  type MetaEstrategicaPasta,
+  type MetaExecucaoPasta,
+} from "./metas-secretaria";
 
 type ProjetoItem = ProjetoSecretariaItem;
 
@@ -42,6 +47,8 @@ type PastaResumo = {
     projetosPrincipais?: ProjetoItem[];
     projetosCorrelacionados?: ProjetoItem[];
     projetos: ProjetoItem[];
+    metasEstrategicas?: MetaEstrategicaPasta[];
+    metasExecucao?: MetaExecucaoPasta[];
   } | null;
 };
 
@@ -110,6 +117,8 @@ export default async function MinhaPastaPage({
     projetosPrincipais,
     projetosCorrelacionados,
     projetos,
+    metasEstrategicas,
+    metasExecucao,
   } = payload.data;
   const principais = projetosPrincipais ?? projetos;
   const correlacionados = projetosCorrelacionados ?? [];
@@ -162,9 +171,16 @@ export default async function MinhaPastaPage({
         </div>
       </section>
 
-      <ProjetosSecretaria projetos={[...principais, ...correlacionados]} />
+      {session?.user?.role === "gestor" && (
+        <TarefasGestao tarefas={tarefas} token={session?.accessToken || ""} />
+      )}
 
-      {session?.user?.role === "gestor" && <TarefasGestao tarefas={tarefas} />}
+      <MetasSecretaria
+        estrategicas={metasEstrategicas ?? []}
+        execucao={metasExecucao ?? []}
+      />
+
+      <ProjetosSecretaria projetos={[...principais, ...correlacionados]} />
 
       <DadosExternos token={session?.accessToken || ""} />
     </div>

@@ -7,6 +7,7 @@ import {
   requirePermission,
 } from "../middleware/auth";
 import { prazoStatus } from "../services/prazo";
+import { progressoIndicador } from "../services/indicadores";
 import { HttpError } from "../middleware/error";
 import {
   classificarSecretaria,
@@ -705,6 +706,14 @@ dashboardRouter.get("/agenda", async (req, res, next) => {
     const dataReferencia =
       iniciativas.find((iniciativa) => iniciativa.dataReferencia)
         ?.dataReferencia ?? new Date();
+    const marcoIds = iniciativas.flatMap((iniciativa) => iniciativa.marcos.map((marco) => marco.id));
+    const validacoesAbertas = marcoIds.length
+      ? await prisma.solicitacaoValidacao.findMany({
+          where: { entidadeTipo: "MARCO", entidadeId: { in: marcoIds }, tipo: "CONCLUSAO", status: "ABERTA" },
+          select: { entidadeId: true },
+        })
+      : [];
+    const aguardandoValidacao = new Set(validacoesAbertas.map((v) => v.entidadeId));
     const tarefas = iniciativas.flatMap((iniciativa) =>
       iniciativa.marcos.map((marco) => ({
         id: marco.id,
@@ -716,8 +725,12 @@ dashboardRouter.get("/agenda", async (req, res, next) => {
             ? "ENCERRADO_SEM_SOLUCAO"
             : prazoStatus(marco, iniciativa.dataReferencia ?? dataReferencia),
         responsavel: marco.responsavel,
+        responsavelUserId: marco.responsavelUserId,
+        minha: marco.responsavelUserId === req.user!.id,
+        aguardandoValidacao: aguardandoValidacao.has(marco.id),
         prazo: marco.prazoVigente?.toISOString() ?? null,
         meta: marco.metaExecucao?.nome ?? null,
+        metaExecucaoId: marco.metaExecucao?.id ?? null,
         subtarefas: {
           total: marco.subtarefas.length,
           concluidas: marco.subtarefas.filter((subtarefa) => subtarefa.concluida)
@@ -1232,8 +1245,103 @@ dashboardRouter.get("/pasta-resumo", async (req, res, next) => {
       });
     }
 
+    const idsEmEscopo = [...focus.projetosPrincipais, ...focus.projetosCorrelacionados].map((p) => p.id);
+    const [metasEstrategicasRows, metasExecucaoRows] = await Promise.all([
+      prisma.metaEstrategica.findMany({
+        where: { secretariaId: focus.secretaria.id, plano: { municipioId } },
+        include: {
+          plano: { select: { nome: true } },
+          responsavelUser: { select: { id: true, name: true } },
+          indicadores: {
+            where: { ativo: true },
+            include: {
+              responsavelUser: { select: { id: true, name: true } },
+              medicoes: { orderBy: { dataCorte: "desc" }, take: 1, select: { dataCorte: true } },
+            },
+            orderBy: { createdAt: "asc" },
+          },
+          iniciativas: { select: { id: true } },
+        },
+        orderBy: [{ codigo: "asc" }, { nome: "asc" }],
+      }),
+      prisma.metaExecucao.findMany({
+        where: { iniciativaId: { in: idsEmEscopo } },
+        include: {
+          iniciativa: { select: { id: true, codigo: true, nome: true, secretariaPrincipalId: true, dataReferencia: true } },
+          responsavelUser: { select: { id: true, name: true } },
+          marcos: { select: { prazoOriginal: true, prazoVigente: true, concluidoEm: true, encerradoSemSolucaoEm: true } },
+          indicadores: { where: { ativo: true }, select: { id: true, nome: true, valorBase: true, alvo: true, valorAtual: true, unidade: true } },
+        },
+        orderBy: [{ prazo: "asc" }, { ordem: "asc" }],
+      }),
+    ]);
+    const statusProjeto = new Map(
+      [...focus.projetosPrincipais, ...focus.projetosCorrelacionados].map((p) => [p.id, p]),
+    );
+    const metasEstrategicas = metasEstrategicasRows.map((meta) => {
+      const projetosMeta = meta.iniciativas.map((i) => statusProjeto.get(i.id)).filter(Boolean) as Array<
+        (typeof focus.projetosPrincipais)[number]
+      >;
+      const totalTarefas = projetosMeta.reduce((acc, p) => acc + p.totalTarefas, 0);
+      const concluidas = projetosMeta.reduce((acc, p) => acc + p.concluidas, 0);
+      return {
+        id: meta.id,
+        codigo: meta.codigo,
+        nome: meta.nome,
+        plano: meta.plano.nome,
+        prazo: meta.prazo?.toISOString() ?? null,
+        perspectivaBsc: meta.perspectivaBsc,
+        statusValidacao: meta.statusValidacao,
+        responsavel: meta.responsavelUser,
+        projetos: meta.iniciativas.length,
+        pctExecucao: totalTarefas ? Math.round((concluidas / totalTarefas) * 100) : 0,
+        indicadores: meta.indicadores.map((ind) => ({
+          id: ind.id,
+          nome: ind.nome,
+          unidade: ind.unidade,
+          valorBase: ind.valorBase,
+          alvo: ind.alvo,
+          valorAtual: ind.valorAtual,
+          periodicidade: ind.periodicidade,
+          polaridade: ind.polaridade,
+          fonte: ind.fonte,
+          responsavel: ind.responsavelUser,
+          ultimaMedicao: ind.medicoes[0]?.dataCorte.toISOString() ?? null,
+          progresso: progressoIndicador(ind),
+        })),
+      };
+    });
+    const metasExecucao = metasExecucaoRows.map((meta) => {
+      const estados = meta.marcos.map((m) =>
+        m.encerradoSemSolucaoEm ? "CONCLUIDO" : prazoStatus(m, meta.iniciativa.dataReferencia ?? dataRef),
+      );
+      const concluidas = estados.filter((e) => e === "CONCLUIDO").length;
+      return {
+        id: meta.id,
+        codigo: meta.codigo,
+        nome: meta.nome,
+        status: meta.status,
+        alvo: meta.alvo,
+        valorAtual: meta.valorAtual,
+        unidade: meta.unidade,
+        prazo: meta.prazo?.toISOString() ?? null,
+        responsavel: meta.responsavelUser ?? (meta.responsavel ? { id: null, name: meta.responsavel } : null),
+        participacao: meta.iniciativa.secretariaPrincipalId === focus.secretaria.id ? "PRINCIPAL" : "CORRELACIONADO",
+        projeto: { id: meta.iniciativa.id, codigo: meta.iniciativa.codigo, nome: meta.iniciativa.nome },
+        tarefas: {
+          total: estados.length,
+          concluidas,
+          atrasadas: estados.filter((e) => e === "VENCIDO").length,
+        },
+        pctConclusao: estados.length ? Math.round((concluidas / estados.length) * 100) : 0,
+        indicadores: meta.indicadores.map((ind) => ({ ...ind, progresso: progressoIndicador(ind) })),
+      };
+    });
+
     res.json({
       data: {
+        metasEstrategicas,
+        metasExecucao,
         secretaria: {
           id: focus.secretaria.id,
           nome: focus.secretaria.nome,

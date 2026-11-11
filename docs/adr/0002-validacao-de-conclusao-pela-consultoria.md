@@ -1,0 +1,5 @@
+# Conclusão de tarefas validada pela consultoria
+
+A consultoria define o plano, as metas, os indicadores e as tarefas; o secretário executa. Para que o painel do prefeito reflita entregas comprovadas, o secretário não conclui tarefas diretamente: ele anexa evidência (documento, foto ou vídeo) e abre uma **solicitação de conclusão** com justificativa. O consultor aprova — e só então a tarefa é concluída — ou devolve com parecer. Reprogramações, ao contrário, são aplicadas na hora com justificativa obrigatória e notificação à consultoria, porque bloquear o prazo atrasaria a operação e o histórico de prazos já preserva o prazo original.
+
+Indicadores passam a ser entidade própria da meta estratégica (antes eram campos soltos), com medições datadas, para permitir vários indicadores por meta e evolução no tempo. Responsáveis são usuários da plataforma, o que permite notificar a pessoa certa; as notificações são internas por ora e servem de fila para os canais SMTP e WhatsApp, que ainda são stubs. As sugestões da IA ficam pendentes até o consultor aceitar, evitando que conteúdo gerado entre no plano sem revisão.
