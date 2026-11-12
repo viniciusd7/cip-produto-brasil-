@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Badge } from "@cip/ui";
 import { canManageSecretariaRole, getNextStepForRole } from "@/lib/roles";
 import { s } from "./ov";
+import { SecretariaGlance } from "./secretaria-glance";
 
 export type CenarioSecretariaResponse = {
   data: {
@@ -69,16 +69,29 @@ export type CenarioSecretariaResponse = {
       noPrazo: number;
       pctConclusao: number;
     };
+    projetos?: Array<{
+      id: string;
+      codigo: string;
+      nome: string;
+      participacao: "PRINCIPAL" | "CORRELACIONADO";
+      totalTarefas: number;
+      concluidas: number;
+      atrasadas: number;
+      semPrazo: number;
+      pctConclusao: number;
+    }>;
+    tarefasAtencao?: Array<{
+      id: string;
+      descricao: string;
+      prazo: string | null;
+      responsavel?: string | null;
+      estado: string;
+      iniciativaId: string;
+      iniciativaNome: string;
+    }>;
   };
   meta?: { dataReferencia?: string; fonte?: string };
 };
-
-function tonePrazo(st: string): "danger" | "warning" | "success" | "info" {
-  if (st === "VENCIDO") return "danger";
-  if (st === "SEM_PRAZO") return "warning";
-  if (st === "CONCLUIDO") return "success";
-  return "info";
-}
 
 export function CenarioSecretaria({
   payload,
@@ -90,8 +103,7 @@ export function CenarioSecretaria({
   role?: string;
 }) {
   const router = useRouter();
-  const { secretarias, selected, metasEstrategicas, metasExecucao, indicadores } =
-    payload.data;
+  const { secretarias, selected } = payload.data;
   const nextStep = getNextStepForRole(role);
   const canManage = canManageSecretariaRole(role);
   const dataRef = payload.meta?.dataReferencia
@@ -151,145 +163,20 @@ export function CenarioSecretaria({
         </div>
       </header>
 
-      <section id="secretarias" className={s.chapter} style={{ marginBottom: 20 }}>
-        <div className={s.panel} style={{ padding: 16 }}>
-          <p className={s.kicker}>Secretarias</p>
-          <div className="chip-row" style={{ flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-            {secretarias.map((sec) => (
-              <button
-                key={sec.id}
-                type="button"
-                className={sec.id === selected.id ? "cip-btn cip-btn--primary" : "cip-btn cip-btn--secondary"}
-                onClick={() => onSelect(sec.id)}
-              >
-                {sec.sigla || sec.nome}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
+      <div className="gl-chips gl-secs" role="group" aria-label="Trocar de secretaria">
+        {secretarias.map((sec) => (
+          <button
+            key={sec.id}
+            type="button"
+            aria-pressed={sec.id === selected.id}
+            onClick={() => onSelect(sec.id)}
+          >
+            {sec.sigla || sec.nome}
+          </button>
+        ))}
+      </div>
 
-      <section id="meta-estrategica" className={s.chapter} style={{ marginBottom: 20 }}>
-        <div className={s.panel} style={{ padding: 20 }}>
-          <p className={s.kicker}>Meta estratégica</p>
-          <h2 style={{ margin: "4px 0 14px", fontSize: 22 }}>Resultados da gestão</h2>
-          <div className="dashboard-grid-3" style={{ gap: 12 }}>
-            {metasEstrategicas.map((m) => (
-              <article
-                key={m.id}
-                style={{ border: "1px solid var(--cip-border)", borderRadius: 12, padding: 14 }}
-              >
-                <strong>{m.nome}</strong>
-                <p className="dashboard-muted" style={{ margin: "8px 0" }}>
-                  {m.indicador || "Indicador a definir"}
-                  {m.alvo ? ` · alvo ${m.alvo}${m.unidade ? ` ${m.unidade}` : ""}` : ""}
-                  {m.valorBase ? ` · base ${m.valorBase}` : ""}
-                </p>
-                {m.perspectivaBsc && (
-                  <p className="dashboard-muted">BSC: {m.perspectivaBsc}</p>
-                )}
-                {m.resultadoChaveOkr && (
-                  <p className="dashboard-muted">OKR: {m.resultadoChaveOkr}</p>
-                )}
-                {m.aguardandoMedicao ? (
-                  <p>Aguardando medição</p>
-                ) : (
-                  <p>
-                    Realizado {m.medicaoAtual?.valorRealizado}
-                    {m.medicaoAtual?.valorEsperado != null
-                      ? ` · esperado ${m.medicaoAtual.valorEsperado}`
-                      : ""}
-                    {m.desvio != null
-                      ? ` · desvio ${m.desvio > 0 ? "+" : ""}${m.desvio}`
-                      : ""}
-                  </p>
-                )}
-              </article>
-            ))}
-            {!metasEstrategicas.length && (
-              <p className="dashboard-muted">
-                Nenhuma meta estratégica vinculada a esta secretaria.{" "}
-                <Link href="/planejamento">Abrir planejamento</Link>
-              </p>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section id="meta-execucao" className={s.chapter} style={{ marginBottom: 20 }}>
-        <div className={s.panel} style={{ padding: 20 }}>
-          <p className={s.kicker}>Meta de execução</p>
-          <h2 style={{ margin: "4px 0 14px", fontSize: 22 }}>Entregas dos projetos</h2>
-          <div className="stack" style={{ gap: 10 }}>
-            {metasExecucao.map((m) => (
-              <Link
-                key={m.id}
-                href={`/iniciativas/${m.iniciativaId}?aba=andamento`}
-                style={{
-                  display: "block",
-                  border: "1px solid var(--cip-border)",
-                  borderRadius: 12,
-                  padding: 14,
-                  textDecoration: "none",
-                  color: "inherit",
-                }}
-              >
-                <div className="chip-row" style={{ justifyContent: "space-between" }}>
-                  <strong>{m.nome}</strong>
-                  <Badge tone={tonePrazo(m.prazoStatus)}>
-                    {m.prazoStatus.replace("_", " ")}
-                  </Badge>
-                </div>
-                <p className="dashboard-muted" style={{ margin: "6px 0 0" }}>
-                  {m.iniciativaCodigo} · {m.iniciativaNome}
-                  {m.indicador ? ` · ${m.indicador}` : ""}
-                  {m.valorAtual || m.alvo
-                    ? ` · ${m.valorAtual || "—"} / ${m.alvo || "—"}`
-                    : ""}
-                </p>
-              </Link>
-            ))}
-            {!metasExecucao.length && (
-              <p className="dashboard-muted">Nenhuma meta de execução nesta secretaria.</p>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section id="indicadores" className={s.chapter}>
-        <div className={s.panel} style={{ padding: 20 }}>
-          <p className={s.kicker}>Indicadores</p>
-          <h2 style={{ margin: "4px 0 14px", fontSize: 22 }}>Leitura consolidada</h2>
-          <div className="dashboard-grid-3" style={{ gap: 12 }}>
-            <div style={{ border: "1px solid var(--cip-border)", borderRadius: 12, padding: 14 }}>
-              <span className="dashboard-muted">Projetos</span>
-              <p style={{ fontSize: 28, margin: "6px 0 0", fontWeight: 700 }}>
-                {indicadores.projetos}
-              </p>
-            </div>
-            <div style={{ border: "1px solid var(--cip-border)", borderRadius: 12, padding: 14 }}>
-              <span className="dashboard-muted">Cobertura de metas</span>
-              <p style={{ fontSize: 28, margin: "6px 0 0", fontWeight: 700 }}>
-                {indicadores.coberturaMetas}%
-              </p>
-              <p className="dashboard-muted">
-                {indicadores.metasComValor}/{indicadores.metasExecucao} com valor ·{" "}
-                {indicadores.metasAtrasadas} atrasadas
-              </p>
-            </div>
-            <div style={{ border: "1px solid var(--cip-border)", borderRadius: 12, padding: 14 }}>
-              <span className="dashboard-muted">Tarefas</span>
-              <p style={{ fontSize: 28, margin: "6px 0 0", fontWeight: 700 }}>
-                {indicadores.pctConclusao}%
-              </p>
-              <p className="dashboard-muted">
-                {indicadores.concluidas} concluídas · {indicadores.atrasadas} atrasadas ·{" "}
-                {indicadores.semPrazo} sem prazo · {indicadores.noPrazo} no prazo
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+      <SecretariaGlance dados={payload.data} titulo={`Situação · ${selected.sigla || selected.nome}`} />
     </div>
   );
 }

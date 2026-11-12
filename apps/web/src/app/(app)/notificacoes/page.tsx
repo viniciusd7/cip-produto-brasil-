@@ -8,9 +8,9 @@ export default async function NotificacoesPage() {
   return (
     <div className="stack">
       <PageHeader
-        eyebrow="Central de notificações"
-        title="O que precisa da sua atenção"
-        description="Atribuições de metas e tarefas, pedidos de validação, reprogramações e decisões da consultoria. Os envios por e-mail e WhatsApp usarão esta mesma fila."
+        eyebrow="Avisos"
+        title="Central de notificações"
+        description="Tarefas atribuídas a você, evidências para validar, decisões da consultoria e prazos alterados — tudo em um só lugar."
       />
       <NotificacoesLista token={session?.accessToken || ""} />
     </div>

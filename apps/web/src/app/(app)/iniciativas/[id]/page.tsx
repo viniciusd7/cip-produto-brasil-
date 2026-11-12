@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { Badge, Breadcrumbs, PageHeader, SourceMeta } from "@cip/ui";
+import { Breadcrumbs, PageHeader } from "@cip/ui";
 import { authOptions } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 import {
@@ -10,9 +10,7 @@ import {
   canValidateRole,
   canWriteRole,
 } from "@/lib/roles";
-import { DadosExternos } from "@/components/dados-externos";
 import { ProjetoDocumento, type ProjetoDocData, type SecretariaRef } from "./projeto-documento";
-import { DossieGovernanca } from "./dossie-governanca";
 
 type DetailResponse = { data: ProjetoDocData & {
   descricao?: string | null;
@@ -82,20 +80,15 @@ export default async function IniciativaPage({
       <Breadcrumbs
         items={[
           { label: portfolioLabel, href: portfolioHref },
-          {
-            label: "Pasta",
-            href: `/secretarias/${item.secretariaPrincipal.id}`,
-          },
-          { label: "Projeto", href: portfolioHref },
           { label: item.codigo },
         ]}
       />
       <PageHeader
-        eyebrow={`${item.codigo} · ${item.secretariaPrincipal.nome}`}
+        eyebrow={`Projeto ${item.codigo}`}
         title={item.nome}
         description={
           item.descricao ||
-          "Documento do projeto: indicadores, andamento (Meta → Tarefa → Subtarefa) e evidências."
+          "Tarefas organizadas em pastas por meta de execução, com as evidências de cada entrega."
         }
         actions={
           <Link
@@ -106,21 +99,6 @@ export default async function IniciativaPage({
           </Link>
         }
       />
-
-      <SourceMeta
-        fonte={item.fonte}
-        dataReferencia={item.dataReferencia}
-        confiabilidade={item.confiabilidade}
-      />
-
-      <div className="chip-row">
-        <Badge tone="info">Ciclo: {item.ciclo}</Badge>
-        {item.estruturante && <Badge tone="rose">Estruturante</Badge>}
-        <Badge tone="neutral">Resp.: {item.responsavel || "—"}</Badge>
-        <Badge tone="gold">Origem: {item.origem || "—"}</Badge>
-      </div>
-
-      <DadosExternos token={session?.accessToken || ""} />
 
       <Suspense fallback={<p className="dashboard-muted">Carregando documento…</p>}>
         <ProjetoDocumento
@@ -133,14 +111,6 @@ export default async function IniciativaPage({
           todasSecretarias={todasSecretarias.data || []}
         />
       </Suspense>
-
-      <DossieGovernanca
-        iniciativaId={item.id}
-        canWrite={canWrite}
-        token={token}
-        equipamentosIniciais={item.equipamentos || []}
-        marcos={(item.marcos || []).map((m) => ({ id: m.id, descricao: m.descricao }))}
-      />
     </div>
   );
 }

@@ -6,15 +6,15 @@
     "semantic_hash": "5ba3211869d3c11241da31a73eef68f1"
   },
   "apps/api/src/index.ts": {
-    "mtime": 1794438420.45654,
-    "seen": 1794439285.570289,
-    "ast_hash": "ecadf0ee13442298579a0141c2d867a4",
+    "mtime": 1794440069.0613658,
+    "seen": 1794440765.358475,
+    "ast_hash": "bebeba8f539136c7b6c8bbffffd99383",
     "semantic_hash": ""
   },
   "apps/api/src/middleware/auth.ts": {
-    "mtime": 1794433312.3557515,
-    "seen": 1794439285.5702899,
-    "ast_hash": "9ca6b620af9d53b81caf84d31963cf23",
+    "mtime": 1794439862.2476065,
+    "seen": 1794440765.358477,
+    "ast_hash": "773529c848d36412c819780279bdd9f4",
     "semantic_hash": ""
   },
   "apps/api/src/middleware/error.ts": {
@@ -24,9 +24,9 @@
     "semantic_hash": "70023a9e211e47a7e40b8774e171c57c"
   },
   "apps/api/src/routes/admin.ts": {
-    "mtime": 1794433824.6247377,
-    "seen": 1794439285.570335,
-    "ast_hash": "903dafab604360b5c31465b696033e86",
+    "mtime": 1794439862.2487905,
+    "seen": 1794440765.358596,
+    "ast_hash": "28e6b71db595a803c95fb435a47d64c3",
     "semantic_hash": ""
   },
   "apps/api/src/routes/auth.ts": {
@@ -90,22 +90,16 @@
     "semantic_hash": "dfa1f5f6a7037bf39dc510f30b180002"
   },
   "apps/web/next.config.ts": {
-    "mtime": 1794250852.1223512,
-    "seen": 1794251474.773616,
-    "ast_hash": "a8ca4f29064cf525a14010e2a811ead7",
-    "semantic_hash": "a8ca4f29064cf525a14010e2a811ead7"
+    "mtime": 1794440005.315394,
+    "seen": 1794440765.360071,
+    "ast_hash": "cd16f52e6508fd47117c8dca7fcce76f",
+    "semantic_hash": ""
   },
   "apps/web/package.json": {
     "mtime": 1794250851.6097512,
     "seen": 1794251474.7736168,
     "ast_hash": "893384bab8984018204f64064300b1c7",
     "semantic_hash": "893384bab8984018204f64064300b1c7"
-  },
-  "apps/web/src/app/(app)/administracao/page.tsx": {
-    "mtime": 1794433614.6921253,
-    "seen": 1794439285.570841,
-    "ast_hash": "5d0f40b123bf1e4c423df10d2e8a6e81",
-    "semantic_hash": ""
   },
   "apps/web/src/app/(app)/carteira/page.tsx": {
     "mtime": 1794428321.4160876,
@@ -144,22 +138,22 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/(app)/pendencias/page.tsx": {
-    "mtime": 1794432178.9966764,
-    "seen": 1794439285.571063,
-    "ast_hash": "af3dc9969c36d814efd58b82d0e47ee5",
+    "mtime": 1794440289.7613206,
+    "seen": 1794440765.361377,
+    "ast_hash": "fadc1726c52aea1a937c0ec06665db6d",
     "semantic_hash": ""
   },
   "apps/web/src/app/(app)/relatorios/export-buttons.tsx": {
-    "mtime": 1794428321.4406135,
-    "seen": 1794439285.5710669,
-    "ast_hash": "10dc78178140d65a5f3c618f238d0fb0",
-    "semantic_hash": "10dc78178140d65a5f3c618f238d0fb0"
+    "mtime": 1794440613.26732,
+    "seen": 1794440765.361533,
+    "ast_hash": "5c14ba277fef114a7302a61c10f2d9d2",
+    "semantic_hash": ""
   },
   "apps/web/src/app/(app)/relatorios/page.tsx": {
-    "mtime": 1794428321.4409873,
-    "seen": 1794439285.5710669,
-    "ast_hash": "c66ad92f54dc5fd939265f87c661469a",
-    "semantic_hash": "c66ad92f54dc5fd939265f87c661469a"
+    "mtime": 1794440680.8561745,
+    "seen": 1794440765.3615339,
+    "ast_hash": "2613f5b552225f8230da1c95a5841b79",
+    "semantic_hash": ""
   },
   "apps/web/src/app/api/auth/[...nextauth]/route.ts": {
     "mtime": 1794250851.6798003,
@@ -174,9 +168,9 @@
     "semantic_hash": "01029cff4e4b0f18f2b8256aa9033a53"
   },
   "apps/web/src/app/login/page.tsx": {
-    "mtime": 1794433672.0581465,
-    "seen": 1794439285.5711832,
-    "ast_hash": "89b13699f0e8177a8535a2a613ab1f9c",
+    "mtime": 1794439945.0064194,
+    "seen": 1794440765.361907,
+    "ast_hash": "dac67c4fba8da4bb6d22d2b6c7dc706c",
     "semantic_hash": ""
   },
   "apps/web/src/app/page.tsx": {
@@ -186,9 +180,9 @@
     "semantic_hash": "573ee3b5fb76a7215f3424885473ef0f"
   },
   "apps/web/src/components/app-shell.tsx": {
-    "mtime": 1794438523.0326653,
-    "seen": 1794439285.571213,
-    "ast_hash": "dc1ed3676617ea731168a17f2ad7ad34",
+    "mtime": 1794439993.0169876,
+    "seen": 1794440765.361939,
+    "ast_hash": "15a6bb0797c24185076d07e538a25e70",
     "semantic_hash": ""
   },
   "apps/web/src/components/providers.tsx": {
@@ -210,9 +204,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/middleware.ts": {
-    "mtime": 1794438481.7294195,
-    "seen": 1794439285.571438,
-    "ast_hash": "f5f77cbfe05fa5fe1c404f79dc6e90ee",
+    "mtime": 1794439930.9689198,
+    "seen": 1794440765.362436,
+    "ast_hash": "f83bfeb339733cc9dabf63af9b84a200",
     "semantic_hash": ""
   },
   "apps/web/src/types/next-auth.d.ts": {
@@ -288,9 +282,9 @@
     "semantic_hash": "7d54df2630745a93e4212a5d9282ff19"
   },
   "packages/shared/src/roles.ts": {
-    "mtime": 1794438192.3761666,
-    "seen": 1794439285.571732,
-    "ast_hash": "1864a0f09120df5294077832728579e9",
+    "mtime": 1794439862.2463806,
+    "seen": 1794440765.362988,
+    "ast_hash": "7a108680d36a66b9d359a167d0e84ca1",
     "semantic_hash": ""
   },
   "packages/shared/src/status.ts": {
@@ -354,9 +348,9 @@
     "semantic_hash": "f10b96dc3a7fe425021a1670b4320214"
   },
   "docs/deploy-vercel-hostgator.md": {
-    "mtime": 1794428321.4614322,
-    "seen": 1794439285.572017,
-    "ast_hash": "21c8b2f44b226c09ced3baad16877963",
+    "mtime": 1794440083.1639085,
+    "seen": 1794440765.363552,
+    "ast_hash": "19b43fdba6018e52edefba0c38e5f479",
     "semantic_hash": ""
   },
   "docs/piloto-cmd-importacao.md": {
@@ -366,15 +360,15 @@
     "semantic_hash": "2fc75e5b02867e4518b8406010f9d016"
   },
   "docs/ux-jornadas.md": {
-    "mtime": 1794432091.4214976,
-    "seen": 1794439285.572066,
-    "ast_hash": "4bdec8644c8cafa6f87f0b4d71e550d1",
+    "mtime": 1794440726.9083345,
+    "seen": 1794440765.3636181,
+    "ast_hash": "14ef74b6d261da9629aab72522a172a9",
     "semantic_hash": ""
   },
   "apps/api/src/routes/planejamento.ts": {
-    "mtime": 1794438639.8215253,
-    "seen": 1794439285.5704472,
-    "ast_hash": "ff491278f0de7dd4b316fb5150aadd1b",
+    "mtime": 1794440003.7912033,
+    "seen": 1794440765.3595772,
+    "ast_hash": "fdffd75a38b039030fd99eb61745f6d1",
     "semantic_hash": ""
   },
   "apps/api/src/services/gravidade.ts": {
@@ -456,9 +450,9 @@
     "semantic_hash": "3c6d0860b8006dcde85958d1b4f05586"
   },
   "apps/web/src/lib/roles.ts": {
-    "mtime": 1794438481.7288008,
-    "seen": 1794439285.571407,
-    "ast_hash": "3e73b8bb0c1646ea6d4b682a96bbcbb5",
+    "mtime": 1794439993.0163922,
+    "seen": 1794440765.362405,
+    "ast_hash": "9edd4da688de33152f0f020c0dfb8ab4",
     "semantic_hash": ""
   },
   "apps/web/src/lib/secretaria-label.ts": {
@@ -496,18 +490,6 @@
     "seen": 1794439285.570559,
     "ast_hash": "8b2630cc9fd651e7b59b95e509c73981",
     "semantic_hash": "8b2630cc9fd651e7b59b95e509c73981"
-  },
-  "apps/web/src/app/(app)/administracao/modelos/ativar-modelo-button.tsx": {
-    "mtime": 1794250853.3480573,
-    "seen": 1794251474.773692,
-    "ast_hash": "e5e20c0662a642ce27aa20fc11332adf",
-    "semantic_hash": "e5e20c0662a642ce27aa20fc11332adf"
-  },
-  "apps/web/src/app/(app)/administracao/modelos/page.tsx": {
-    "mtime": 1794250853.3295474,
-    "seen": 1794251474.773692,
-    "ast_hash": "ede862566c75117f4b215279e64fe906",
-    "semantic_hash": "ede862566c75117f4b215279e64fe906"
   },
   "apps/web/src/app/(app)/minha-pasta/novo/novo-projeto-wizard.tsx": {
     "mtime": 1794428321.430551,
@@ -588,9 +570,9 @@
     "semantic_hash": "0439fbe58bdec6c375769c769b3d9f88"
   },
   "apps/web/src/components/overview/governo-overview.tsx": {
-    "mtime": 1794429896.9190087,
-    "seen": 1794439285.571309,
-    "ast_hash": "0273730d67f5be0ed18775b858ebe240",
+    "mtime": 1794440442.3145118,
+    "seen": 1794440765.362217,
+    "ast_hash": "6a39e4cdf9c94f51809255f485f2b69f",
     "semantic_hash": ""
   },
   "apps/web/src/components/overview/ov.ts": {
@@ -606,10 +588,10 @@
     "semantic_hash": "c59e93c132f8cbbbb7d9fc0cf112dd3b"
   },
   "packages/shared/src/azimov-indicators.ts": {
-    "mtime": 1794428321.491268,
-    "seen": 1794439285.571668,
-    "ast_hash": "40e8f7b3814b707c99936d10fb67c840",
-    "semantic_hash": "40e8f7b3814b707c99936d10fb67c840"
+    "mtime": 1794440442.3649766,
+    "seen": 1794440765.362782,
+    "ast_hash": "2a9112da36ae77492ede266d64e2fa2d",
+    "semantic_hash": ""
   },
   "apps/api/src/routes/integracoes.ts": {
     "mtime": 1794312915.5355582,
@@ -887,24 +869,6 @@
     "ast_hash": "31098ee489f2405ca3a39a3916376331",
     "semantic_hash": ""
   },
-  "apps/web/src/app/(app)/administracao/platform-admin-console.tsx": {
-    "mtime": 1794434451.3149135,
-    "seen": 1794439285.570842,
-    "ast_hash": "dea981352f73eeb4bb50855116c5b6f7",
-    "semantic_hash": ""
-  },
-  "apps/web/src/app/(app)/administracao/secretaria-assignment.tsx": {
-    "mtime": 1794431050.1704566,
-    "seen": 1794439285.570843,
-    "ast_hash": "4c98bdbe45df0b8130c893998999b0df",
-    "semantic_hash": ""
-  },
-  "apps/web/src/app/(app)/administracao/usuario-form.tsx": {
-    "mtime": 1794433795.0528998,
-    "seen": 1794439285.570843,
-    "ast_hash": "792d3c9851fae329c76e98425e2382ce",
-    "semantic_hash": ""
-  },
   "apps/web/src/app/(app)/implantacao/page.tsx": {
     "mtime": 1794438639.8096614,
     "seen": 1794439285.570883,
@@ -1023,6 +987,84 @@
     "mtime": 1794439372.5013707,
     "seen": 1794439527.819531,
     "ast_hash": "0f4d50d511dac2b8b637aaad1aec8006",
+    "semantic_hash": ""
+  },
+  "apps/web/src/app/(app)/equipe/modelos/ativar-modelo-button.tsx": {
+    "mtime": 1794250853.3480573,
+    "seen": 1794440765.360255,
+    "ast_hash": "e5e20c0662a642ce27aa20fc11332adf",
+    "semantic_hash": ""
+  },
+  "apps/web/src/app/(app)/equipe/modelos/page.tsx": {
+    "mtime": 1794250853.3295474,
+    "seen": 1794440765.360256,
+    "ast_hash": "ede862566c75117f4b215279e64fe906",
+    "semantic_hash": ""
+  },
+  "apps/web/src/app/(app)/equipe/page.tsx": {
+    "mtime": 1794439992.913403,
+    "seen": 1794440765.360257,
+    "ast_hash": "48073f43980746df1f320e17cbcd57fc",
+    "semantic_hash": ""
+  },
+  "apps/web/src/app/(app)/equipe/secretaria-assignment.tsx": {
+    "mtime": 1794431050.1704566,
+    "seen": 1794440765.360257,
+    "ast_hash": "4c98bdbe45df0b8130c893998999b0df",
+    "semantic_hash": ""
+  },
+  "apps/web/src/app/(app)/equipe/usuario-form.tsx": {
+    "mtime": 1794433795.0528998,
+    "seen": 1794440765.360258,
+    "ast_hash": "792d3c9851fae329c76e98425e2382ce",
+    "semantic_hash": ""
+  },
+  "apps/web/src/app/gestao/layout.tsx": {
+    "mtime": 1794439939.1842859,
+    "seen": 1794440765.36186,
+    "ast_hash": "29a3e621f43cbd11d6c2b050a4ef832c",
+    "semantic_hash": ""
+  },
+  "apps/web/src/app/gestao/page.tsx": {
+    "mtime": 1794439939.2232978,
+    "seen": 1794440765.361863,
+    "ast_hash": "0b5f7bd91aa6fd305c57143aead419f4",
+    "semantic_hash": ""
+  },
+  "apps/web/src/app/gestao/platform-admin-console.tsx": {
+    "mtime": 1794434451.3149135,
+    "seen": 1794440765.361867,
+    "ast_hash": "dea981352f73eeb4bb50855116c5b6f7",
+    "semantic_hash": ""
+  },
+  "apps/web/src/app/gestao/sair-button.tsx": {
+    "mtime": 1794439939.204441,
+    "seen": 1794440765.361867,
+    "ast_hash": "6e640a3f3b35b6ca3904c7e0f07de67d",
+    "semantic_hash": ""
+  },
+  "apps/web/src/app/login/login-form.tsx": {
+    "mtime": 1794439971.42989,
+    "seen": 1794440765.3619058,
+    "ast_hash": "e264a5b34605e240308eed96d8efcb2b",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/overview/governo-glance.tsx": {
+    "mtime": 1794440430.093956,
+    "seen": 1794440765.362216,
+    "ast_hash": "bc60f598b056c331dea332cc1ac3b78a",
+    "semantic_hash": ""
+  },
+  "apps/web/src/lib/hosts.ts": {
+    "mtime": 1794439926.3836615,
+    "seen": 1794440765.362404,
+    "ast_hash": "c976c87c1318ff3fb365c0826b452ab6",
+    "semantic_hash": ""
+  },
+  "docs/adr/0003-console-de-gestao-em-host-separado.md": {
+    "mtime": 1794440739.815601,
+    "seen": 1794440765.3635032,
+    "ast_hash": "c7a9c100e7f5e0f5dbafbce61e3f7a35",
     "semantic_hash": ""
   }
 }

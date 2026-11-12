@@ -154,10 +154,20 @@ iniciativasRouter.get(
 
       if (!item) throw new HttpError(404, "NOT_FOUND", "Iniciativa não encontrada");
       await assertIniciativaAccess(req.user!, item.id);
+      const pedidosConclusao = await prisma.solicitacaoValidacao.findMany({
+        where: {
+          entidadeTipo: "MARCO",
+          entidadeId: { in: item.marcos.map((m) => m.id) },
+          tipo: "CONCLUSAO",
+          status: "ABERTA",
+        },
+        select: { entidadeId: true },
+      });
 
       res.json({
         data: {
           ...item,
+          marcosAguardandoValidacao: pedidosConclusao.map((p) => p.entidadeId),
           bloqueioLabel: item.bloqueioLabel,
           bloqueiosAtivos: item.bloqueiosAtivos,
           classificacaoPrincipal: item.classificacaoPrincipal,

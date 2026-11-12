@@ -1001,6 +1001,45 @@ dashboardRouter.get("/cenario-secretaria", async (req, res, next) => {
     const semPrazo = marcos.filter((st) => st === "SEM_PRAZO").length;
     const noPrazo = marcos.filter((st) => st === "NO_PRAZO").length;
 
+    const projetos = iniciativas.map((ini) => {
+      const estados = ini.marcos.map((m) => prazoStatus(m, ini.dataReferencia ?? dataRef));
+      const total = estados.length;
+      const feitas = estados.filter((st) => st === "CONCLUIDO").length;
+      return {
+        id: ini.id,
+        codigo: ini.codigo,
+        nome: ini.nome,
+        participacao: ini.secretariaPrincipalId === selectedId ? "PRINCIPAL" : "CORRELACIONADO",
+        totalTarefas: total,
+        concluidas: feitas,
+        atrasadas: estados.filter((st) => st === "VENCIDO").length,
+        semPrazo: estados.filter((st) => st === "SEM_PRAZO").length,
+        pctConclusao: total ? Math.round((feitas / total) * 100) : 0,
+      };
+    });
+
+    const em15d = new Date(dataRef.getTime() + 15 * 86400000);
+    const tarefasAtencao = iniciativas
+      .flatMap((ini) =>
+        ini.marcos.map((m) => ({
+          id: m.id,
+          descricao: m.descricao,
+          prazo: m.prazoVigente?.toISOString() ?? null,
+          responsavel: m.responsavel,
+          estado: prazoStatus(m, ini.dataReferencia ?? dataRef),
+          venceLogo: !!m.prazoVigente && !m.concluidoEm && m.prazoVigente >= dataRef && m.prazoVigente <= em15d,
+          iniciativaId: ini.id,
+          iniciativaNome: ini.nome,
+        })),
+      )
+      .filter((t) => t.estado === "VENCIDO" || (t.estado === "NO_PRAZO" && t.venceLogo))
+      .sort((a, b) =>
+        (a.estado === "VENCIDO" ? 0 : 1) - (b.estado === "VENCIDO" ? 0 : 1) ||
+        String(a.prazo).localeCompare(String(b.prazo)),
+      )
+      .slice(0, 6)
+      .map(({ venceLogo: _v, ...t }) => t);
+
     const metasComValor = metasExecucao.filter((m) => !!m.valorAtual?.trim()).length;
     const metasAtrasadas = metasExecucao.filter((m) => m.prazoStatus === "VENCIDO").length;
 
@@ -1052,6 +1091,8 @@ dashboardRouter.get("/cenario-secretaria", async (req, res, next) => {
         },
         metasEstrategicas: estrategiaCards,
         metasExecucao,
+        projetos,
+        tarefasAtencao,
         indicadores: {
           projetos: iniciativas.length,
           metasExecucao: metasExecucao.length,

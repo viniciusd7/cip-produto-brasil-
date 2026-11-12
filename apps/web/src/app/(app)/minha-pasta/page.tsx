@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { ApiError, apiFetch } from "@/lib/api";
 import { PastaSaudeResumo } from "@/components/charts/pasta-saude-resumo";
+import { SecretariaGlance } from "@/components/overview/secretaria-glance";
+import type { CenarioSecretariaResponse } from "@/components/overview/cenario-secretaria";
 import { DadosExternos } from "@/components/dados-externos";
 import { canWriteRole } from "@/lib/roles";
 import {
@@ -76,8 +78,9 @@ export default async function MinhaPastaPage({
   const qs = sp.secretariaId ? `?secretariaId=${sp.secretariaId}` : "";
   let payload: PastaResumo;
   let tarefas: TarefaGestaoItem[] = [];
+  let cenario: CenarioSecretariaResponse | null = null;
   try {
-    const [pastaPayload, agendaPayload] = await Promise.all([
+    const [pastaPayload, agendaPayload, cenarioPayload] = await Promise.all([
       apiFetch<PastaResumo>(`/dashboard/pasta-resumo${qs}`, {
         token: session?.accessToken,
       }),
@@ -86,8 +89,12 @@ export default async function MinhaPastaPage({
             token: session?.accessToken,
           })
         : Promise.resolve({ data: { tarefas: [] } }),
+      apiFetch<CenarioSecretariaResponse>(`/dashboard/cenario-secretaria${qs}`, {
+        token: session?.accessToken,
+      }).catch(() => null),
     ]);
     payload = pastaPayload;
+    cenario = cenarioPayload;
     tarefas = agendaPayload.data.tarefas;
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) redirect("/login");
@@ -159,28 +166,38 @@ export default async function MinhaPastaPage({
         </div>
       </header>
 
-      <section className="pasta-section" aria-labelledby="pasta-saude-title">
-        <div className="pasta-section__head">
-          <h2 id="pasta-saude-title">Saúde da secretaria</h2>
-          <p>
-            Tarefas dos projetos sob gestão direta e participação compartilhada.
-          </p>
-        </div>
-        <div className="pasta-section__surface">
-          <PastaSaudeResumo status={tarefasStatus} />
-        </div>
-      </section>
+      {cenario?.data?.selected ? (
+        <SecretariaGlance
+          dados={cenario.data}
+          titulo="Visão geral da sua secretaria"
+          mostrarProjetos={false}
+        />
+      ) : (
+        <section className="pasta-section" aria-labelledby="pasta-saude-title">
+          <div className="pasta-section__head">
+            <h2 id="pasta-saude-title">Saúde da secretaria</h2>
+            <p>
+              Tarefas dos projetos sob gestão direta e participação compartilhada.
+            </p>
+          </div>
+          <div className="pasta-section__surface">
+            <PastaSaudeResumo status={tarefasStatus} />
+          </div>
+        </section>
+      )}
+
+      <ProjetosSecretaria projetos={[...principais, ...correlacionados]} />
 
       {session?.user?.role === "gestor" && (
         <TarefasGestao tarefas={tarefas} token={session?.accessToken || ""} />
       )}
 
-      <MetasSecretaria
-        estrategicas={metasEstrategicas ?? []}
-        execucao={metasExecucao ?? []}
-      />
-
-      <ProjetosSecretaria projetos={[...principais, ...correlacionados]} />
+      {!cenario?.data?.selected && (
+        <MetasSecretaria
+          estrategicas={metasEstrategicas ?? []}
+          execucao={metasExecucao ?? []}
+        />
+      )}
 
       <DadosExternos token={session?.accessToken || ""} />
     </div>

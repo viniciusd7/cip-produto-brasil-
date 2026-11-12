@@ -1,10 +1,11 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { CLASS_GROUPS } from "@cip/shared";
 import type { OverviewResponse } from "./types";
 
 type Data = OverviewResponse["data"];
 
-const COR = {
+export const COR = {
   verde: "#b4e4a0",
   ouro: "#eac78c",
   rosa: "#ff5982",
@@ -15,7 +16,7 @@ const COR = {
 
 const ORDEM = ["INTERVENCAO", "DADOS_DEFASADOS", "ACOMPANHAMENTO", "ROTINA"];
 
-function numero(valor: string | null | undefined) {
+export function numero(valor: string | null | undefined) {
   if (valor == null) return null;
   const n = Number(String(valor).replace(/\./g, "").replace(",", ".").replace(/[^\d.-]/g, ""));
   return Number.isFinite(n) ? n : null;
@@ -37,12 +38,12 @@ export function veredito(saude: number | null) {
   return { cor: COR.rosa, titulo: "Precisa de intervenção", texto: "Muitas entregas estão atrasadas. Cobre as secretarias em vermelho." };
 }
 
-function Medidor({ valor, cor }: { valor: number | null; cor: string }) {
+export function Medidor({ valor, cor, rotulo = "entregas em dia" }: { valor: number | null; cor: string; rotulo?: string }) {
   const raio = 80;
   const comprimento = Math.PI * raio;
   const preenchido = valor == null ? 0 : (valor / 100) * comprimento;
   return (
-    <svg viewBox="0 0 200 116" className="gl-medidor" role="img" aria-label={valor == null ? "Sem dados" : `${valor}% das entregas em dia`}>
+    <svg viewBox="0 0 200 116" className="gl-medidor" role="img" aria-label={valor == null ? "Sem dados" : `${valor}% ${rotulo}`}>
       <path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="rgba(255,255,255,.1)" strokeWidth="18" strokeLinecap="round" />
       <path
         d="M20 100 A80 80 0 0 1 180 100"
@@ -57,13 +58,13 @@ function Medidor({ valor, cor }: { valor: number | null; cor: string }) {
         {valor == null ? "—" : `${valor}%`}
       </text>
       <text x="100" y="112" textAnchor="middle" className="gl-medidor__rotulo">
-        entregas em dia
+        {rotulo}
       </text>
     </svg>
   );
 }
 
-function BarraEmpilhada({ partes }: { partes: Array<{ rotulo: string; valor: number; cor: string }> }) {
+export function BarraEmpilhada({ partes }: { partes: Array<{ rotulo: string; valor: number; cor: string }> }) {
   const total = partes.reduce((a, p) => a + p.valor, 0);
   return (
     <div className="gl-pilha">
@@ -88,7 +89,7 @@ function BarraEmpilhada({ partes }: { partes: Array<{ rotulo: string; valor: num
   );
 }
 
-export function GovernoGlance({ data }: { data: Data }) {
+export function GovernoGlance({ data, secretarias: secretariasSlot }: { data: Data; secretarias?: ReactNode }) {
   const { governo, porSecretaria, metas, estrategia, tarefasPedemAcao } = data;
   const saude = saudeGoverno(governo);
   const v = veredito(saude);
@@ -159,6 +160,7 @@ export function GovernoGlance({ data }: { data: Data }) {
         </ul>
       </section>
 
+      {secretariasSlot ?? (
       <section id="secretarias" className="gl-bloco">
         <header className="gl-bloco__cab">
           <div>
@@ -201,6 +203,7 @@ export function GovernoGlance({ data }: { data: Data }) {
         </ul>
         {!secretarias.length && <p className="gl-vazio">Nenhuma secretaria cadastrada ainda.</p>}
       </section>
+      )}
 
       <div className="gl-duas">
         <section id="meta-estrategica" className="gl-bloco">

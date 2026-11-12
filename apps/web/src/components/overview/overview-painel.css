@@ -594,3 +594,27 @@
   .gl-atencao a { grid-template-columns: 1fr auto; }
   .gl-atencao__rotulo { grid-column: 1 / -1; }
 }
+
+.gl-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
+.gl-chips button {
+  --c: #7c9cff;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #202332;
+  color: #f1f3fc;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.gl-chips button i { width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+.gl-chips button b { color: #9aa3bf; }
+.gl-chips button[aria-pressed="true"] { border-color: var(--c); background: color-mix(in srgb, var(--c) 16%, #202332); }
+.gl-chips button[aria-pressed="true"] b { color: #f1f3fc; }
+.gl-metas__link { color: #f1f3fc; font-weight: 700; text-decoration: none; }
+.gl-metas__link:hover { text-decoration: underline; }
+.gl-secs { margin-bottom: 18px; }

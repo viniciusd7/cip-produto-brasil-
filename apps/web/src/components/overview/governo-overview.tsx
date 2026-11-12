@@ -116,8 +116,112 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
 
   function chooseGroup(key: string) {
     setFilter((prev) => (prev === key ? "" : key));
-    document.getElementById("saude-secretarias")?.scrollIntoView({ block: "start" });
+    document.getElementById("secretarias")?.scrollIntoView({ block: "start" });
   }
+
+  const saudeSecretarias = (
+      <section id="secretarias" className={s.healthSection}>
+        <div className={s.sectionHead}>
+          <div>
+            <p className={s.kicker}>Semáforo das secretarias</p>
+            <h2>A saúde de cada pasta</h2>
+            <p>Identifique o sinal, entenda a causa e abra o cenário de cada secretaria, inclusive das que ainda não têm projetos.</p>
+          </div>
+          <Link href="/secretarias" className={s.button}>Todas as pastas ↗</Link>
+        </div>
+        <div className="gl-chips" role="group" aria-label="Filtrar por situação">
+          <button type="button" aria-pressed={!filter} onClick={() => setFilter("")}>Todas <b>{porSecretaria.length}</b></button>
+          {groups.map((g) => (
+            <button key={g.key} type="button" aria-pressed={filter === g.key} onClick={() => setFilter((f) => (f === g.key ? "" : g.key))} style={{ ["--c" as string]: g.color }}>
+              <i />{g.label} <b>{porSecretaria.filter((p) => p.classificacao === g.key).length}</b>
+            </button>
+          ))}
+        </div>
+        <div className={s.filters}>
+          <div>
+            <label htmlFor="overview-search">Buscar secretaria ou responsável</label>
+            <input id="overview-search" type="search" placeholder="Buscar na carteira…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          </div>
+          <div>
+            <label htmlFor="overview-filter">Situação</label>
+            <select id="overview-filter" value={filter} onChange={(e) => setFilter(e.target.value)}>
+              <option value="">Todas as situações</option>
+              {groups.map((g) => <option key={g.key} value={g.key}>{g.label}</option>)}
+              <option value="SEM_PRAZO">Com tarefas sem prazo</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="overview-sort">Ordenar por</label>
+            <select id="overview-sort" value={sort} onChange={(e) => setSort(e.target.value)}>
+              <option value="priority">Prioridade de acompanhamento</option>
+              <option value="name">Ordem alfabética</option>
+              <option value="delay">Maior percentual de atraso</option>
+            </select>
+          </div>
+        </div>
+        <div className={s.resultMeta}>
+          <span aria-live="polite">{visible.length} de {porSecretaria.length} secretarias ativas · {pastas.length} com projetos</span>
+          <span>Quanto mais próximo da borda, melhor a dimensão. <a href="#metodo">Como ler ↗</a></span>
+        </div>
+        <div className={s.healthGrid}>
+          {visible.map((p) => {
+            const g = groups.find((group) => group.key === p.classificacao) || groups[2];
+            const dimensions = health(p);
+            return (
+              <article key={p.id} className={`${s.panel} ${s.healthCard}`} style={{ ["--health" as string]: p.tarefasTotal ? g.color : "#929bb4" }}>
+                <div className={s.healthTop}>
+                  <span className={s.healthPill}><i />{!p.projetos ? "Sem projetos cadastrados" : p.tarefasTotal ? g.label : "Sem tarefas cadastradas"}</span>
+                  <small>{p.tarefasTotal} tarefas</small>
+                </div>
+                <h3>{p.nome}</h3>
+                <p className={s.owner}>{p.titular?.nome || "Responsável não cadastrado"}</p>
+                <div className={s.healthViz}>
+                  <Radar pasta={p} color={g.color} />
+                  <div className={s.healthMeasures}>
+                    {dimensions.map((d) => (
+                      <div key={d.label}>
+                        <div className={s.measureRow}><span>{d.label}</span><strong>{d.value == null ? "—" : `${Math.round(d.value)}%`}</strong></div>
+                        <div className={s.measureBar}><em style={{ width: `${d.value ?? 0}%`, background: g.color }} /></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <p className={s.healthMessage}>
+                  {p.classificacao === "DADOS_DEFASADOS"
+                    ? `${p.diasSemAtualizacao} dias sem atualizar na data-base. Validar a informação.`
+                    : p.abertas
+                      ? `${number(p.pctAtraso)}% das tarefas abertas estão atrasadas.`
+                      : !p.projetos
+                        ? "Nenhum projeto vinculado a esta secretaria."
+                        : p.tarefasTotal
+                        ? "Sem tarefas abertas nesta base."
+                        : "Aguardando o registro das primeiras entregas."}
+                </p>
+                <div className={s.healthCounts}>
+                  <span><b>{p.atrasadas}</b> tarefas atr.</span>
+                  <span><b>{p.semPrazo}</b> sem prazo</span>
+                  <span><b>{p.criticas}</b> críticas</span>
+                  <span><b>{p.metasTotal || 0}</b> metas</span>
+                  <span><b>{p.metasAtrasadas || 0}</b> metas atr.</span>
+                </div>
+                <div className={s.recommendation}><small>Próxima cobrança sugerida</small><p>{recommendation(p)}</p></div>
+                <footer>
+                  <small>{p.diasSemAtualizacao == null ? "Sem atualização registrada" : p.diasSemAtualizacao <= 0 ? "Atualizada no dia da base" : `${p.diasSemAtualizacao} dias sem atualizar na base`}</small>
+                  <Link href={`/painel?secretariaId=${encodeURIComponent(p.id)}`} className={s.button}>Abrir cenário ↗</Link>
+                </footer>
+              </article>
+            );
+          })}
+        </div>
+        {!visible.length && (
+          <div className={s.empty}>
+            {porSecretaria.length
+              ? <>Nenhuma secretaria corresponde aos filtros. <button type="button" onClick={() => { setQuery(""); setFilter(""); }}>Limpar filtros</button></>
+              : <>Nenhuma secretaria ativa cadastrada. <Link href="/secretarias">Abrir secretarias</Link></>}
+          </div>
+        )}
+      </section>
+  );
 
   return (
     <div className={s.board}>
@@ -133,7 +237,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
         </div>
       </header>
 
-      <GovernoGlance data={payload.data} />
+      <GovernoGlance data={payload.data} secretarias={saudeSecretarias} />
 
       <section id="detalhes" className="gl-detalhes">
         <button type="button" className="gl-detalhes__botao" aria-expanded={detalhe} aria-controls="analise-detalhada" onClick={() => setDetalhe((v) => !v)}>
@@ -386,100 +490,6 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
         </div>
       </section>
 
-      {/* ——— #secretarias ——— */}
-      <section id="saude-secretarias" className={s.healthSection}>
-        <div className={s.sectionHead}>
-          <div>
-            <p className={s.kicker}>Do cenário global à cobrança pontual</p>
-            <h2>A saúde de cada secretaria</h2>
-            <p>Identifique o sinal, entenda a causa e abra o cenário de cada secretaria, inclusive das que ainda não têm projetos.</p>
-          </div>
-          <Link href="/secretarias" className={s.button}>Todas as pastas ↗</Link>
-        </div>
-        <div className={s.filters}>
-          <div>
-            <label htmlFor="overview-search">Buscar secretaria ou responsável</label>
-            <input id="overview-search" type="search" placeholder="Buscar na carteira…" value={query} onChange={(e) => setQuery(e.target.value)} />
-          </div>
-          <div>
-            <label htmlFor="overview-filter">Situação</label>
-            <select id="overview-filter" value={filter} onChange={(e) => setFilter(e.target.value)}>
-              <option value="">Todas as situações</option>
-              {groups.map((g) => <option key={g.key} value={g.key}>{g.label}</option>)}
-              <option value="SEM_PRAZO">Com tarefas sem prazo</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="overview-sort">Ordenar por</label>
-            <select id="overview-sort" value={sort} onChange={(e) => setSort(e.target.value)}>
-              <option value="priority">Prioridade de acompanhamento</option>
-              <option value="name">Ordem alfabética</option>
-              <option value="delay">Maior percentual de atraso</option>
-            </select>
-          </div>
-        </div>
-        <div className={s.resultMeta}>
-          <span aria-live="polite">{visible.length} de {porSecretaria.length} secretarias ativas · {pastas.length} com projetos</span>
-          <span>Quanto mais próximo da borda, melhor a dimensão. <a href="#metodo">Como ler ↗</a></span>
-        </div>
-        <div className={s.healthGrid}>
-          {visible.map((p) => {
-            const g = groups.find((group) => group.key === p.classificacao) || groups[2];
-            const dimensions = health(p);
-            return (
-              <article key={p.id} className={`${s.panel} ${s.healthCard}`} style={{ ["--health" as string]: p.tarefasTotal ? g.color : "#929bb4" }}>
-                <div className={s.healthTop}>
-                  <span className={s.healthPill}><i />{!p.projetos ? "Sem projetos cadastrados" : p.tarefasTotal ? g.label : "Sem tarefas cadastradas"}</span>
-                  <small>{p.tarefasTotal} tarefas</small>
-                </div>
-                <h3>{p.nome}</h3>
-                <p className={s.owner}>{p.titular?.nome || "Responsável não cadastrado"}</p>
-                <div className={s.healthViz}>
-                  <Radar pasta={p} color={g.color} />
-                  <div className={s.healthMeasures}>
-                    {dimensions.map((d) => (
-                      <div key={d.label}>
-                        <div className={s.measureRow}><span>{d.label}</span><strong>{d.value == null ? "—" : `${Math.round(d.value)}%`}</strong></div>
-                        <div className={s.measureBar}><em style={{ width: `${d.value ?? 0}%`, background: g.color }} /></div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <p className={s.healthMessage}>
-                  {p.classificacao === "DADOS_DEFASADOS"
-                    ? `${p.diasSemAtualizacao} dias sem atualizar na data-base. Validar a informação.`
-                    : p.abertas
-                      ? `${number(p.pctAtraso)}% das tarefas abertas estão atrasadas.`
-                      : !p.projetos
-                        ? "Nenhum projeto vinculado a esta secretaria."
-                        : p.tarefasTotal
-                        ? "Sem tarefas abertas nesta base."
-                        : "Aguardando o registro das primeiras entregas."}
-                </p>
-                <div className={s.healthCounts}>
-                  <span><b>{p.atrasadas}</b> tarefas atr.</span>
-                  <span><b>{p.semPrazo}</b> sem prazo</span>
-                  <span><b>{p.criticas}</b> críticas</span>
-                  <span><b>{p.metasTotal || 0}</b> metas</span>
-                  <span><b>{p.metasAtrasadas || 0}</b> metas atr.</span>
-                </div>
-                <div className={s.recommendation}><small>Próxima cobrança sugerida</small><p>{recommendation(p)}</p></div>
-                <footer>
-                  <small>{p.diasSemAtualizacao == null ? "Sem atualização registrada" : p.diasSemAtualizacao <= 0 ? "Atualizada no dia da base" : `${p.diasSemAtualizacao} dias sem atualizar na base`}</small>
-                  <Link href={`/painel?secretariaId=${encodeURIComponent(p.id)}`} className={s.button}>Abrir cenário ↗</Link>
-                </footer>
-              </article>
-            );
-          })}
-        </div>
-        {!visible.length && (
-          <div className={s.empty}>
-            {porSecretaria.length
-              ? <>Nenhuma secretaria corresponde aos filtros. <button type="button" onClick={() => { setQuery(""); setFilter(""); }}>Limpar filtros</button></>
-              : <>Nenhuma secretaria ativa cadastrada. <Link href="/secretarias">Abrir secretarias</Link></>}
-          </div>
-        )}
-      </section>
 
       {/* ——— #decisoes ——— */}
       <section id="decisoes" className={s.chapter}>

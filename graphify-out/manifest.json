@@ -36,9 +36,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/routes/dashboard.ts": {
-    "mtime": 1794438413.6407306,
-    "seen": 1794439285.570338,
-    "ast_hash": "9a63cc3c61bc879db70b84bc953afece",
+    "mtime": 1794441080.745667,
+    "seen": 1794441979.767672,
+    "ast_hash": "85c769f2c277d4e1200f8738b6f1a0b4",
     "semantic_hash": ""
   },
   "apps/api/src/routes/import.ts": {
@@ -48,9 +48,9 @@
     "semantic_hash": "774fad39353cd2c9ec5e84bda136ee71"
   },
   "apps/api/src/routes/iniciativas.ts": {
-    "mtime": 1794438184.9057498,
-    "seen": 1794439285.570379,
-    "ast_hash": "d7568d7e3a2779a42862465f68b95359",
+    "mtime": 1794441164.0882695,
+    "seen": 1794441979.767745,
+    "ast_hash": "f9f98775068ae46d2a01c88ae6524f98",
     "semantic_hash": ""
   },
   "apps/api/src/routes/reports.ts": {
@@ -120,9 +120,9 @@
     "semantic_hash": "1f0e4f8b4635c5ea701f6dc167f1f7f8"
   },
   "apps/web/src/app/(app)/iniciativas/[id]/page.tsx": {
-    "mtime": 1794431913.5305068,
-    "seen": 1794439285.5709682,
-    "ast_hash": "895dfef6d71b99c5c28ff0cd7ed60077",
+    "mtime": 1794441530.4467213,
+    "seen": 1794441979.7689269,
+    "ast_hash": "0e73f9afec978139f66d5f4b3a22a1b5",
     "semantic_hash": ""
   },
   "apps/web/src/app/(app)/layout.tsx": {
@@ -360,9 +360,9 @@
     "semantic_hash": "2fc75e5b02867e4518b8406010f9d016"
   },
   "docs/ux-jornadas.md": {
-    "mtime": 1794440726.9083345,
-    "seen": 1794440765.3636181,
-    "ast_hash": "14ef74b6d261da9629aab72522a172a9",
+    "mtime": 1794441959.7008479,
+    "seen": 1794441979.772067,
+    "ast_hash": "bf6945210a343a2e9d394b4027c74996",
     "semantic_hash": ""
   },
   "apps/api/src/routes/planejamento.ts": {
@@ -395,22 +395,16 @@
     "ast_hash": "cae6a202f1ec6f141d7aecf3850ee8a5",
     "semantic_hash": "cae6a202f1ec6f141d7aecf3850ee8a5"
   },
-  "apps/web/src/app/(app)/iniciativas/[id]/evidencia-form.tsx": {
-    "mtime": 1794431913.533497,
-    "seen": 1794439285.570965,
-    "ast_hash": "46761deb6d99565f5b136137ceb38621",
-    "semantic_hash": ""
-  },
   "apps/web/src/app/(app)/iniciativas/[id]/projeto-documento.tsx": {
-    "mtime": 1794432124.9399676,
-    "seen": 1794439285.570969,
-    "ast_hash": "96b672211b8b66c0da0a66385bdd6961",
+    "mtime": 1794441456.2893004,
+    "seen": 1794441979.7689269,
+    "ast_hash": "bbe99fcaa751682c74d2fedd8760b80d",
     "semantic_hash": ""
   },
   "apps/web/src/app/(app)/minha-pasta/page.tsx": {
-    "mtime": 1794438889.0423155,
-    "seen": 1794439285.571059,
-    "ast_hash": "8124a9059302c861cdfc054607c17224",
+    "mtime": 1794441821.56878,
+    "seen": 1794441979.7693,
+    "ast_hash": "71f709ddb79102e0a054b2b5fe101309",
     "semantic_hash": ""
   },
   "apps/web/src/app/(app)/planejamento/page.tsx": {
@@ -552,10 +546,10 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/(app)/iniciativas/[id]/evidencia-actions.tsx": {
-    "mtime": 1794428321.4182632,
-    "seen": 1794439285.5709639,
-    "ast_hash": "849889b5c9d29bb9750a38c8b9901512",
-    "semantic_hash": "849889b5c9d29bb9750a38c8b9901512"
+    "mtime": 1794441353.580771,
+    "seen": 1794441979.768848,
+    "ast_hash": "75b45c9f32b24bd6642b167751eee8bd",
+    "semantic_hash": ""
   },
   "apps/web/src/app/(app)/iniciativas/[id]/evidencia-media.tsx": {
     "mtime": 1794430749.2119865,
@@ -570,9 +564,9 @@
     "semantic_hash": "0439fbe58bdec6c375769c769b3d9f88"
   },
   "apps/web/src/components/overview/governo-overview.tsx": {
-    "mtime": 1794440442.3145118,
-    "seen": 1794440765.362217,
-    "ast_hash": "6a39e4cdf9c94f51809255f485f2b69f",
+    "mtime": 1794441045.720504,
+    "seen": 1794441979.770484,
+    "ast_hash": "230d37ed8dc06b616512a0be81788f47",
     "semantic_hash": ""
   },
   "apps/web/src/components/overview/ov.ts": {
@@ -755,12 +749,6 @@
     "ast_hash": "68ea677fb14c3da31c70dc0ef4f16fde",
     "semantic_hash": "68ea677fb14c3da31c70dc0ef4f16fde"
   },
-  "apps/web/src/app/(app)/iniciativas/[id]/dossie-governanca.tsx": {
-    "mtime": 1794434312.1726553,
-    "seen": 1794439285.570963,
-    "ast_hash": "4d3b7695a2ba1bc61891292cf936a38f",
-    "semantic_hash": ""
-  },
   "apps/web/src/app/(app)/iniciativas/[id]/item-texto-editor.tsx": {
     "mtime": 1794428321.4227638,
     "seen": 1794439285.570967,
@@ -821,16 +809,10 @@
     "ast_hash": "cda1a4547bbb4c7b8e3048db8b2410a3",
     "semantic_hash": "cda1a4547bbb4c7b8e3048db8b2410a3"
   },
-  "apps/web/src/app/(app)/iniciativas/[id]/tarefas-board.tsx": {
-    "mtime": 1794439372.6127243,
-    "seen": 1794439527.819572,
-    "ast_hash": "c5067350642467231c38a65f061aaec7",
-    "semantic_hash": ""
-  },
   "apps/web/src/components/overview/cenario-secretaria.tsx": {
-    "mtime": 1794429896.9204388,
-    "seen": 1794439285.571309,
-    "ast_hash": "cfb3dde93ee8af041614263dcc366e36",
+    "mtime": 1794441803.642216,
+    "seen": 1794441979.770483,
+    "ast_hash": "ba773ee9ba6a0b64411ccc6a27ec0811",
     "semantic_hash": ""
   },
   "apps/api/src/middleware/tarefa-auth.ts": {
@@ -894,15 +876,15 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/(app)/notificacoes/notificacoes-lista.tsx": {
-    "mtime": 1794438993.3373528,
-    "seen": 1794439285.571061,
-    "ast_hash": "5a5860686c14c627677c1934a38cbc79",
+    "mtime": 1794441877.0658255,
+    "seen": 1794441979.7693708,
+    "ast_hash": "1114917d88926e3bac3a03f376678cb2",
     "semantic_hash": ""
   },
   "apps/web/src/app/(app)/notificacoes/page.tsx": {
-    "mtime": 1794438546.1018844,
-    "seen": 1794439285.571062,
-    "ast_hash": "9b2923690712abff664ec6e84b2a5a96",
+    "mtime": 1794441877.161613,
+    "seen": 1794441979.769372,
+    "ast_hash": "eaab68d4ff1bfc198e34b07745e3a217",
     "semantic_hash": ""
   },
   "apps/web/src/app/(app)/planejamento/plano-estrutura.tsx": {
@@ -1050,9 +1032,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/overview/governo-glance.tsx": {
-    "mtime": 1794440430.093956,
-    "seen": 1794440765.362216,
-    "ast_hash": "bc60f598b056c331dea332cc1ac3b78a",
+    "mtime": 1794441053.107987,
+    "seen": 1794441979.770484,
+    "ast_hash": "6003499fbabfc081b811c4cde1e07ce3",
     "semantic_hash": ""
   },
   "apps/web/src/lib/hosts.ts": {
@@ -1065,6 +1047,30 @@
     "mtime": 1794440739.815601,
     "seen": 1794440765.3635032,
     "ast_hash": "c7a9c100e7f5e0f5dbafbce61e3f7a35",
+    "semantic_hash": ""
+  },
+  "apps/web/src/app/(app)/iniciativas/[id]/evidencia-envio.tsx": {
+    "mtime": 1794441269.0725513,
+    "seen": 1794441979.768849,
+    "ast_hash": "09f5bba8f906a7518459b5930886927d",
+    "semantic_hash": ""
+  },
+  "apps/web/src/app/(app)/iniciativas/[id]/historico-projeto.tsx": {
+    "mtime": 1794441447.6061969,
+    "seen": 1794441979.768888,
+    "ast_hash": "abcff8835bf3f8de6feba9446756cc97",
+    "semantic_hash": ""
+  },
+  "apps/web/src/app/(app)/iniciativas/[id]/projeto-pastas.tsx": {
+    "mtime": 1794441336.0733235,
+    "seen": 1794441979.768928,
+    "ast_hash": "95922190f27cd22191209f63e3dce437",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/overview/secretaria-glance.tsx": {
+    "mtime": 1794441794.354788,
+    "seen": 1794441979.770518,
+    "ast_hash": "2ee1ebf20ef7736c85adbeef89406c44",
     "semantic_hash": ""
   }
 }

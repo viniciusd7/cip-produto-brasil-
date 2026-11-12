@@ -2,8 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, Button } from "@cip/ui";
-import { toneEvidencia } from "@cip/shared";
+import { Button } from "@cip/ui";
 import { API_URL } from "@/lib/api";
 import { EvidenciaMedia } from "./evidencia-media";
 
@@ -19,6 +18,7 @@ export type EvidenciaItem = {
   mimeType?: string | null;
   arquivoNome?: string | null;
   autorNome?: string | null;
+  createdAt?: string;
   marco?: { id: string; codigo?: string | null; descricao: string } | null;
   validacoes?: Array<{
     id: string;
@@ -27,6 +27,19 @@ export type EvidenciaItem = {
     createdAt: string;
     validador?: { name: string } | null;
   }>;
+};
+
+export const EVIDENCIA_STATUS: Record<string, { label: string; cor: string; icone: string }> = {
+  DECLARADA: { label: "Aguardando validação", cor: "#eac78c", icone: "⏳" },
+  A_VERIFICAR: { label: "Aguardando validação", cor: "#eac78c", icone: "⏳" },
+  VERIFICADA: { label: "Aprovada", cor: "#b4e4a0", icone: "✓" },
+  REJEITADA: { label: "Devolvida para ajuste", cor: "#ff5982", icone: "↺" },
+};
+export const EVIDENCIA_TIPO: Record<string, { label: string; icone: string }> = {
+  FOTO: { label: "Foto", icone: "📷" },
+  VIDEO: { label: "Vídeo", icone: "🎥" },
+  DOCUMENTO: { label: "Documento", icone: "📄" },
+  LINK: { label: "Link", icone: "🔗" },
 };
 
 export function EvidenciaCard({
@@ -94,37 +107,14 @@ export function EvidenciaCard({
     }
   }
 
+  const st = EVIDENCIA_STATUS[evidencia.status] ?? { label: evidencia.status, cor: "#929bb4", icone: "•" };
+  const tp = EVIDENCIA_TIPO[evidencia.tipo || ""] ?? { label: "Arquivo", icone: "📎" };
+  const ultima = evidencia.validacoes?.[0];
+
   return (
-    <article className="evidencia-card">
-      <div className="evidencia-card__top">
-        <div>
-          <strong>{evidencia.titulo}</strong>
-          <div className="dashboard-muted" style={{ marginTop: 4 }}>
-            {[evidencia.tipo, evidencia.fonte, evidencia.autorNome]
-              .filter(Boolean)
-              .join(" · ") || "Sem metadados"}
-          </div>
-        </div>
-        <Badge tone={toneEvidencia(evidencia.status)}>{evidencia.status}</Badge>
-      </div>
-
-      {evidencia.descricao && (
-        <p className="evidencia-card__feito">
-          <span className="dashboard-muted">O que foi feito · </span>
-          {evidencia.descricao}
-        </p>
-      )}
-
-      {evidencia.marco && (
-        <p className="dashboard-muted" style={{ margin: "8px 0" }}>
-          Tarefa:{" "}
-          {evidencia.marco.codigo ? `${evidencia.marco.codigo} · ` : ""}
-          {evidencia.marco.descricao}
-        </p>
-      )}
-
-      {hasLocalFile && (
-        <div className="evidencia-card__media">
+    <article className="ev-card" style={{ ["--c" as string]: st.cor }}>
+      <div className="ev-card__media">
+        {hasLocalFile ? (
           <EvidenciaMedia
             evidenciaId={evidencia.id}
             token={token}
@@ -132,32 +122,51 @@ export function EvidenciaCard({
             arquivoNome={evidencia.arquivoNome}
             titulo={evidencia.titulo}
           />
-        </div>
-      )}
-
-      {!hasLocalFile && evidencia.urlOuArquivo?.startsWith("http") && (
-        <a
-          href={evidencia.urlOuArquivo}
-          target="_blank"
-          rel="noreferrer"
-          style={{ color: "var(--cip-blue)", fontWeight: 600 }}
-        >
-          Abrir link
-        </a>
-      )}
-
-      {!!evidencia.validacoes?.length && (
-        <ul className="evidencia-card__hist">
-          {evidencia.validacoes.map((v) => (
-            <li key={v.id}>
-              <Badge tone={toneEvidencia(v.status)}>{v.status}</Badge>{" "}
-              {v.validador?.name || "Validador"} ·{" "}
-              {new Date(v.createdAt).toLocaleDateString("pt-BR")}
-              {v.parecer ? ` — ${v.parecer}` : ""}
-            </li>
-          ))}
-        </ul>
-      )}
+        ) : evidencia.urlOuArquivo?.startsWith("http") ? (
+          <a href={evidencia.urlOuArquivo} target="_blank" rel="noreferrer" className="ev-card__link">
+            🔗 Abrir link externo
+          </a>
+        ) : (
+          <span className="ev-card__semarquivo" aria-hidden="true">{tp.icone}</span>
+        )}
+        <span className="ev-card__status">
+          <span aria-hidden="true">{st.icone}</span> {st.label}
+        </span>
+      </div>
+      <div className="ev-card__corpo">
+        <span className="ev-card__tipo">{tp.icone} {tp.label}</span>
+        <strong className="ev-card__titulo">{evidencia.titulo}</strong>
+        {evidencia.descricao && <p className="ev-card__desc">{evidencia.descricao}</p>}
+        {evidencia.marco && (
+          <p className="ev-card__tarefa">
+            <span>Tarefa</span> {evidencia.marco.codigo ? `${evidencia.marco.codigo} · ` : ""}
+            {evidencia.marco.descricao}
+          </p>
+        )}
+        <p className="ev-card__autor">
+          {evidencia.autorNome || "Equipe"}
+          {evidencia.createdAt ? ` · ${new Date(evidencia.createdAt).toLocaleDateString("pt-BR")}` : ""}
+        </p>
+        {ultima && (
+          <p className="ev-card__parecer">
+            <b>{ultima.status === "VERIFICADA" ? "Aprovada" : "Devolvida"} por {ultima.validador?.name || "consultoria"}</b>
+            {ultima.parecer ? ` — “${ultima.parecer}”` : ""}
+          </p>
+        )}
+        {evidencia.validacoes && evidencia.validacoes.length > 1 && (
+          <details className="ev-card__hist">
+            <summary>Histórico ({evidencia.validacoes.length})</summary>
+            <ul>
+              {evidencia.validacoes.map((v) => (
+                <li key={v.id}>
+                  {new Date(v.createdAt).toLocaleDateString("pt-BR")} · {v.status === "VERIFICADA" ? "Aprovada" : "Devolvida"} ·{" "}
+                  {v.validador?.name || "Validador"}
+                  {v.parecer ? ` — ${v.parecer}` : ""}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
 
       {canValidate && pending && (
         <div style={{ marginTop: 12 }}>
@@ -170,7 +179,7 @@ export function EvidenciaCard({
                   setOpen(true);
                 }}
               >
-                Validar
+                ✓ Aprovar
               </Button>
               <Button
                 type="button"
@@ -180,13 +189,13 @@ export function EvidenciaCard({
                   setOpen(true);
                 }}
               >
-                Rejeitar
+                ↺ Devolver para ajuste
               </Button>
             </div>
           ) : (
             <form onSubmit={onValidate} className="stack">
               <strong>
-                {status === "VERIFICADA" ? "Validar evidência" : "Rejeitar evidência"}
+                {status === "VERIFICADA" ? "Aprovar evidência" : "Devolver para o secretário ajustar"}
               </strong>
               <div>
                 <label>Parecer</label>
@@ -194,7 +203,8 @@ export function EvidenciaCard({
                   rows={2}
                   value={parecer}
                   onChange={(e) => setParecer(e.target.value)}
-                  placeholder="Comentário para a equipe"
+                  placeholder={status === "VERIFICADA" ? "Comentário opcional" : "Explique o que precisa ser corrigido"}
+                  required={status === "REJEITADA"}
                 />
               </div>
               {status === "VERIFICADA" && evidencia.marcoId && (
@@ -247,6 +257,7 @@ export function EvidenciaCard({
           )}
         </div>
       )}
+      </div>
     </article>
   );
 }

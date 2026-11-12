@@ -58,3 +58,20 @@ Senha demo: ver [`docs/DEMO.md`](DEMO.md) (somente ambiente local).
 - Vários funcionários por secretaria (`SecretariaPessoa`), com no máximo um **TITULAR** ativo.
 - Campos `titular*` da secretaria permanecem sincronizados com o titular (compatível com painel).
 - Projetos gravam `responsavelPessoaId` + nome em `responsavel` para listagens.
+
+## Página do projeto (pastas)
+
+- O projeto é exibido como pastas: **meta → tarefa → subtarefa**, com anel de progresso no topo e abas Tarefas / Evidências / Sobre o projeto.
+- Removidos "Dependências tipadas" e "Equipamento público"; o histórico virou uma linha do tempo simples.
+- Evidência guiada: o secretário escolhe foto, vídeo ou documento, envia, e o item fica "Aguardando validação" até a consultoria aprovar (com parecer) ou devolver.
+
+## Visão da secretaria
+
+- O mesmo painel visual (medidor, barra de status, "o que precisa de atenção", pastas de projetos com correlacionados 🤝, metas estratégicas e de execução) aparece:
+  - para o **prefeito**, em `/painel?secretariaId=…`, com chips para trocar de secretaria e filtros de saúde;
+  - para o **secretário**, em `/minha-pasta`, restrito à própria secretaria.
+
+## Central de notificações
+
+- `/notificacoes` mostra contador de não lidas, alternância Não lidas/Todas, blocos por tipo (atribuídas, para validar, decisões, prazos) que funcionam como filtro e agrupamento por dia (Hoje, Ontem, Nesta semana, Anteriores).
+- Cada aviso leva direto à tarefa, meta ou validação. Canais: painel ativo; e-mail e WhatsApp em breve.
