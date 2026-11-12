@@ -17,7 +17,7 @@ export function ExportButtons({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "cip-relatorio-executivo.csv";
+    a.download = "cip-prestacao-de-contas.csv";
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -28,7 +28,7 @@ export function ExportButtons({
         Salvar PDF / imprimir
       </Button>
       <Button type="button" variant="secondary" onClick={downloadCsv}>
-        Planilha (CSV)
+        Planilha das tarefas (CSV)
       </Button>
     </div>
   );

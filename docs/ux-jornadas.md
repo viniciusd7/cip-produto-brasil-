@@ -25,7 +25,7 @@ Senha demo: ver [`docs/DEMO.md`](DEMO.md) (somente ambiente local).
 ## Agenda e prestação de contas
 
 - **Agenda** (`/pendencias`): “O que precisa ser feito”, agrupado por urgência com cores (atrasado, esta semana, mais adiante, sem prazo), faixa dos próximos 7 dias e andamento por projeto.
-- **Prestação de contas** (`/relatorios`): documento executivo com identidade CIP — resumo com veredito, desempenho por secretaria, metas, pontos de atenção e próximos passos; “Salvar PDF / imprimir” gera A4 limpo, CSV continua disponível.
+- **Prestação de contas** (`/relatorios`): relatório no tema escuro CIP com barra de filtros fixa — períodos rápidos (este mês, mês passado, 30 dias, trimestre, ano, mandato), datas De/Até, secretaria, projeto e situação (atrasadas, sem prazo, no prazo, concluídas). Uma tarefa entra no período se o prazo vigente ou a conclusão cair nele. Seções: resumo com veredito, KPIs, evolução mês a mês, ranking por secretaria (clique filtra), metas estratégicas, metas de execução, evidências por tipo, projetos (clique filtra), tabela de tarefas com busca/ordenação e próximos passos. “Salvar PDF / imprimir” gera A4 claro com todas as linhas; o CSV (`/reports/prestacao.csv`) respeita os filtros. Secretário vê só a própria secretaria.
 
 ## 1) Prefeito
 

@@ -54,9 +54,9 @@
     "semantic_hash": ""
   },
   "apps/api/src/routes/reports.ts": {
-    "mtime": 1794430859.8380215,
-    "seen": 1794439285.570448,
-    "ast_hash": "6a74f94d324a78fc82ce897b520eec7b",
+    "mtime": 1794444007.8375666,
+    "seen": 1794444407.0750442,
+    "ast_hash": "b25ea328633fd2f4623bc53a06db0639",
     "semantic_hash": ""
   },
   "apps/api/src/services/audit.ts": {
@@ -144,15 +144,15 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/(app)/relatorios/export-buttons.tsx": {
-    "mtime": 1794440613.26732,
-    "seen": 1794440765.361533,
-    "ast_hash": "5c14ba277fef114a7302a61c10f2d9d2",
+    "mtime": 1794444094.6364913,
+    "seen": 1794444407.077197,
+    "ast_hash": "84c2b7e2f486e5ee3b1aefdf44aa6994",
     "semantic_hash": ""
   },
   "apps/web/src/app/(app)/relatorios/page.tsx": {
-    "mtime": 1794440680.8561745,
-    "seen": 1794440765.3615339,
-    "ast_hash": "2613f5b552225f8230da1c95a5841b79",
+    "mtime": 1794444160.7136512,
+    "seen": 1794444407.0771992,
+    "ast_hash": "cf5bdaaad634858006e3c276624cf525",
     "semantic_hash": ""
   },
   "apps/web/src/app/api/auth/[...nextauth]/route.ts": {
@@ -360,9 +360,9 @@
     "semantic_hash": "2fc75e5b02867e4518b8406010f9d016"
   },
   "docs/ux-jornadas.md": {
-    "mtime": 1794441959.7008479,
-    "seen": 1794441979.772067,
-    "ast_hash": "bf6945210a343a2e9d394b4027c74996",
+    "mtime": 1794444404.0273106,
+    "seen": 1794444407.079828,
+    "ast_hash": "25d1defd427cfea1a1f927a68b5661b7",
     "semantic_hash": ""
   },
   "apps/api/src/routes/planejamento.ts": {
@@ -1071,6 +1071,18 @@
     "mtime": 1794441794.354788,
     "seen": 1794441979.770518,
     "ast_hash": "2ee1ebf20ef7736c85adbeef89406c44",
+    "semantic_hash": ""
+  },
+  "apps/web/src/app/(app)/relatorios/filtros-prestacao.tsx": {
+    "mtime": 1794444063.581319,
+    "seen": 1794444407.077198,
+    "ast_hash": "4f11a7278e3d1c6b0a305797455e3c8e",
+    "semantic_hash": ""
+  },
+  "apps/web/src/app/(app)/relatorios/tabela-tarefas.tsx": {
+    "mtime": 1794444091.1446204,
+    "seen": 1794444407.0772,
+    "ast_hash": "4ee070d8115cb883af025840ee925a56",
     "semantic_hash": ""
   }
 }
