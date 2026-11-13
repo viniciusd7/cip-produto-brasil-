@@ -110,7 +110,7 @@ export function ValidacoesFila({ token, podeDecidir }: { token: string; podeDeci
         <p className="dashboard-muted">Carregando…</p>
       ) : itens.length === 0 ? (
         <p className="dashboard-muted">
-          {status === "ABERTA" ? "Nenhuma conclusão aguardando validação." : "Nenhuma decisão registrada ainda."}
+          {status === "ABERTA" ? "Nenhuma conclusão aguardando aprovação." : "Nenhuma decisão registrada ainda."}
         </p>
       ) : (
         <ul className="gp-list">

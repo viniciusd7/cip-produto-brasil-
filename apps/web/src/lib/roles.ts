@@ -104,7 +104,7 @@ const ALL_NAV: NavItem[] = [
   { href: "/planejamento", label: "Plano de governo" },
   { href: "/carteira", label: "Projetos" },
   { href: "/acoes", label: "Tarefas" },
-  { href: "/validacoes", label: "Validações" },
+  { href: "/validacoes", label: "Aprovações" },
   { href: "/pendencias", label: "Agenda" },
   { href: "/relatorios", label: "Prestação" },
   { href: "/notificacoes", label: "Notificações", icon: "🔔" },

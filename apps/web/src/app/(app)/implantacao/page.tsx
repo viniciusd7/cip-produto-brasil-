@@ -48,8 +48,8 @@ export default async function ImplantacaoPage() {
 
       <Card
         title={`${concluidas} de ${total} etapas concluídas`}
-        subtitle={proxima ? `Próximo passo: ${proxima.titulo.toLowerCase()}` : "Estrutura completa — acompanhe a execução e as validações."}
-        action={proxima ? <Link className="cip-btn cip-btn--primary" href={proxima.href}>Continuar</Link> : <Link className="cip-btn cip-btn--primary" href="/validacoes">Ver validações</Link>}
+        subtitle={proxima ? `Próximo passo: ${proxima.titulo.toLowerCase()}` : "Estrutura completa — acompanhe a execução e as aprovações."}
+        action={proxima ? <Link className="cip-btn cip-btn--primary" href={proxima.href}>Continuar</Link> : <Link className="cip-btn cip-btn--primary" href="/validacoes">Ver aprovações</Link>}
       >
         <div className="projeto-progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Progresso da implantação">
           <div className="projeto-progress__bar" style={{ width: `${pct}%` }} />
