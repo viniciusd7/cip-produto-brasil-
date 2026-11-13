@@ -9,6 +9,8 @@ export type StoredFile = {
   size: number;
 };
 
+type UploadDirectory = "evidencias" | "conhecimento";
+
 const UPLOAD_ROOT =
   process.env.UPLOAD_DIR ||
   path.join(process.cwd(), "uploads");
@@ -50,13 +52,14 @@ export const localStorage = {
     buffer: Buffer,
     originalName: string,
     mimeType: string,
+    directory: UploadDirectory = "evidencias",
   ): Promise<StoredFile> {
     await this.ensureRoot();
     const safeBase = originalName
       .replace(/[^a-zA-Z0-9._-]+/g, "_")
       .slice(0, 80);
     const relativePath = path.join(
-      "evidencias",
+      directory,
       `${Date.now()}-${randomUUID().slice(0, 8)}-${safeBase}`,
     );
     const full = path.join(UPLOAD_ROOT, relativePath);
@@ -71,11 +74,20 @@ export const localStorage = {
   },
 
   absolutePath(relativePath: string) {
-    const resolved = path.resolve(UPLOAD_ROOT, relativePath);
-    if (!resolved.startsWith(path.resolve(UPLOAD_ROOT))) {
+    const root = path.resolve(UPLOAD_ROOT);
+    const resolved = path.resolve(root, relativePath);
+    if (resolved !== root && !resolved.startsWith(`${root}${path.sep}`)) {
       throw new Error("INVALID_PATH");
     }
     return resolved;
+  },
+
+  async read(relativePath: string) {
+    return fs.readFile(this.absolutePath(relativePath));
+  },
+
+  async remove(relativePath: string) {
+    await fs.rm(this.absolutePath(relativePath));
   },
 
   async exists(relativePath: string) {

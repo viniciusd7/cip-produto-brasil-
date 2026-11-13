@@ -11,6 +11,7 @@ type Doc = {
   titulo: string;
   vigencia?: string | null;
   statusConferencia: string;
+  arquivoNome?: string | null;
 };
 
 type MedicaoFormMeta = { id: string; nome: string };
@@ -27,6 +28,9 @@ export function ConhecimentoForm({
   const [alertas, setAlertas] = useState<Array<{ tipo: string; titulo: string }>>([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [textoAbertoId, setTextoAbertoId] = useState<string | null>(null);
+  const [textoExtraido, setTextoExtraido] = useState("");
 
   async function load() {
     const res = await fetch(`${API_URL}/conhecimento/documentos`, {
@@ -47,31 +51,79 @@ export function ConhecimentoForm({
     e.preventDefault();
     setSaving(true);
     setError("");
-    const form = new FormData(e.currentTarget);
-    const res = await fetch(`${API_URL}/conhecimento/documentos`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        tipo: String(form.get("tipo")),
-        titulo: String(form.get("titulo")),
-        vigencia: String(form.get("vigencia") || "") || undefined,
-        versao: String(form.get("versao") || "") || undefined,
-        fonte: String(form.get("fonte") || "") || undefined,
-        statusConferencia: String(form.get("statusConferencia") || "PENDENTE"),
-      }),
-    });
-    const json = await res.json();
-    setSaving(false);
-    if (!res.ok) {
-      setError(json?.error?.message || "Falha ao salvar documento");
+    const formElement = e.currentTarget;
+    const form = new FormData(formElement);
+    try {
+      const res = await fetch(`${API_URL}/conhecimento/documentos`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json?.error?.message || "Falha ao salvar documento");
+        return;
+      }
+      formElement.reset();
+      await load();
+      router.refresh();
+    } catch {
+      setError("Não foi possível enviar o documento. Tente novamente.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function baixarArquivo(doc: Doc) {
+    setDownloadingId(doc.id);
+    setError("");
+    try {
+      const res = await fetch(`${API_URL}/conhecimento/documentos/${doc.id}/arquivo`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        setError(json?.error?.message || "Falha ao baixar arquivo");
+        return;
+      }
+      const url = URL.createObjectURL(await res.blob());
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = doc.arquivoNome || doc.titulo;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError("Não foi possível baixar o arquivo. Tente novamente.");
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
+  async function alternarTexto(docId: string) {
+    if (textoAbertoId === docId) {
+      setTextoAbertoId(null);
+      setTextoExtraido("");
       return;
     }
-    e.currentTarget.reset();
-    await load();
-    router.refresh();
+    setError("");
+    try {
+      const res = await fetch(`${API_URL}/conhecimento/documentos/${docId}/conteudo`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json?.error?.message || "Falha ao carregar texto extraído");
+        return;
+      }
+      setTextoExtraido(
+        json.data.texto ||
+          json.data.mensagem ||
+          "Nenhum texto foi extraído deste documento.",
+      );
+      setTextoAbertoId(docId);
+    } catch {
+      setError("Não foi possível carregar o texto extraído.");
+    }
   }
 
   async function submitMedicao(e: FormEvent<HTMLFormElement>) {
@@ -137,16 +189,47 @@ export function ConhecimentoForm({
               <span>
                 {d.tipo} · {d.titulo}
                 {d.vigencia ? ` (${d.vigencia})` : ""} · {d.statusConferencia}
+                {d.arquivoNome ? <><br />Arquivo: {d.arquivoNome}</> : ""}
               </span>
-              {d.statusConferencia !== "CONFERIDO" && (
-                <Button type="button" variant="secondary" onClick={() => void conferir(d.id)}>
-                  Marcar conferido
-                </Button>
-              )}
+              <span className="chip-row">
+                {d.arquivoNome && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={downloadingId === d.id}
+                    onClick={() => void baixarArquivo(d)}
+                  >
+                    {downloadingId === d.id ? "Baixando..." : "Baixar arquivo"}
+                  </Button>
+                )}
+                {d.arquivoNome && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    aria-expanded={textoAbertoId === d.id}
+                    onClick={() => void alternarTexto(d.id)}
+                  >
+                    {textoAbertoId === d.id ? "Ocultar texto" : "Ver texto extraído"}
+                  </Button>
+                )}
+                {d.statusConferencia !== "CONFERIDO" && (
+                  <Button type="button" variant="secondary" onClick={() => void conferir(d.id)}>
+                    Marcar conferido
+                  </Button>
+                )}
+              </span>
             </li>
           ))}
           {!docs.length && <p className="dashboard-muted">Nenhum documento cadastrado.</p>}
         </ul>
+        {textoAbertoId && (
+          <pre
+            className="dashboard-muted"
+            style={{ maxHeight: 320, overflow: "auto", whiteSpace: "pre-wrap", marginTop: 12 }}
+          >
+            {textoExtraido}
+          </pre>
+        )}
         <form onSubmit={submitDoc} className="stack" style={{ marginTop: 16 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 1fr", gap: 12 }}>
             <div>
@@ -185,6 +268,18 @@ export function ConhecimentoForm({
                 <option value="DESATUALIZADO">Desatualizado</option>
               </select>
             </div>
+          </div>
+          <div>
+            <label htmlFor="arquivoConhecimento">Arquivo PDF ou DOCX (opcional, até 4 MB)</label>
+            <input
+              id="arquivoConhecimento"
+              name="arquivo"
+              type="file"
+              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            />
+            <p className="dashboard-muted">
+              O texto extraído ficará disponível para consulta; PDFs digitalizados sem texto podem ser baixados normalmente.
+            </p>
           </div>
           <Button type="submit" disabled={saving}>
             {saving ? "Salvando..." : "Incluir documento"}

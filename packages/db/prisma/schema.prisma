@@ -899,6 +899,9 @@ model DocumentoConhecimento {
   responsavel       String?
   statusConferencia String   @default("PENDENTE") // PENDENTE | CONFERIDO | DESATUALIZADO
   arquivoUrl        String?
+  arquivoNome       String?  @db.Text
+  storageKey        String?  @db.Text
+  conteudoExtraido  String?  @db.Text
   observacao        String?  @db.Text
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

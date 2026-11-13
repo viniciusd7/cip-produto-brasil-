@@ -7,10 +7,14 @@ import {
   type TreeNode,
 } from "./wizard-engine";
 import { TRIAGEM_ACAO_DIARIA } from "./modelos/triagem-acao-diaria";
+import { adicionarImpedimentosComuns } from "./catalog/impedimentos-comuns";
+import { usaFluxoEstruturante } from "./status";
 // Banco real do seed: o teste valida o que de fato será gravado.
 import { ESTRUTURANTE_PADRAO_MODELO_SNAPSHOT } from "../../db/prisma/estruturante-modelo-snapshot";
 
-const estruturante = ESTRUTURANTE_PADRAO_MODELO_SNAPSHOT as unknown as ModeloSnapshot;
+const estruturante = adicionarImpedimentosComuns(
+  ESTRUTURANTE_PADRAO_MODELO_SNAPSHOT as unknown as ModeloSnapshot,
+);
 
 const R = (pares: Record<string, string | number | boolean>): RespostaViabilidade[] =>
   Object.entries(pares).map(([perguntaCodigo, valor]) => ({ perguntaCodigo, valor }));
@@ -132,17 +136,26 @@ describe("prioridade — triagem de urgência e impacto", () => {
 });
 
 describe("etapas — grupos e prontidão", () => {
-  it("sem respostas a etapa atual é verba e a prontidão é zero", () => {
+  it("sem respostas a etapa atual são os impedimentos e a prontidão é zero", () => {
     const r = estado([]);
-    assert.equal(r.etapaAtual, "RECURSOS");
+    assert.equal(r.etapaAtual, "IMPEDIMENTOS");
     assert.equal(r.prontidaoPct, 0);
     assert.equal(r.etapas[0].status, "PENDENTE");
   });
 
-  it("verba pendente bloqueia o projeto e inclui obter dotação", () => {
-    const r = estado(R({ orcamento_recursos: "Ainda não há dotação" }));
+  it("orçamento pendente bloqueia o projeto e inclui obter dotação", () => {
+    const r = estado([
+      {
+        perguntaCodigo: "orcamento_recursos",
+        valor: {
+          codigo: "orcamento_recursos",
+          aplicabilidade: "sim",
+          situacao: "pendente",
+        },
+      },
+    ]);
     assert.equal(r.cicloInicial, "AGUARDANDO_PRE_REQUISITO");
-    assert.equal(r.bloqueioLabel, "Aguardando verba para iniciar");
+    assert.equal(r.bloqueioLabel, "Aguardando orçamento");
     assert.ok(codigosDaArvore(r.estrutura).includes("TAR_OBTER_DOTACAO"));
   });
 
@@ -178,28 +191,28 @@ describe("etapas — grupos e prontidão", () => {
     assert.ok((prep?.favoraveis ?? 0) >= 1);
   });
 
-  it("alerta quando preparação avança antes da verba", () => {
-    const r = estado(
-      R({
-        situacao_imovel: "Imóvel público disponível",
-        projeto_basico_executivo: "Em elaboração",
-      }),
-    );
-    const prep = r.etapas.find((e) => e.codigo === "PREPARACAO");
-    assert.ok(prep?.status === "EM_ANDAMENTO" || prep?.status === "BLOQUEADA");
-    assert.ok(
-      r.avisos.some((a) => a.includes("O que falta para começar") && a.includes("avança antes")),
-      `avisos: ${JSON.stringify(r.avisos)}`,
-    );
+  it("impedimentos aparecem antes da preparação no fluxo", () => {
+    const r = estado([]);
+    assert.equal(r.etapas[0]?.codigo, "IMPEDIMENTOS");
+    assert.equal(r.etapas[1]?.codigo, "PREPARACAO");
   });
 
   it("prontidão sobe com respostas favoráveis parciais", () => {
     const r = estado(
-      R({
-        orcamento_recursos: "Sim, verba disponível",
+      [
+        {
+          perguntaCodigo: "orcamento_recursos",
+          valor: {
+            codigo: "orcamento_recursos",
+            aplicabilidade: "sim",
+            situacao: "atendida",
+          },
+        },
+        ...R({
         situacao_imovel: "Imóvel público disponível",
         licencas_autorizacoes: "Não precisa",
-      }),
+        }),
+      ],
     );
     assert.ok((r.prontidaoPct ?? 0) > 0 && (r.prontidaoPct ?? 0) < 100);
   });
@@ -293,6 +306,104 @@ describe("ação diária — demanda operacional", () => {
     assert.equal(codigos.size, TRIAGEM_ACAO_DIARIA.perguntas.length);
     for (const p of TRIAGEM_ACAO_DIARIA.perguntas) {
       if (p.dependeDeCodigo) assert.ok(codigos.has(p.dependeDeCodigo));
+    }
+  });
+});
+
+describe("impedimentos comuns e projeto prioritário", () => {
+  const modeloComImpedimentos = adicionarImpedimentosComuns({
+    codigo: "TESTE",
+    nome: "Teste",
+    perguntas: [],
+    estrutura: [],
+  });
+
+  function respostaImpedimento(
+    situacao: "pendente" | "atendida" | "dispensada_com_fundamento",
+    aplicabilidade: "sim" | "nao" = "sim",
+  ): RespostaViabilidade {
+    return {
+      perguntaCodigo: "orcamento_recursos",
+      valor: {
+        codigo: "orcamento_recursos",
+        aplicabilidade,
+        situacao,
+      },
+    };
+  }
+
+  it("projeto prioritário herda o fluxo estruturante sem virar a categoria estruturante", () => {
+    assert.equal(usaFluxoEstruturante("PRIORITARIO"), true);
+    assert.equal(usaFluxoEstruturante("ESTRUTURANTE"), true);
+    assert.equal(usaFluxoEstruturante("PLANO_GOVERNO"), false);
+  });
+
+  it("impedimento aplicável eleva a prioridade mesmo quando atendido", () => {
+    for (const situacao of ["pendente", "atendida", "dispensada_com_fundamento"] as const) {
+      const resultado = evaluateWizard({
+        modelo: modeloComImpedimentos,
+        classificacaoPrincipal: "PRIORITARIO",
+        respostas: [respostaImpedimento(situacao)],
+      });
+      assert.equal(resultado.prioridade, "ALTA", situacao);
+    }
+  });
+
+  it("impedimento não aplicável não eleva a prioridade", () => {
+    const resultado = evaluateWizard({
+      modelo: modeloComImpedimentos,
+      classificacaoPrincipal: "PRIORITARIO",
+      respostas: [respostaImpedimento("dispensada_com_fundamento", "nao")],
+    });
+    assert.equal(resultado.prioridade, "BAIXA");
+  });
+
+  it("impedimento aplicável não reduz prioridade crítica", () => {
+    const modelo = adicionarImpedimentosComuns({
+      codigo: "TESTE_RISCO",
+      nome: "Teste de risco",
+      perguntas: [
+        {
+          codigo: "risco",
+          texto: "Há risco crítico?",
+          tipoResposta: "SELECAO",
+          impacto: "INFORMATIVA",
+          ordem: 100,
+          efeitos: [
+            {
+              quando: { eq: "Sim" },
+              elevaPrioridade: "CRITICA",
+            },
+          ],
+        },
+      ],
+      estrutura: [],
+    });
+    const resultado = evaluateWizard({
+      modelo,
+      classificacaoPrincipal: "PRIORITARIO",
+      respostas: [
+        { perguntaCodigo: "risco", valor: "Sim" },
+        respostaImpedimento("pendente"),
+      ],
+    });
+    assert.equal(resultado.prioridade, "CRITICA");
+  });
+
+  it("inclui cada impedimento comum apenas uma vez", () => {
+    const comDuplicata = adicionarImpedimentosComuns({
+      ...modeloComImpedimentos,
+      perguntas: [...modeloComImpedimentos.perguntas, ...modeloComImpedimentos.perguntas],
+    });
+    const codigos = comDuplicata.perguntas.map((pergunta) => pergunta.codigo);
+    for (const codigo of [
+      "licitacao_contratacao",
+      "orcamento_recursos",
+      "desapropriacao_imovel",
+      "necessidade_pl",
+      "outro_impedimento",
+    ]) {
+      assert.equal(codigos.filter((item) => item === codigo).length, 1, codigo);
     }
   });
 });

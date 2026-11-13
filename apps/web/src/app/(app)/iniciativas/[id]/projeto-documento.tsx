@@ -4,6 +4,7 @@ import { ComunicacaoProjeto } from "@/components/comunicacao-projeto";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   GRUPOS_CONDICOES,
+  GRUPO_IMPEDIMENTOS,
   MODELO_ACAO_DIARIA,
   MODELO_PLANO_GOVERNO,
   buildCatalogoPerguntas,
@@ -112,6 +113,7 @@ const ROTULOS_CAMPOS = new Map(
 );
 const GRUPOS_DOCUMENTO = [
   { id: "planejamento", nome: "Planejamento" },
+  { id: GRUPO_IMPEDIMENTOS.id, nome: GRUPO_IMPEDIMENTOS.nome },
   ...GRUPOS_CONDICOES,
 ];
 

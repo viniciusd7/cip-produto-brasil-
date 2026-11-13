@@ -110,6 +110,7 @@ Resumo:
 ## Documentação
 
 - [`docs/arquitetura.md`](docs/arquitetura.md)
+- [`docs/base-conhecimento.md`](docs/base-conhecimento.md) — importação PDF/DOCX e configuração do armazenamento
 - [`docs/aderencia-doc01.md`](docs/aderencia-doc01.md) — mapa RF-01…RF-20 e AT-01…AT-10
 - [`docs/ux-jornadas.md`](docs/ux-jornadas.md)
 - [`docs/deploy-vercel-hostgator.md`](docs/deploy-vercel-hostgator.md)

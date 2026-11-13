@@ -3,6 +3,7 @@
  * Base: Produto cip (labels.ts) + profundidade legal do snapshot CIP.
  */
 import { condicaoBloqueia, type CampoFollowUp } from "../condicao-resposta";
+import { PERGUNTAS_IMPEDIMENTOS_COMUNS } from "./impedimentos-comuns";
 import type {
   EfeitoPergunta,
   ModeloPerguntaDef,
@@ -11,26 +12,23 @@ import type {
 
 export const GRUPOS_CONDICOES = [
   {
-    id: "recursos",
-    nome: "Verba",
-    ajuda: "Informe se o dinheiro para começar já está disponível.",
-    ordem: 1,
-  },
-  {
     id: "preparacao",
     nome: "O que falta para começar",
     ajuda: "Responda sobre imóvel, projeto técnico, licenças e contratação.",
-    ordem: 2,
+    ordem: 1,
   },
   {
     id: "operacao",
     nome: "Após a entrega",
     ajuda: "Informe como a entrega será mantida em funcionamento.",
-    ordem: 3,
+    ordem: 2,
   },
 ] as const;
 
-export type GrupoCondicaoId = (typeof GRUPOS_CONDICOES)[number]["id"] | "planejamento";
+export type GrupoCondicaoId =
+  | (typeof GRUPOS_CONDICOES)[number]["id"]
+  | "planejamento"
+  | "recursos";
 
 export type TemaCondicao = {
   codigo: string;
@@ -906,30 +904,11 @@ function temaToPergunta(tema: TemaCondicao, ordem: number): ModeloPerguntaDef {
 export function buildCatalogoPerguntas(): ModeloPerguntaDef[] {
   const checklist: ModeloPerguntaDef[] = [
     {
-      codigo: "orcamento_recursos", texto: "A verba para iniciar o projeto já está liberada?",
-      rotulo: "Verba disponível", pergunta: "A verba para iniciar o projeto já está liberada?",
-      ajuda: "Escolha a situação real. Dotação no orçamento e dinheiro liberado são etapas diferentes.",
-      tipoResposta: "SELECAO", impacto: "CONDICIONAL", obrigatoria: true,
-      ordem: 1, grupo: "recursos", etapa: 1,
-      opcoes: ["Sim, verba disponível", "Há dotação, mas falta liberar", "Ainda não há dotação", "Depende de repasse ou convênio", "A confirmar com finanças"],
-      favoraveis: ["Sim, verba disponível"],
-      opcoesComDetalhes: ["Sim, verba disponível", "Há dotação, mas falta liberar", "Depende de repasse ou convênio"],
-      camposFollowUp: [
-        { chave: "valor_verba", label: "Valor disponível ou previsto (R$)", tipo: "moeda" },
-        { chave: "fonte_confirmada", label: "Fonte do recurso", tipo: "texto", placeholder: "Ex.: tesouro municipal, convênio estadual" },
-      ],
-      efeitos: [
-        { quando: { in: ["Há dotação, mas falta liberar", "Ainda não há dotação", "Depende de repasse ou convênio", "A confirmar com finanças"] }, ciclo: "AGUARDANDO_PRE_REQUISITO", rotuloBloqueio: "Aguardando verba para iniciar", alertaResponsavel: true },
-        { quando: { in: ["Há dotação, mas falta liberar", "Ainda não há dotação", "A confirmar com finanças"] }, incluirEstrutura: ["TAR_OBTER_DOTACAO"] },
-        { quando: { eq: "Depende de repasse ou convênio" }, incluirEstrutura: ["TAR_FORMALIZAR_REPASSE"] },
-      ],
-    },
-    {
       codigo: "situacao_imovel", texto: "O projeto precisa de terreno, aquisição ou desapropriação?",
       rotulo: "Imóvel e desapropriação", pergunta: "O projeto precisa de terreno, aquisição ou desapropriação?",
       ajuda: "Marque a situação atual do local da entrega. Serviços sem imóvel próprio podem escolher 'Não precisa'.",
       tipoResposta: "SELECAO", impacto: "CONDICIONAL", obrigatoria: true,
-      ordem: 2, grupo: "preparacao", etapa: 2,
+      ordem: 1, grupo: "preparacao", etapa: 1,
       opcoes: ["Não precisa de imóvel", "Imóvel público disponível", "Precisa identificar uma área", "Precisa regularizar imóvel público", "Precisa adquirir imóvel", "Precisa desapropriar imóvel", "Desapropriação em andamento", "Posse já liberada"],
       favoraveis: ["Não precisa de imóvel", "Imóvel público disponível", "Posse já liberada"],
       opcoesComDetalhes: ["Imóvel público disponível", "Precisa regularizar imóvel público", "Precisa adquirir imóvel", "Precisa desapropriar imóvel", "Desapropriação em andamento", "Posse já liberada"],
@@ -946,7 +925,7 @@ export function buildCatalogoPerguntas(): ModeloPerguntaDef[] {
       rotulo: "Projeto técnico", pergunta: "O projeto técnico ou a especificação da entrega já está pronto?",
       ajuda: "Para obra, considere projeto básico. Para serviço ou sistema, considere a especificação necessária para executar.",
       tipoResposta: "SELECAO", impacto: "CONDICIONAL", obrigatoria: true,
-      ordem: 3, grupo: "preparacao", etapa: 2,
+      ordem: 2, grupo: "preparacao", etapa: 1,
       opcoes: ["Não precisa", "Sim, aprovado", "Em elaboração", "Ainda não iniciado", "A confirmar com a área técnica"],
       favoraveis: ["Não precisa", "Sim, aprovado"],
       efeitos: [{ quando: { in: ["Em elaboração", "Ainda não iniciado", "A confirmar com a área técnica"] }, incluirEstrutura: ["TAR_ELABORAR_PROJETO", "TAR_APROVAR_PROJETO"] }],
@@ -956,7 +935,7 @@ export function buildCatalogoPerguntas(): ModeloPerguntaDef[] {
       rotulo: "Licenças e autorizações", pergunta: "O projeto precisa de licença ou autorização para começar?",
       ajuda: "Ex.: licença ambiental, vigilância sanitária, bombeiros ou patrimônio. A área competente pode confirmar se há dúvida.",
       tipoResposta: "SELECAO", impacto: "CONDICIONAL", obrigatoria: true,
-      ordem: 4, grupo: "preparacao", etapa: 2,
+      ordem: 3, grupo: "preparacao", etapa: 1,
       opcoes: ["Não precisa", "Sim, já obtida", "Sim, em andamento", "Sim, ainda não solicitada", "A confirmar com a área técnica"],
       favoraveis: ["Não precisa", "Sim, já obtida"],
       opcoesComDetalhes: ["Sim, já obtida", "Sim, em andamento", "Sim, ainda não solicitada"],
@@ -968,7 +947,7 @@ export function buildCatalogoPerguntas(): ModeloPerguntaDef[] {
       rotulo: "Licitação e contratação", pergunta: "Será preciso licitar ou contratar para executar o projeto?",
       ajuda: "Informe a necessidade, não a modalidade jurídica. Compras e Procuradoria definem o rito depois.",
       tipoResposta: "SELECAO", impacto: "CONDICIONAL", obrigatoria: true,
-      ordem: 5, grupo: "preparacao", etapa: 2,
+      ordem: 4, grupo: "preparacao", etapa: 1,
       opcoes: ["Não precisa contratar", "Precisa licitar", "Pode ser contratação direta; confirmar", "Licitação em andamento", "Contrato já assinado", "A confirmar com compras"],
       favoraveis: ["Não precisa contratar", "Contrato já assinado"],
       opcoesComDetalhes: ["Precisa licitar", "Pode ser contratação direta; confirmar", "Licitação em andamento", "Contrato já assinado"],
@@ -983,7 +962,7 @@ export function buildCatalogoPerguntas(): ModeloPerguntaDef[] {
       rotulo: "Custeio após a entrega", pergunta: "Depois da entrega, haverá gasto mensal ou equipe para manter o serviço?",
       ajuda: "Ex.: equipe, energia, manutenção, combustível ou suporte. Registre se já há previsão para custear.",
       tipoResposta: "SELECAO", impacto: "CONDICIONAL", obrigatoria: true,
-      ordem: 6, grupo: "operacao", etapa: 3,
+      ordem: 5, grupo: "operacao", etapa: 2,
       opcoes: ["Não haverá gasto recorrente", "Sim, custeio previsto", "Sim, custeio ainda não previsto", "A confirmar"],
       favoraveis: ["Não haverá gasto recorrente", "Sim, custeio previsto"],
       efeitos: [{ quando: { in: ["Sim, custeio ainda não previsto", "A confirmar"] }, incluirEstrutura: ["TAR_CUSTEIO"] }],
@@ -1008,6 +987,20 @@ export function etapasFromGrupos() {
 const PERGUNTAS_ATUAIS = buildCatalogoPerguntas();
 
 export function quizItem(codigo: string) {
+  const impedimento = PERGUNTAS_IMPEDIMENTOS_COMUNS.find(
+    (item) => item.codigo === codigo,
+  );
+  if (impedimento) {
+    return {
+      codigo,
+      grupo: "impedimentos",
+      rotulo: impedimento.rotulo || impedimento.texto,
+      pergunta: impedimento.pergunta || impedimento.texto,
+      ajuda: impedimento.ajuda || "",
+      espera: impedimento.espera || `Aguardando: ${impedimento.rotulo || impedimento.texto}`,
+    };
+  }
+
   const atual = PERGUNTAS_ATUAIS.find((item) => item.codigo === codigo);
   if (atual) {
     return {
