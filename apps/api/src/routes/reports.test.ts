@@ -307,6 +307,22 @@ test("CSV do retrato exibido não muda quando os registros são alterados depois
   assert.equal(data.consulta.linhas.find((l: { id: string }) => l.id === "tarefa-legada").valores.tarefa, "Tarefa historicamente vinculada");
 });
 
+test("evolução mensal usa os mesmos dias UTC do filtro e da tabela nos limites do mês", async (t) => {
+  const { base, headers, iniciativa } = await setup(t);
+  iniciativa.dataReferencia = new Date("2026-11-16T12:00:00Z");
+  iniciativa.marcos[0].prazoVigente = new Date("2026-11-01T00:00:00Z");
+  iniciativa.marcos[0].concluidoEm = new Date("2026-11-01T00:00:00Z");
+  iniciativa.marcos[1].prazoVigente = new Date("2026-11-30T00:00:00Z");
+
+  const response = await fetch(`${base}/reports/prestacao.json?de=2026-11-01&ate=2026-11-30`, { headers });
+  assert.equal(response.status, 200);
+  const { data } = await response.json();
+  assert.equal(data.consulta.total, 2);
+  assert.deepEqual(data.evolucao, [{
+    chave: "2026-11", previstas: 2, entregues: 1, noPrazo: 1, atrasadas: 0,
+  }]);
+});
+
 test("sessão revogada não consulta nem exporta dados", async (t) => {
   const { base, headers } = await setup(t);
   stub(t, prisma.user, "findUnique", async () => ({ active: false, isPlatformAdmin: false }));

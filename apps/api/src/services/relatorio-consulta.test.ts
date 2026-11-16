@@ -87,3 +87,27 @@ test("valores decimais estratégicos ordenam como números, sem alterar a aprese
   const consulta = consultarRelatorio(dados, consultaRelatorioSchema.parse({ tipo: "metas", ordenar: "base" }));
   assert.deepEqual(consulta.linhas.map((l) => l.valores.base), ["10.20", "10.5"]);
 });
+
+test("ordenação estratégica respeita decimais brasileiros, sinais e unidades em ambas as direções", () => {
+  const valores = ["-10", "-2", "0", "2,05", "2,5", "10.20", "10.5", "35%", "R$ 1.234,50"];
+  for (const campo of ["base", "atual", "alvo", "medicao"]) {
+    const dados = fixture();
+    const meta = dados.metasEstrategicas[0];
+    const indicador = meta.indicadores[0];
+    meta.indicadores = valores.map((valor, i) => ({
+      ...indicador, id: `ind-${i}`, valorBase: valor, valorAtual: valor, alvo: valor,
+      medicao: { valorRealizado: valor, dataCorte: "2026-11-16T00:00:00Z" },
+    })).reverse();
+    dados.metasEstrategicas = [meta];
+    for (const direcao of ["asc", "desc"]) {
+      const consulta = consultarRelatorio(dados, consultaRelatorioSchema.parse({
+        tipo: "metas", ordenar: campo, direcao,
+      }));
+      assert.deepEqual(
+        consulta.linhas.map((linha) => linha.valores[campo]),
+        direcao === "asc" ? valores : [...valores].reverse(),
+        `${campo}: ${direcao}`,
+      );
+    }
+  }
+});

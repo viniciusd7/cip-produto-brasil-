@@ -283,7 +283,7 @@ function lerFiltros(query: Record<string, unknown>): PrestacaoFiltros {
 }
 
 function chaveMes(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 async function buildPrestacao(
@@ -393,10 +393,16 @@ async function buildPrestacao(
   const entreguesNoPrazo = entregues.filter((t) => t.entregueNoPrazo).length;
 
   // Evolução mensal: meses do período (ou últimos 6 meses + próximos 2), limitado a 12 colunas.
-  const inicioEvo = f.de ? new Date(f.de.getFullYear(), f.de.getMonth(), 1) : new Date(agora.getFullYear(), agora.getMonth() - 5, 1);
-  const fimEvo = f.ate ? new Date(f.ate.getFullYear(), f.ate.getMonth(), 1) : new Date(agora.getFullYear(), agora.getMonth() + 2, 1);
+  const inicioEvo = new Date(f.de ?? agora);
+  inicioEvo.setUTCDate(1);
+  inicioEvo.setUTCHours(0, 0, 0, 0);
+  if (!f.de) inicioEvo.setUTCMonth(inicioEvo.getUTCMonth() - 5);
+  const fimEvo = new Date(f.ate ?? agora);
+  fimEvo.setUTCDate(1);
+  fimEvo.setUTCHours(0, 0, 0, 0);
+  if (!f.ate) fimEvo.setUTCMonth(fimEvo.getUTCMonth() + 2);
   const meses: Array<{ chave: string; previstas: number; entregues: number; noPrazo: number; atrasadas: number }> = [];
-  for (let d = new Date(inicioEvo); d <= fimEvo && meses.length < 12; d.setMonth(d.getMonth() + 1)) {
+  for (let d = new Date(inicioEvo); d <= fimEvo && meses.length < 12; d.setUTCMonth(d.getUTCMonth() + 1)) {
     meses.push({ chave: chaveMes(d), previstas: 0, entregues: 0, noPrazo: 0, atrasadas: 0 });
   }
   const porMes = new Map(meses.map((m) => [m.chave, m]));

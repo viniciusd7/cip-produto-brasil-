@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { numeroIndicador } from "./indicadores";
 
 export const consultaRelatorioSchema = z.object({
   tipo: z.enum(["tarefas", "metas", "projetos", "secretarias", "evidencias"]).default("tarefas"),
@@ -162,8 +163,8 @@ export function consultarRelatorio(dados: Dados, filtros: ConsultaFiltros) {
     const vb = b.valores[ordenar];
     if (va == null && vb != null) return 1;
     if (vb == null && va != null) return -1;
-    const numeroA = decimal && va !== null && va !== "" ? Number(va) : va;
-    const numeroB = decimal && vb !== null && vb !== "" ? Number(vb) : vb;
+    const numeroA = decimal && typeof va === "string" ? numeroIndicador(va) : va;
+    const numeroB = decimal && typeof vb === "string" ? numeroIndicador(vb) : vb;
     const comparacao = typeof numeroA === "number" && Number.isFinite(numeroA) && typeof numeroB === "number" && Number.isFinite(numeroB)
       ? numeroA - numeroB : collator.compare(String(va ?? ""), String(vb ?? ""));
     return (filtros.direcao === "desc" ? -comparacao : comparacao) || collator.compare(a.id, b.id);
