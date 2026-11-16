@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { TabelaRelatorio, type ConsultaRelatorio } from "../app/(app)/relatorios/tabela-relatorio";
 import { FiltrosPrestacao } from "../app/(app)/relatorios/filtros-prestacao";
 import { ExportButtons } from "../app/(app)/relatorios/export-buttons";
+import { graficosDaConsulta, VisaoGrafica } from "../app/(app)/relatorios/visao-grafica";
 import { getNavForRole } from "../lib/roles";
 import RelatorioErro from "../app/(app)/relatorios/error";
 
@@ -62,4 +63,47 @@ test("falha da consulta é explícita, acessível e permite recuperação sem of
   assert.match(html, /<button[^>]*>Tentar novamente<\/button>/);
   assert.match(html, /href="\/relatorios"/);
   assert.doesNotMatch(html, /Exportar esta tabela/);
+});
+
+test("gráficos usam exatamente as linhas filtradas e agrupam sem perder resultados", () => {
+  const consulta: ConsultaRelatorio = {
+    tipo: "tarefas", busca: "Educação", ordenar: "situacao", direcao: "asc", total: 8,
+    colunas: [],
+    linhas: Array.from({ length: 8 }, (_, i) => ({
+      id: `${i}`, valores: { situacao: i < 3 ? "Atrasada" : "No prazo", secretaria: `Secretaria ${i}` },
+    })),
+  };
+  const [situacao, secretarias] = graficosDaConsulta(consulta);
+  assert.deepEqual(situacao.faixas.map(({ nome, quantidade }) => [nome, quantidade]), [["No prazo", 5], ["Atrasada", 3]]);
+  assert.equal(secretarias.faixas.reduce((soma, faixa) => soma + faixa.quantidade, 0), 8);
+  assert.equal(secretarias.faixas.find((faixa) => faixa.nome === "Demais grupos")?.quantidade, 2);
+  const html = renderToStaticMarkup(<VisaoGrafica consulta={consulta} titulo="Tarefas" />);
+  assert.match(html, /Leitura visual/);
+  assert.match(html, /8<\/strong>/);
+  assert.match(html, /Atrasada/);
+});
+
+test("gráficos de projetos e secretarias somam tarefas incluindo situações residuais", () => {
+  for (const tipo of ["projetos", "secretarias"]) {
+    const consulta: ConsultaRelatorio = {
+      tipo, busca: "", ordenar: "nome", direcao: "asc", total: 2, colunas: [],
+      linhas: [
+        { id: "1", valores: { total: 5, concluidas: 1, noPrazo: 1, semPrazo: 1, atrasadas: 1, secretaria: "Educação", projetos: 2 } },
+        { id: "2", valores: { total: 2, concluidas: 1, noPrazo: 1, semPrazo: 0, atrasadas: 0, secretaria: "Saúde", projetos: 3 } },
+      ],
+    };
+    const [grafico] = graficosDaConsulta(consulta);
+    assert.deepEqual(grafico.faixas.map(({ quantidade }) => quantidade), [2, 2, 1, 1, 1]);
+  }
+});
+
+test("visão de metas, evidências e consultas vazias identifica o que é contado", () => {
+  for (const tipo of ["metas", "evidencias"]) {
+    const consulta: ConsultaRelatorio = {
+      tipo, busca: "", ordenar: "", direcao: "asc", total: 0, colunas: [], linhas: [],
+    };
+    const html = renderToStaticMarkup(<VisaoGrafica consulta={consulta} titulo={tipo} />);
+    assert.match(html, /Não há dados para este gráfico/);
+    assert.match(html, tipo === "metas" ? /meta sem indicador/ : /Evidências por tipo/);
+  }
 });

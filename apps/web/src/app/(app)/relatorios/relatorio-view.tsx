@@ -4,6 +4,7 @@ import { apiFetch } from "@/lib/api";
 import { ExportButtons } from "./export-buttons";
 import { FiltrosPrestacao } from "./filtros-prestacao";
 import { TabelaRelatorio, type ConsultaRelatorio } from "./tabela-relatorio";
+import { VisaoGrafica } from "./visao-grafica";
 import "./prestacao.css";
 
 export type SecaoRelatorio = "visao" | "secretarias" | "metas" | "projetos" | "tarefas" | "evidencias";
@@ -51,18 +52,21 @@ export async function RelatorioConteudo({
     <div className="pc">
       <header className="pc-acoes">
         <div>
+          <p className="pc-acoes__marca">CIP · Inteligência de gestão municipal</p>
           <h1>Relatórios</h1>
-          <p>Selecione os dados, aplique os filtros e exporte a tabela que está vendo.</p>
+          <p>Explore os dados do município em gráficos e detalhes. Escolha um recorte para orientar suas decisões.</p>
         </div>
         <ExportButtons csv={data.csv} />
       </header>
+
+      <VisaoGrafica consulta={consulta} titulo={titulo} />
 
       <FiltrosPrestacao key={qs.toString()} opcoes={opcoes} filtros={Object.fromEntries(qs)} />
 
       <section className="pc-resultados" aria-labelledby="relatorio-resultados">
         <header className="pc-resultados__cabecalho">
           <div>
-            <h2 id="relatorio-resultados">{titulo}</h2>
+            <h2 id="relatorio-resultados">Detalhamento: {titulo}</h2>
             <p>{session?.user?.municipioNome || "Prefeitura"} · {consulta.total} {consulta.total === 1 ? "linha" : "linhas"}</p>
           </div>
           <p className="pc-nota">CSV com as mesmas colunas, linhas e ordem. Datas no formato ano-mês-dia.</p>

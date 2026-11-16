@@ -40,7 +40,10 @@ export function TenantSwitcher({
       token: session.accessToken,
     })
       .then((result) => {
-        if (active) setContexts(result.data);
+        if (active) {
+          setContexts(result.data);
+          setError("");
+        }
       })
       .catch((cause: unknown) => {
         if (active) {
@@ -90,6 +93,9 @@ export function TenantSwitcher({
             ? "Gestão central CIP"
             : session?.user?.municipioNome || initialMunicipio || "Prefeitura"}
         </strong>
+        {session?.user?.role === "leitura" && (
+          <small>Este vínculo permite apenas consulta. Para executar alterações, solicite acesso de consultor à administração.</small>
+        )}
         {error && <small role="status">{error}</small>}
       </>
     );
@@ -119,7 +125,7 @@ export function TenantSwitcher({
           )}
           {contexts.tenants.map((tenant) => (
             <option key={tenant.id} value={tenant.id}>
-              {tenant.nome} ({tenant.uf})
+              {tenant.nome} ({tenant.uf}) — {getRoleLabel(tenant.role)}
             </option>
           ))}
         </select>
@@ -128,6 +134,9 @@ export function TenantSwitcher({
         {activeMunicipioId ? getRoleLabel(activeRole) : "Administração da plataforma"}
         {" · "}{activeLabel}
       </small>
+      {activeMunicipioId && activeRole === "leitura" && (
+        <small>Este vínculo permite apenas consulta. Para executar alterações, solicite acesso de consultor à administração.</small>
+      )}
       {error && <small role="status">{error}</small>}
     </>
   );

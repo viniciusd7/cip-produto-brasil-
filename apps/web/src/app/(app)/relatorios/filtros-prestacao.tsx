@@ -22,6 +22,10 @@ export function FiltrosPrestacao({ opcoes, filtros }: { opcoes: Opcoes; filtros:
 
   return (
     <form action="/relatorios" method="get" className="pc-filtros no-print" aria-label="Filtros do relatório">
+      <div className="pc-filtros__titulo">
+        <h2>Personalize o relatório</h2>
+        <p>Selecione os dados e aplique os filtros para atualizar os gráficos e a tabela.</p>
+      </div>
       <div className="pc-filtros__campos">
         <label>Dados do relatório
           <select name="tipo" value={tipo} onChange={(e) => setTipo(e.target.value)}>

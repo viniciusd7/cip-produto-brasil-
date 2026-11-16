@@ -144,19 +144,33 @@ test("cada prefeitura de consultoria fornece visão geral só do município da s
   }
 });
 
-test("consultor abre cenário vazio sem exigir secretaria e gestor mantém seu escopo", async (t) => {
+test("perfis municipais abrem cenário vazio e gestor mantém seu escopo", async (t) => {
   const { request, setEmpty } = await setup(t);
   setEmpty();
-  const response = await request("/dashboard/resumo");
-  assert.equal(response.status, 200);
-  const { data } = await response.json();
-  assert.equal(data.governo.totalProjetos, 0);
-  assert.deepEqual(data.porSecretaria, []);
+  for (const municipioId of ["a", "c", "e"]) {
+    const selected = await request("/auth/select-tenant", undefined, { municipioId });
+    const token = (await selected.json()).data.accessToken;
+    const response = await request("/dashboard/resumo", token);
+    assert.equal(response.status, 200, municipioId);
+    const { data } = await response.json();
+    assert.equal(data.governo.totalProjetos, 0);
+    assert.deepEqual(data.porSecretaria, []);
+  }
   const selected = await request("/auth/select-tenant", undefined, { municipioId: "d" });
   const token = (await selected.json()).data.accessToken;
   const scoped = await request("/dashboard/resumo", token);
   assert.equal(scoped.status, 403);
   assert.equal((await scoped.json()).error.code, "SECRETARIA_REQUIRED");
+});
+
+test("administrador abre cenário de prefeitura vazia", async (t) => {
+  const { request, setEmpty } = await setup(t, true);
+  setEmpty();
+  const selected = await request("/auth/select-tenant", undefined, { municipioId: "a" });
+  const token = (await selected.json()).data.accessToken;
+  const response = await request("/dashboard/resumo", token);
+  assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).data.porSecretaria, []);
 });
 
 test("cenário do gestor continua limitado à secretaria do vínculo", async (t) => {

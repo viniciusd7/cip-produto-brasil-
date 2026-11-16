@@ -135,7 +135,7 @@ dashboardRouter.get("/resumo", async (req, res, next) => {
       },
       orderBy: { nome: "asc" },
     });
-    if (!secretarias.length && req.user!.role !== "analista") {
+    if (!secretarias.length && req.user!.role === "gestor") {
       throw new HttpError(
         403,
         "SECRETARIA_REQUIRED",
