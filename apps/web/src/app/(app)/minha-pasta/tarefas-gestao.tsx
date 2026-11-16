@@ -233,7 +233,6 @@ function TarefaCard({ tarefa, token }: { tarefa: TarefaGestaoItem; token: string
           {tarefa.iniciativaCodigo} · {tarefa.iniciativaNome}
         </Link>
         <div className="gestao-tarefa__meta">
-          <span>{tarefa.meta || "Sem meta vinculada"}</span>
           <span>
             {tarefa.subtarefas.concluidas}/{tarefa.subtarefas.total} subtarefas
           </span>
@@ -262,7 +261,7 @@ function TarefaCard({ tarefa, token }: { tarefa: TarefaGestaoItem; token: string
           </button>
         </div>
       )}
-      <AcoesTarefa tarefa={tarefa} token={token} painel={painel} fechar={() => setPainel(null)} />
+      {painel && <AcoesTarefa tarefa={tarefa} token={token} painel={painel} fechar={() => setPainel(null)} />}
     </article>
   );
 }

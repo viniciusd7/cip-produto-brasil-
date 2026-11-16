@@ -62,6 +62,7 @@ export type ProjetoDocMarco = {
     descricao: string;
     concluida: boolean;
     responsavel?: string | null;
+    prazo?: string | null;
   }>;
   reprogramacoes: Array<{ id: string; motivo: string; dataNova?: string; dataAnterior?: string | null }>;
 };
@@ -263,10 +264,6 @@ function EvidenciasPainel({
               evidencia={e}
               token={token}
               canValidate={canValidate}
-              metas={item.metasExecucao.map((m) => ({
-                id: m.id,
-                label: `${m.codigo ? `${m.codigo} · ` : ""}${m.nome}${m.indicador ? ` (${m.indicador})` : ""}`,
-              }))}
             />
           ))}
         </div>
@@ -317,7 +314,6 @@ export function ProjetoDocumento({
         ? raw
         : "andamento";
 
-  const marcosSemMeta = item.marcos.filter((m) => !m.metaExecucaoId);
   const conta = (st: string) => item.marcos.filter((m) => m.prazoStatus === st).length;
   const total = item.marcos.length;
   const concluidas = conta("CONCLUIDO");
@@ -348,7 +344,7 @@ export function ProjetoDocumento({
     router.replace(`?${params.toString()}`, { scroll: false });
   }
 
-  // "Quem responde": agrupa projeto, metas, tarefas e subtarefas por pessoa.
+  // "Quem responde": agrupa projeto, tarefas e subtarefas por pessoa.
   const porResponsavel = new Map<string, string[]>();
   const semResponsavel: string[] = [];
   function registraResponsavel(nomeResp: string | null | undefined, rotulo: string) {
@@ -360,7 +356,6 @@ export function ProjetoDocumento({
     porResponsavel.set(chave, [...(porResponsavel.get(chave) ?? []), rotulo]);
   }
   registraResponsavel(item.responsavel, `Projeto: ${item.nome}`);
-  for (const me of item.metasExecucao) registraResponsavel(me.responsavel, `Meta: ${me.nome}`);
   for (const m of item.marcos) {
     registraResponsavel(m.responsavel, `Tarefa: ${m.descricao}`);
     for (const st of m.subtarefas) registraResponsavel(st.responsavel, `Subtarefa: ${st.descricao}`);
@@ -501,8 +496,7 @@ export function ProjetoDocumento({
       {aba === "andamento" && (
         <div className="stack">
           <ProjetoPastas
-            metasExecucao={item.metasExecucao}
-            marcosSemMeta={marcosSemMeta}
+            marcos={item.marcos}
             evidencias={item.evidencias}
             aguardando={aguardando}
             canWrite={canWrite}
@@ -536,11 +530,10 @@ export function ProjetoDocumento({
 
       {aba === "metas" && (
         <MetasIndicadores
+          key={item.id}
           iniciativaId={item.id}
-          metas={item.metasExecucao}
           token={token}
           canWrite={canWrite}
-          equipe={equipe}
         />
       )}
 
@@ -579,6 +572,9 @@ export function ProjetoDocumento({
                       </dd>
                     </div>
                   </dl>
+                  <button type="button" className="pj-link" onClick={() => navegar("metas")}>
+                    Ver indicadores vinculados à meta →
+                  </button>
                 </div>
               ) : (
                 <p className="dashboard-muted" style={{ margin: 0 }}>

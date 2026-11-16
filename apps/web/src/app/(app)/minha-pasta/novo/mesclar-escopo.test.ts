@@ -2,20 +2,26 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { EscopoNo } from "./escopo-editor";
 import { mesclarEscopo } from "./mesclar-escopo";
+import { normalizarEscopo } from "./normalizar-escopo";
 
-test("preserva indicador e alvo editados ao recalcular a prévia", () => {
-  const modelo: EscopoNo = { codigo: "M1", nivel: "META", nome: "Meta modelo", indicador: "Original", alvo: "10", children: [] };
-  const editada: EscopoNo = { ...modelo, nome: "Meta editada", indicador: "Unidades entregues", alvo: "20" };
-  const manual: EscopoNo = { codigo: "M2", nivel: "META", nome: "Meta manual", manual: true, children: [] };
-  assert.deepEqual(mesclarEscopo([editada, manual], [modelo]), [
-    { ...editada, responsavel: undefined, prazo: undefined },
-    manual,
-  ]);
+test("preserva edições e tarefas manuais ao recalcular a prévia", () => {
+  const modelo: EscopoNo = { codigo: "T1", nivel: "TAREFA", nome: "Tarefa modelo", children: [] };
+  const editada: EscopoNo = { ...modelo, nome: "Tarefa editada", responsavel: "Equipe", prazo: "2026-12-10T12:00:00Z" };
+  const manual: EscopoNo = { codigo: "T2", nivel: "TAREFA", nome: "Tarefa manual", manual: true, children: [] };
+  assert.deepEqual(mesclarEscopo([editada, manual], [modelo]), [editada, manual]);
 });
 
-test("não restaura indicador e alvo removidos explicitamente", () => {
-  const modelo: EscopoNo = { codigo: "M1", nivel: "META", nome: "Meta", indicador: "Original", alvo: "10", children: [] };
-  assert.deepEqual(mesclarEscopo([{ ...modelo, indicador: "", alvo: "" }], [modelo])[0], {
-    ...modelo, indicador: "", alvo: "", responsavel: undefined, prazo: undefined,
-  });
+test("normaliza modelos legados e diretos em tarefas com subtarefas", () => {
+  const nos = normalizarEscopo([
+    { codigo: "M", nivel: "META", nome: "Legado", children: [
+      { codigo: "T1", nivel: "TAREFA", nome: "Primeira", prazo: "2026-12-10", children: [
+        { codigo: "S1", nivel: "SUBTAREFA", nome: "Passo", responsavel: "Equipe" },
+      ] },
+    ] },
+    { codigo: "T2", nivel: "TAREFA", nome: "Segunda" },
+  ]);
+  assert.deepEqual(nos.map((n) => n.codigo), ["T1", "T2"]);
+  assert.equal(nos[0].prazo, "2026-12-10");
+  assert.equal(nos[0].children[0].responsavel, "Equipe");
+  assert.equal(nos[0].children[0].nivel, "SUBTAREFA");
 });

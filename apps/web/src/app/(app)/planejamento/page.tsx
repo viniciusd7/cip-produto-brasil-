@@ -35,11 +35,11 @@ export default async function PlanejamentoPage() {
       <PageHeader
         eyebrow="Plano de governo"
         title="Plano → metas estratégicas → indicadores"
-        description="O consultor estrutura o plano do prefeito: cada meta estratégica tem secretaria e responsável, indicadores mensuráveis e se desdobra em projetos, metas de execução e tarefas."
+        description="O consultor estrutura o plano do prefeito: cada meta estratégica tem secretaria e responsável, indicadores mensuráveis e se conecta aos projetos e tarefas."
       />
       <SourceMeta fonte={payload.meta?.fonte} confiabilidade="Estrutura configurável por prefeitura" />
       <div className="gp-flow" aria-label="Hierarquia da gestão">
-        {["Plano de governo", "Meta estratégica + indicadores", "Projeto", "Meta de execução", "Tarefa", "Subtarefa"].map((etapa, i) => (
+        {["Plano de governo", "Meta estratégica + indicadores", "Projeto", "Tarefa", "Subtarefa"].map((etapa, i) => (
           <span key={etapa} className="gp-flow__step">{i > 0 && <span aria-hidden>→</span>}{etapa}</span>
         ))}
       </div>

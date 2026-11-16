@@ -11,7 +11,7 @@ export default async function BaseConhecimentoPage() {
       <PageHeader
         eyebrow="Documentos da prefeitura"
         title="Base de conhecimento"
-        description="O Plano de Governo é obrigatório; PPA, LDO, LOA, diagnóstico e outros documentos são opcionais."
+        description="Anexe o Plano de Governo obrigatório e, se desejar, outros documentos identificados automaticamente."
       />
       <ConhecimentoForm
         token={session?.accessToken || ""}

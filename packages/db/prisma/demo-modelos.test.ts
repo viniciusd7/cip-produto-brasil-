@@ -85,6 +85,7 @@ test("plano e argumentos inválidos não usam DATABASE_URL nem expõem segredos"
   assert.equal(plan.status, 0, plan.stderr);
   assert.match(plan.stdout, /sem conexão/);
   assert.match(plan.stdout, /Prefeitura Modelo 2/);
+  assert.match(plan.stdout, /4 metas estratégicas, 0 metas de execução, 16 tarefas, 4 indicadores/);
   assert.match(plan.stdout, /demo@modelos.example.test/);
   const invalid = invoke("--reset");
   assert.notEqual(invalid.status, 0);
@@ -224,11 +225,12 @@ test("integração em PostgreSQL descartável", {
             secretariaPrincipal: true, responsavelPessoa: true,
             metaEstrategica: { include: { plano: true } },
             classificacoes: true, metasExecucao: true,
-            marcos: { include: { subtarefas: true, metaExecucao: true } },
+            marcos: { include: { subtarefas: true } },
           },
         });
         assert.equal(await db.secretaria.count({ where: { municipioId } }), 5);
         assert.equal(projects.length, 4);
+        assert.equal(await db.metaEstrategica.count({ where: { plano: { municipioId } } }), 4);
         const classes = new Set(projects.flatMap((p) => p.classificacoes.map((c) => c.classificacao)));
         assert.deepEqual([...classes].sort(), ["ACAO_DIARIA", "ESTRUTURANTE", "PLANO_GOVERNO", "PRIORITARIO"]);
         const statuses = new Set<string>();
@@ -239,10 +241,11 @@ test("integração em PostgreSQL descartável", {
           assert.equal(project.estruturante, project.classificacoes.some((c) => c.classificacao === "ESTRUTURANTE"));
           assert.equal(project.vinculoPlanoGoverno, project.classificacoes.some((c) => c.classificacao === "PLANO_GOVERNO"));
           assert.ok(project.classificacoes.some((c) => c.classificacao === project.classificacaoPrincipal));
-          assert.equal(project.metasExecucao.length, 1);
+          assert.equal(project.metasExecucao.length, 0);
           assert.equal(project.marcos.length, 4);
           for (const task of project.marcos) {
-            assert.equal(task.metaExecucao?.iniciativaId, project.id);
+            assert.equal(task.iniciativaId, project.id);
+            assert.equal(task.metaExecucaoId, null);
             assert.equal(task.subtarefas.length, 2);
             assert.deepEqual(task.prazoOriginal, task.prazoVigente);
             statuses.add(task.concluidoEm ? "CONCLUIDO" : !task.prazoVigente ? "SEM_PRAZO" : task.prazoVigente < DEMO_REFERENCE ? "VENCIDO" : "NO_PRAZO");

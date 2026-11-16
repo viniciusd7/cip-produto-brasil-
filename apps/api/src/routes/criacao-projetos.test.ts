@@ -8,7 +8,7 @@ import {
   MODELO_ACAO_DIARIA,
 } from "@cip/shared";
 import { signAccessToken } from "../middleware/auth";
-import { errorHandler } from "../middleware/error";
+import { errorHandler, HttpError } from "../middleware/error";
 import { iniciativasRouter } from "./iniciativas";
 import { wizardRouter } from "./wizard";
 import { notifications } from "../services/notifications";
@@ -18,8 +18,8 @@ process.env.DATABASE_URL = "postgresql://test:test@127.0.0.1:1/criacao_tests?con
 process.env.DIRECT_URL = process.env.DATABASE_URL;
 
 const escopo = [{
-  codigo: "META",
-  nivel: "META",
+  codigo: "TAREFA",
+  nivel: "TAREFA",
   nome: "Entrega",
   children: [],
 }];
@@ -32,7 +32,7 @@ function stub(t: TestContext, target: object, method: string, implementation: (.
   t.after(() => { Reflect.set(target, method, original); });
 }
 
-async function setup(t: TestContext) {
+async function setup(t: TestContext, options: { falharEscopo?: boolean } = {}) {
   const iniciativas: Prisma.IniciativaUncheckedCreateInput[] = [];
   const classificacoes: Prisma.IniciativaClassificacaoCreateManyInput[] = [];
   const respostas: Prisma.IniciativaRespostaViabilidadeUncheckedCreateInput[] = [];
@@ -40,6 +40,10 @@ async function setup(t: TestContext) {
   const historico: Prisma.IniciativaRespostaHistoricoUncheckedCreateInput[] = [];
   const existentes: Array<{ id: string; perguntaCodigo: string; valor: Prisma.JsonValue }> = [];
   const transacoes: number[] = [];
+  const metasEstrategicas: Prisma.MetaEstrategicaUncheckedCreateInput[] = [];
+  const planos: Prisma.PlanoGovernoUncheckedCreateInput[] = [];
+  const tarefas: Prisma.MarcoEntregaUncheckedCreateInput[] = [];
+  let emTransacao = false;
   const secretaria = { id: "secretaria", municipioId: "municipio", active: true };
 
   stub(t, prisma.user, "findUnique", async () => ({ active: true, isPlatformAdmin: true }));
@@ -53,12 +57,31 @@ async function setup(t: TestContext) {
     return ["secretaria", "correlata"].filter((id) => ids.includes(id)).map((id) => ({ id }));
   });
   stub(t, prisma.metaEstrategica, "findFirst", async () => ({ id: "meta" }));
+  stub(t, prisma.planoGoverno, "findFirst", async () => ({ id: "plano" }));
+  stub(t, prisma.planoGoverno, "create", async ({ data }: { data: Prisma.PlanoGovernoUncheckedCreateInput }) => {
+    assert.equal(emTransacao, true);
+    planos.push(data);
+    return { ...data, id: "novo-plano" };
+  });
+  stub(t, prisma.metaEstrategica, "create", async ({ data }: { data: Prisma.MetaEstrategicaUncheckedCreateInput }) => {
+    assert.equal(emTransacao, true);
+    metasEstrategicas.push(data);
+    return { ...data, id: "nova-meta" };
+  });
   stub(t, prisma.compromisso, "findMany", async () => [{ id: "compromisso" }]);
   stub(t, prisma.secretariaPessoa, "findFirst", async () => ({ id: "pessoa", nome: "Responsável" }));
   stub(t, prisma.secretariaPessoa, "create", async () => ({ id: "nova-pessoa", nome: "Nova pessoa" }));
   stub(t, prisma.auditLog, "create", async () => ({}));
   stub(t, prisma.iniciativaSecretaria, "create", async () => ({}));
-  stub(t, prisma.metaExecucao, "create", async () => ({ id: "meta-execucao" }));
+  stub(t, prisma.metaExecucao, "create", async () => {
+    assert.fail("Wizard nao pode criar metas de execucao");
+  });
+  stub(t, prisma.marcoEntrega, "create", async ({ data }: { data: Prisma.MarcoEntregaUncheckedCreateInput }) => {
+    if (options.falharEscopo) throw new HttpError(422, "ESCOPO_TESTE", "Falha simulada no escopo");
+    assert.equal(emTransacao, true);
+    tarefas.push(data);
+    return { ...data, id: "tarefa" };
+  });
   stub(t, prisma.tipoVerificacao, "upsert", async ({ create }: { create: Prisma.TipoVerificacaoCreateInput }) => ({ id: create.codigo }));
   stub(t, prisma.verificacao, "upsert", async () => ({}));
   t.mock.method(notifications, "notifyResponsavelBloqueio", async () => {});
@@ -72,6 +95,7 @@ async function setup(t: TestContext) {
     respostasViabilidade: existentes,
   }));
   stub(t, prisma.iniciativa, "create", async ({ data }: { data: Prisma.IniciativaUncheckedCreateInput }) => {
+    assert.equal(emTransacao, true);
     // Reproduz as restricoes unicas das tabelas de vinculo.
     for (const entries of [data.secretarias?.create, data.compromissos?.create]) {
       if (Array.isArray(entries)) {
@@ -104,7 +128,16 @@ async function setup(t: TestContext) {
   stub(t, prisma.iniciativa, "update", async () => ({ id: "projeto" }));
   stub(t, prisma, "$transaction", async (run: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
     transacoes.push(1);
-    return run(prisma);
+    const anteriores = [iniciativas.length, classificacoes.length, metasEstrategicas.length, planos.length, respostas.length];
+    emTransacao = true;
+    try {
+      return await run(prisma);
+    } catch (error) {
+      [iniciativas.length, classificacoes.length, metasEstrategicas.length, planos.length, respostas.length] = anteriores;
+      throw error;
+    } finally {
+      emTransacao = false;
+    }
   });
 
   const app = express();
@@ -138,7 +171,7 @@ async function setup(t: TestContext) {
     const json = await response.json();
     return { status: response.status, json };
   }
-  return { iniciativas, classificacoes, respostas, atualizacoes, historico, existentes, transacoes, request };
+  return { iniciativas, classificacoes, respostas, atualizacoes, historico, existentes, transacoes, metasEstrategicas, planos, tarefas, request };
 }
 
 const cadastro = {
@@ -155,6 +188,100 @@ const wizard = {
   estruturaOverride: escopo,
   respostas: impedimentosRespondidos,
 };
+
+test("wizard persiste tarefas diretamente na iniciativa sem meta de execucao", async (t) => {
+  const ctx = await setup(t);
+  const response = await ctx.request("/iniciativas/wizard/confirmar", wizard);
+  assert.equal(response.status, 201, JSON.stringify(response.json));
+  assert.equal(ctx.tarefas.length, 1);
+  assert.equal(ctx.tarefas[0].iniciativaId, "projeto-1");
+  assert.equal("metaExecucaoId" in ctx.tarefas[0], false);
+});
+
+test("preview permite escopo vazio mas confirmar rejeita sem sintetizar tarefas", async (t) => {
+  const ctx = await setup(t);
+  const body = { ...wizard, estruturaOverride: [] };
+  const preview = await ctx.request("/iniciativas/wizard/preview", body);
+  assert.equal(preview.status, 200, JSON.stringify(preview.json));
+  assert.deepEqual(preview.json.data.estrutura, []);
+  const confirmacao = await ctx.request("/iniciativas/wizard/confirmar", body);
+  assert.equal(confirmacao.status, 422, JSON.stringify(confirmacao.json));
+  assert.equal(confirmacao.json.error.code, "ESCOPO_INCOMPLETO");
+  assert.equal(ctx.transacoes.length, 0);
+  assert.equal(ctx.iniciativas.length, 0);
+  assert.equal(ctx.tarefas.length, 0);
+});
+
+for (const path of ["/iniciativas", "/iniciativas/wizard/confirmar", "/iniciativas/wizard/preview"]) {
+  test(`rejeita pedidos explicitos de metas de execucao em ${path}`, async (t) => {
+    const ctx = await setup(t);
+    for (const extra of [
+      { metaExecucaoId: "legada" },
+      { metasExecucao: [{ nome: "Meta nova" }] },
+    ]) {
+      const response = await ctx.request(path, { ...cadastro, ...wizard, ...extra });
+      assert.equal(response.status, 400, JSON.stringify(response.json));
+      assert.equal(response.json.error.code, "VALIDATION_ERROR");
+    }
+    assert.equal(ctx.transacoes.length, 0);
+    assert.equal(ctx.iniciativas.length, 0);
+  });
+}
+
+for (const path of ["/iniciativas/wizard/preview", "/iniciativas/wizard/confirmar"]) {
+  test(`override nao pode criar metas de execucao em ${path}`, async (t) => {
+    const ctx = await setup(t);
+    const response = await ctx.request(path, {
+      ...wizard,
+      estruturaOverride: [{ ...escopo[0], nivel: "META" }],
+    });
+    assert.equal(response.status, 400, JSON.stringify(response.json));
+    assert.equal(ctx.transacoes.length, 0);
+  });
+
+  test(`override exige tarefas e subtarefas bem formadas em ${path}`, async (t) => {
+    const ctx = await setup(t);
+    for (const estruturaOverride of [
+      [{ ...escopo[0], nivel: "SUBTAREFA" }],
+      [{ ...escopo[0], children: [{ ...escopo[0], codigo: "ANINHADA" }] }],
+    ]) {
+      const response = await ctx.request(path, { ...wizard, estruturaOverride });
+      assert.equal(response.status, 422, JSON.stringify(response.json));
+      assert.equal(response.json.error.code, "ESCOPO_INVALIDO");
+    }
+    assert.equal(ctx.transacoes.length, 0);
+  });
+}
+
+for (const novoPlano of [false, true]) {
+  test(`wizard cria meta e projeto na mesma transacao, novo plano=${novoPlano}`, async (t) => {
+    const ctx = await setup(t);
+    const response = await ctx.request("/iniciativas/wizard/confirmar", {
+      ...wizard,
+      novaMeta: { nome: "Meta estrategica", ...(novoPlano ? { novoPlanoNome: "Plano novo" } : { planoId: "plano" }) },
+    });
+    assert.equal(response.status, 201, JSON.stringify(response.json));
+    assert.equal(ctx.transacoes.length, 1);
+    assert.equal(ctx.metasEstrategicas.length, 1);
+    assert.equal(ctx.iniciativas[0].metaEstrategicaId, "nova-meta");
+    assert.equal(ctx.metasEstrategicas[0].planoId, novoPlano ? "novo-plano" : "plano");
+    assert.equal(ctx.planos.length, novoPlano ? 1 : 0);
+  });
+
+  test(`falha posterior no wizard desfaz meta, projeto e plano, novo plano=${novoPlano}`, async (t) => {
+    const ctx = await setup(t, { falharEscopo: true });
+    const response = await ctx.request("/iniciativas/wizard/confirmar", {
+      ...wizard,
+      novaMeta: { nome: "Meta estrategica", ...(novoPlano ? { novoPlanoNome: "Plano novo" } : { planoId: "plano" }) },
+    });
+    assert.equal(response.status, 422, JSON.stringify(response.json));
+    assert.equal(response.json.error.code, "ESCOPO_TESTE");
+    assert.equal(ctx.transacoes.length, 1);
+    assert.equal(ctx.metasEstrategicas.length, 0);
+    assert.equal(ctx.iniciativas.length, 0);
+    assert.equal(ctx.planos.length, 0);
+  });
+}
 
 for (const classificacao of CLASSIFICACAO_PROJETO) {
   test(`cadastro direto preserva o tipo ${classificacao}`, async (t) => {

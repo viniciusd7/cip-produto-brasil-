@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import { Button, Card } from "@cip/ui";
 import {
   getRequiredKnowledgeDocumentStatus,
-  isKnowledgeDocumentRequired,
   isKnowledgeDocumentType,
   KNOWLEDGE_DOCUMENT_TYPES,
   type KnowledgeDocumentType,
 } from "@cip/shared";
 import { API_URL } from "@/lib/api";
+import { prepararDocumento } from "./documento-upload";
 import { salvarMedicao } from "./medicao";
 
 const knowledgeDocumentLabels: Record<KnowledgeDocumentType, string> = {
@@ -51,7 +51,7 @@ export function ConhecimentoForm({
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [tipoDocumento, setTipoDocumento] =
-    useState<KnowledgeDocumentType>("PLANO_GOVERNO");
+    useState<"PLANO_GOVERNO" | "AUTO">("PLANO_GOVERNO");
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [textoAbertoId, setTextoAbertoId] = useState<string | null>(null);
   const [textoExtraido, setTextoExtraido] = useState("");
@@ -86,6 +86,7 @@ export function ConhecimentoForm({
     const formElement = e.currentTarget;
     const form = new FormData(formElement);
     try {
+      prepararDocumento(form);
       const res = await fetch(`${API_URL}/conhecimento/documentos`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
@@ -196,11 +197,34 @@ export function ConhecimentoForm({
     }
   }
 
+  async function corrigirTipo(id: string, tipo: string) {
+    if (!isKnowledgeDocumentType(tipo)) return;
+    setError("");
+    try {
+      const res = await fetch(`${API_URL}/conhecimento/documentos/${id}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ tipo, statusConferencia: "PENDENTE" }),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json?.error?.message || "Falha ao corrigir o tipo do documento");
+      }
+      await load();
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível corrigir o tipo do documento.");
+    }
+  }
+
   return (
     <div className="stack">
       <Card
         title="Documentos da base de conhecimento"
-        subtitle="O Plano de Governo exige arquivo; os demais documentos são opcionais."
+        subtitle="O Plano de Governo é o único documento obrigatório. Documentos adicionais são identificados automaticamente."
       >
         {requiredPlanStatus && (
           <section
@@ -244,6 +268,19 @@ export function ConhecimentoForm({
                 {d.arquivoNome ? <><br />Arquivo: {d.arquivoNome}</> : ""}
               </span>
               <span className="chip-row">
+                {podeConferir && isKnowledgeDocumentType(d.tipo) && (
+                  <label>
+                    Corrigir tipo de {d.titulo}
+                    <select
+                      value={d.tipo}
+                      onChange={(event) => void corrigirTipo(d.id, event.currentTarget.value)}
+                    >
+                      {KNOWLEDGE_DOCUMENT_TYPES.map((tipo) => (
+                        <option key={tipo} value={tipo}>{knowledgeDocumentLabels[tipo]}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 {d.arquivoNome && (
                   <Button
                     type="button"
@@ -283,67 +320,36 @@ export function ConhecimentoForm({
           </pre>
         )}
         {podeAnexar ? <form onSubmit={submitDoc} className="stack" style={{ marginTop: 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 1fr", gap: 12 }}>
-            <div>
-              <label htmlFor="tipo">Tipo</label>
-              <select
-                id="tipo"
-                name="tipo"
-                required
-                value={tipoDocumento}
-                onChange={(event) => {
-                  const tipo = event.currentTarget.value;
-                  if (isKnowledgeDocumentType(tipo)) setTipoDocumento(tipo);
-                }}
-              >
-                {KNOWLEDGE_DOCUMENT_TYPES.map((tipo) => (
-                  <option key={tipo} value={tipo}>
-                    {knowledgeDocumentLabels[tipo]}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="titulo">Título</label>
-              <input id="titulo" name="titulo" required minLength={3} />
-            </div>
-            <div>
-              <label htmlFor="vigencia">Vigência</label>
-              <input id="vigencia" name="vigencia" placeholder="2026" />
-            </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-            <div>
-              <label htmlFor="versao">Versão</label>
-              <input id="versao" name="versao" />
-            </div>
-            <div>
-              <label htmlFor="fonte">Fonte</label>
-              <input id="fonte" name="fonte" />
-            </div>
-            {podeConferir && <div>
-              <label htmlFor="statusConferencia">Conferência</label>
-              <select id="statusConferencia" name="statusConferencia" defaultValue="PENDENTE">
-                <option value="PENDENTE">Aguardando conferência</option>
-                <option value="CONFERIDO">Conferido</option>
-                <option value="DESATUALIZADO">Desatualizado</option>
-              </select>
-            </div>}
+          <div>
+            <label htmlFor="tipo">Documento a anexar</label>
+            <select
+              id="tipo"
+              name="tipo"
+              value={tipoDocumento}
+              onChange={(event) => {
+                const tipo = event.currentTarget.value;
+                if (tipo === "PLANO_GOVERNO" || tipo === "AUTO") setTipoDocumento(tipo);
+              }}
+            >
+              <option value="PLANO_GOVERNO">Plano de Governo (obrigatório)</option>
+              <option value="AUTO">Outro documento (identificação automática)</option>
+            </select>
           </div>
           <div>
             <label htmlFor="arquivoConhecimento">
-              Arquivo PDF, DOC ou DOCX (
-              {isKnowledgeDocumentRequired(tipoDocumento) ? "obrigatório" : "opcional"}, até 4 MB)
+              Arquivo PDF, DOC ou DOCX (até 4 MB)
             </label>
             <input
               id="arquivoConhecimento"
               name="arquivo"
               type="file"
-              required={isKnowledgeDocumentRequired(tipoDocumento)}
+              required
               accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             />
             <p className="dashboard-muted">
-              O texto extraído ficará disponível para consulta; PDFs digitalizados sem texto podem ser baixados normalmente.
+              A identificação automática é uma sugestão e depende do texto extraído.
+              Documentos não identificados ficam como &quot;Outro&quot;; confira o resultado.
+              PDFs digitalizados sem texto podem ser baixados, mas não são identificados.
             </p>
           </div>
           <Button type="submit" disabled={saving}>

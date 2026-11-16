@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma } from "@cip/db";
+import { Prisma, prisma } from "@cip/db";
 import { HttpError } from "../middleware/error";
 import {
   iniciativaScopeFilter,
@@ -9,6 +9,7 @@ import {
 } from "../middleware/auth";
 import { writeAudit } from "../services/audit";
 import { progressoIndicador } from "../services/indicadores";
+import { transacaoEstrategica } from "../services/integridade-estrategica";
 import { listarResponsaveis, notificarAtribuicao, resolverResponsavel } from "../services/responsaveis";
 import { provedorAtivo, type SugestaoIndicador, type SugestaoTarefa } from "../services/sugestoes";
 
@@ -217,74 +218,12 @@ const metaSchema = z.object({
 planejamentoRouter.post(
   "/metas",
   requirePermission("iniciativa:write"),
-  async (req, res, next) => {
-    try {
-      const body = metaSchema.parse(req.body);
-      const municipioId = req.user!.municipioId;
-      const plano = await prisma.planoGoverno.findFirst({
-        where: { id: body.planoId, municipioId },
-      });
-      if (!plano) {
-        throw new HttpError(
-          422,
-          "INVALID_PLANO",
-          "O plano de governo não pertence a este município",
-        );
-      }
-      if (body.secretariaId) {
-        const secretaria = await prisma.secretaria.findFirst({
-          where: { id: body.secretariaId, municipioId, active: true },
-        });
-        if (!secretaria) {
-          throw new HttpError(
-            422,
-            "INVALID_SECRETARIA",
-            "A secretaria da meta não pertence a este município",
-          );
-        }
-      }
-      const responsavelUser = await resolverResponsavel(municipioId, body.responsavelUserId);
-      const meta = await prisma.metaEstrategica.create({
-        data: {
-          responsavelUserId: responsavelUser?.id ?? null,
-          planoId: body.planoId,
-          secretariaId: body.secretariaId,
-          codigo: body.codigo,
-          nome: body.nome,
-          descricao: body.descricao,
-          indicador: body.indicador,
-          valorBase: body.valorBase,
-          alvo: body.alvo,
-          unidade: body.unidade,
-          periodicidade: body.periodicidade,
-          prazo: body.prazo ? new Date(body.prazo) : null,
-          statusValidacao: body.statusValidacao ?? "PENDENTE",
-          perspectivaBsc: body.perspectivaBsc ?? null,
-          resultadoChaveOkr: body.resultadoChaveOkr ?? null,
-        },
-      });
-      await notificarAtribuicao({
-        municipioId,
-        novo: responsavelUser,
-        autorId: req.user!.id,
-        entidadeTipo: "META_ESTRATEGICA",
-        entidadeId: meta.id,
-        rotulo: "uma meta estratégica",
-        descricao: `${meta.codigo ? `${meta.codigo} · ` : ""}${meta.nome}`,
-        link: "/minha-pasta",
-      });
-      await writeAudit({
-        user: req.user,
-        action: "CREATE",
-        entity: "MetaEstrategica",
-        entityId: meta.id,
-        after: meta,
-        ip: req.ip,
-      });
-      res.status(201).json({ data: meta });
-    } catch (err) {
-      next(err);
-    }
+  (_req, _res, next) => {
+    next(new HttpError(
+      409,
+      "PROJETO_REQUIRED",
+      "Crie a meta estratégica dentro de um projeto ou na confirmação do assistente de novo projeto",
+    ));
   },
 );
 
@@ -458,8 +397,8 @@ planejamentoRouter.get(
 // ---------------------------------------------------------------- Indicadores
 
 const indicadorSchema = z.object({
-  metaEstrategicaId: z.string().nullable().optional(),
-  metaExecucaoId: z.string().nullable().optional(),
+  metaEstrategicaId: z.string().min(1).nullable().optional(),
+  metaExecucaoId: z.string().min(1).nullable().optional(),
   nome: z.string().trim().min(3),
   descricao: z.string().nullable().optional(),
   formula: z.string().nullable().optional(),
@@ -473,19 +412,40 @@ const indicadorSchema = z.object({
   responsavelUserId: z.string().nullable().optional(),
 });
 
+function rejeitarMetaExecucaoParaNovoIndicador(metaExecucaoId?: string | null) {
+  if (metaExecucaoId) {
+    throw new HttpError(
+      410,
+      "META_EXECUCAO_DESCONTINUADA",
+      "Novos indicadores devem ser vinculados a uma meta estratégica",
+    );
+  }
+}
+
 async function assertAlvosIndicador(
+  client: Pick<Prisma.TransactionClient, "metaEstrategica" | "metaExecucao" | "iniciativa">,
   municipioId: string,
   body: { metaEstrategicaId?: string | null; metaExecucaoId?: string | null },
 ) {
+  if (!body.metaEstrategicaId) {
+    throw new HttpError(422, "TARGET_REQUIRED", "Vincule o indicador a uma meta estratégica");
+  }
   if (body.metaEstrategicaId) {
-    const ok = await prisma.metaEstrategica.findFirst({
+    const ok = await client.metaEstrategica.findFirst({
       where: { id: body.metaEstrategicaId, plano: { municipioId } },
       select: { id: true },
     });
     if (!ok) throw new HttpError(422, "INVALID_META", "Meta estratégica inválida");
+    const projeto = await client.iniciativa.findFirst({
+      where: { metaEstrategicaId: body.metaEstrategicaId, municipioId },
+      select: { id: true },
+    });
+    if (!projeto) {
+      throw new HttpError(409, "PROJETO_REQUIRED", "Vincule a meta estratégica a um projeto antes de adicionar indicadores");
+    }
   }
   if (body.metaExecucaoId) {
-    const ok = await prisma.metaExecucao.findFirst({
+    const ok = await client.metaExecucao.findFirst({
       where: { id: body.metaExecucaoId, iniciativa: { municipioId } },
       select: { id: true },
     });
@@ -538,13 +498,16 @@ planejamentoRouter.post(
     try {
       const body = indicadorSchema.parse(req.body);
       const municipioId = req.user!.municipioId;
+      rejeitarMetaExecucaoParaNovoIndicador(body.metaExecucaoId);
       if (!body.metaEstrategicaId && !body.metaExecucaoId) {
-        throw new HttpError(422, "TARGET_REQUIRED", "Vincule o indicador a uma meta estratégica ou de execução");
+        throw new HttpError(422, "TARGET_REQUIRED", "Vincule o indicador a uma meta estratégica");
       }
-      await assertAlvosIndicador(municipioId, body);
       const responsavelUser = await resolverResponsavel(municipioId, body.responsavelUserId);
-      const row = await prisma.indicador.create({
-        data: { ...body, municipioId, responsavelUserId: responsavelUser?.id ?? null },
+      const row = await transacaoEstrategica(async (tx) => {
+        await assertAlvosIndicador(tx, municipioId, body);
+        return tx.indicador.create({
+          data: { ...body, municipioId, responsavelUserId: responsavelUser?.id ?? null },
+        });
       });
       await notificarAtribuicao({
         municipioId,
@@ -570,17 +533,32 @@ planejamentoRouter.patch(
   async (req, res, next) => {
     try {
       const municipioId = req.user!.municipioId;
-      const existing = await prisma.indicador.findFirst({ where: { id: req.params.id, municipioId } });
-      if (!existing) throw new HttpError(404, "NOT_FOUND", "Indicador não encontrado");
       const { responsavelUserId, ...body } = indicadorSchema.partial().parse(req.body);
-      await assertAlvosIndicador(municipioId, body);
       const responsavelUser = await resolverResponsavel(municipioId, responsavelUserId);
-      const row = await prisma.indicador.update({
-        where: { id: existing.id },
-        data: {
-          ...body,
-          ...(responsavelUser !== undefined ? { responsavelUserId: responsavelUser?.id ?? null } : {}),
-        },
+      const { existing, row } = await transacaoEstrategica(async (tx) => {
+        const existing = await tx.indicador.findFirst({ where: { id: req.params.id, municipioId } });
+        if (!existing) throw new HttpError(404, "NOT_FOUND", "Indicador não encontrado");
+        if (
+          body.metaExecucaoId &&
+          body.metaExecucaoId !== existing.metaExecucaoId
+        ) {
+          rejeitarMetaExecucaoParaNovoIndicador(body.metaExecucaoId);
+        }
+        const alvos = {
+          metaEstrategicaId: body.metaEstrategicaId === undefined ? existing.metaEstrategicaId : body.metaEstrategicaId,
+          metaExecucaoId: body.metaExecucaoId === undefined ? existing.metaExecucaoId : body.metaExecucaoId,
+        };
+        const mudouAlvo = alvos.metaEstrategicaId !== existing.metaEstrategicaId ||
+          alvos.metaExecucaoId !== existing.metaExecucaoId;
+        if (mudouAlvo) await assertAlvosIndicador(tx, municipioId, alvos);
+        const row = await tx.indicador.update({
+          where: { id: existing.id },
+          data: {
+            ...body,
+            ...(responsavelUser !== undefined ? { responsavelUserId: responsavelUser?.id ?? null } : {}),
+          },
+        });
+        return { existing, row };
       });
       await notificarAtribuicao({
         municipioId,
@@ -870,8 +848,9 @@ planejamentoRouter.post(
       if (!sug) throw new HttpError(404, "NOT_FOUND", "Sugestão não encontrada ou já decidida");
       const prop = lerSugestao(sug.sugestao);
       let criado: { tipo: string; id: string } | null = null;
-      await prisma.$transaction(async (tx) => {
+      await transacaoEstrategica(async (tx) => {
         if (aceitar && prop?.tipo === "INDICADOR" && sug.entidadeId) {
+          await assertAlvosIndicador(tx, municipioId, { metaEstrategicaId: sug.entidadeId });
           const ind = await tx.indicador.create({
             data: {
               municipioId,

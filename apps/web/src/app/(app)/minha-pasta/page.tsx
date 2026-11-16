@@ -20,7 +20,6 @@ import {
 import {
   MetasSecretaria,
   type MetaEstrategicaPasta,
-  type MetaExecucaoPasta,
 } from "./metas-secretaria";
 
 type ProjetoItem = ProjetoSecretariaItem;
@@ -49,7 +48,6 @@ type PastaResumo = {
     projetosCorrelacionados?: ProjetoItem[];
     projetos: ProjetoItem[];
     metasEstrategicas?: MetaEstrategicaPasta[];
-    metasExecucao?: MetaExecucaoPasta[];
   } | null;
 };
 
@@ -124,7 +122,6 @@ export default async function MinhaPastaPage({
     projetosCorrelacionados,
     projetos,
     metasEstrategicas,
-    metasExecucao,
   } = payload.data;
   const principais = projetosPrincipais ?? projetos;
   const correlacionados = projetosCorrelacionados ?? [];
@@ -196,10 +193,7 @@ export default async function MinhaPastaPage({
       )}
 
       {!isSecretario && !cenario?.data?.selected && (
-        <MetasSecretaria
-          estrategicas={metasEstrategicas ?? []}
-          execucao={metasExecucao ?? []}
-        />
+        <MetasSecretaria estrategicas={metasEstrategicas ?? []} />
       )}
     </div>
   );

@@ -46,20 +46,16 @@ export function EvidenciaCard({
   evidencia,
   token,
   canValidate,
-  metas,
 }: {
   evidencia: EvidenciaItem;
   token: string;
   canValidate: boolean;
-  metas: Array<{ id: string; label: string }>;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<"VERIFICADA" | "REJEITADA">("VERIFICADA");
   const [parecer, setParecer] = useState("");
   const [concluirMarco, setConcluirMarco] = useState(Boolean(evidencia.marcoId));
-  const [metaId, setMetaId] = useState(metas[0]?.id || "");
-  const [valorTexto, setValorTexto] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -89,10 +85,6 @@ export function EvidenciaCard({
               status === "VERIFICADA" && evidencia.marcoId
                 ? concluirMarco
                 : false,
-            atualizarIndicador:
-              status === "VERIFICADA" && valorTexto.trim() && metaId
-                ? { metaExecucaoId: metaId, valorTexto: valorTexto.trim() }
-                : undefined,
           }),
         },
       );
@@ -216,31 +208,6 @@ export function EvidenciaCard({
                   />
                   Concluir tarefa vinculada
                 </label>
-              )}
-              {status === "VERIFICADA" && !!metas.length && (
-                <div className="form-grid form-grid--2">
-                  <div>
-                    <label>Meta / indicador (opcional)</label>
-                    <select
-                      value={metaId}
-                      onChange={(e) => setMetaId(e.target.value)}
-                    >
-                      {metas.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label>Atualizar indicador</label>
-                    <input
-                      value={valorTexto}
-                      onChange={(e) => setValorTexto(e.target.value)}
-                      placeholder="Ex.: 60% da fundação"
-                    />
-                  </div>
-                </div>
               )}
               {error && (
                 <p style={{ color: "var(--cip-danger)", margin: 0 }}>{error}</p>

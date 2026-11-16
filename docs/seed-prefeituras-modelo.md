@@ -142,7 +142,8 @@ as instruções MySQL do setup antigo não se aplicam a este comando.
   com acessibilidade escolar, consultas regionalizadas, mobilidade e zeladoria.
 - Cada prefeitura tem 5 secretarias (Planejamento sem projeto principal, para
   visualizar o estado vazio), 1 plano, 4 metas estratégicas, 4 projetos,
-  4 metas de execução, 16 tarefas, 32 subtarefas, 4 indicadores e 12 medições.
+  nenhuma meta de execução, 16 tarefas associadas diretamente aos projetos,
+  32 subtarefas, 4 indicadores e 12 medições.
 - As quatro classificações estão presentes, inclusive classificações simultâneas,
   com flags e vínculos correspondentes. Há tarefas concluídas, vencidas, sem
   prazo e no prazo, impedimento, providência e evidências a verificar.

@@ -35,15 +35,26 @@ Referências: modelo [CIP Painel Executivo CMD](https://cip-painel-executivo-cmd
 
 | Bloco do modelo | Rota / UI |
 |---|---|
-| Visão de governo | `/painel#visao` — hero + AreaChart (Recharts) + KPIs de metas |
+| Visão de governo | `/painel#visao` — hero + AreaChart (Recharts) + indicadores de projetos e tarefas |
 | Saúde por secretaria | `/painel#secretarias` — radar + barras + filtros |
 | Gravidade / entraves | `/painel#projetos` — barras de `agenda.gravidadeBuckets` e `entraves` |
-| Agenda de decisão | `/painel#decisoes` — tarefas, metas vencidas, pastas defasadas |
+| Agenda de decisão | `/painel#decisoes` — tarefas e pastas defasadas |
 | Prestação | `/painel#prestacao` — concluídas, pendências, retrato |
 | Cockpit do secretário | `/minha-pasta` (Azimov: hero · saúde · fila) + `PastaSaudeResumo`; role code `gestor` |
 | Relatório por secretaria | `/relatorios` |
 | Export CSV | `GET /reports/executivo.csv` |
 
-## Metas de execução
+## Dados históricos de metas de execução
 
-`data.metas` no `/dashboard/resumo` agrega `MetaExecucao`: total, cobertura (`valorAtual`), atrasadas (prazo vs data-base), sem prazo, concluídas. Por secretaria: `metasTotal`, `metasComValor`, `metasAtrasadas`.
+As metas de execução e seus vínculos históricos continuam preservados nos dados. Os agregados de metas de execução não são mais retornados pelos payloads de apresentação do painel e da pasta da secretaria nem apresentados nos relatórios. As tarefas vinculadas continuam listadas e consultáveis como tarefas.
+
+## Consulta plana e exportação fiel
+
+- `/relatorios` oferece uma única tabela: tarefas, metas estratégicas e indicadores, projetos, secretarias ou evidências. As antigas URLs `/relatorios/tarefas`, `/relatorios/metas` etc. continuam abrindo o conteúdo correspondente.
+- `GET /reports/prestacao.json` mantém os dados de compatibilidade e acrescenta `data.consulta` (colunas, linhas, total, busca e ordenação) e `data.csv`, gerados da mesma consulta. O botão exporta esse CSV já autorizado, sem uma segunda consulta que poderia divergir do retrato apresentado. A geração do retrato é auditada como `GERAR_RELATORIO`.
+- `GET /reports/prestacao.csv` permanece disponível para integrações e gera um retrato atualizado, com os mesmos parâmetros e regras; o acesso é auditado como `EXPORT_CSV`. Ambos exigem `report:export`, respeitam município e projetos autorizados e retornam `Cache-Control: private, no-store`.
+- Parâmetros: `tipo=tarefas|metas|projetos|secretarias|evidencias`, `secretariaId`, `projetoId`, `de`, `ate`, `status`, `busca`, `ordenar` (chave da coluna) e `direcao=asc|desc`. Busca e ordenação são aplicadas no servidor, sem corte de 500 linhas. Nulos ordenam por último; identificadores garantem desempate estável.
+- O período inclusivo considera prazo vigente **ou** conclusão nas tarefas e a data de envio nas evidências. Para metas estratégicas limita apenas as medições; base, atual e alvo continuam os valores cadastrados. Situação de tarefas não se aplica a metas/evidências. Datas inexistentes, períodos invertidos e ordenação inválida retornam erro de validação, não filtros silenciosamente ignorados.
+- Metas estratégicas têm uma linha por indicador real e os projetos vinculados em uma célula, sem multiplicação por projeto. Metas sem indicadores também aparecem. Nenhuma meta histórica é convertida ou duplicada.
+- O CSV usa UTF-8 com BOM, separador `;`, quebra CRLF, datas `AAAA-MM-DD` e células nulas vazias. Aspas, separadores e quebras internas são escapados; textos que poderiam executar fórmulas recebem apóstrofo de proteção. Valores numéricos permanecem numéricos.
+- A consulta usa rótulos associados aos campos, foco visível, região de tabela acessível por teclado e `aria-sort` nos cabeçalhos. Resultados vazios são anunciados como estado; falhas da consulta exibem alerta, tentativa novamente e limpeza dos filtros, sem oferecer CSV de uma consulta que falhou.

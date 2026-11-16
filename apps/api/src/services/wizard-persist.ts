@@ -1,5 +1,6 @@
-import { prisma } from "@cip/db";
+import { prisma, type Prisma } from "@cip/db";
 import { buildCatalogoPerguntas, etapasFromGrupos, type ModeloSnapshot, type TreeNode } from "@cip/shared";
+import { HttpError } from "../middleware/error";
 
 export async function loadModeloSnapshot(modeloId: string): Promise<ModeloSnapshot> {
   const modelo = await prisma.modeloProjeto.findUnique({
@@ -59,50 +60,38 @@ export async function loadModeloSnapshot(modeloId: string): Promise<ModeloSnapsh
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type DbClient = { metaExecucao: any; marcoEntrega: any; subtarefa: any; itemGeradoOrigem: any };
+type DbClient = Pick<Prisma.TransactionClient, "marcoEntrega" | "subtarefa" | "itemGeradoOrigem">;
+
+export function validarArvoreTarefas(nodes: TreeNode[]) {
+  function validar(list: TreeNode[], nivel: "TAREFA" | "SUBTAREFA") {
+    for (const node of list) {
+      if (node.nivel !== nivel || (nivel === "SUBTAREFA" && node.children.length)) {
+        throw new HttpError(422, "ESCOPO_INVALIDO", "Use tarefas diretamente no projeto e subtarefas dentro de tarefas, sem metas de execução");
+      }
+      validar(node.children, "SUBTAREFA");
+    }
+  }
+  validar(nodes, "TAREFA");
+}
 
 export async function persistTree(
   iniciativaId: string,
   nodes: TreeNode[],
   tx: DbClient = prisma,
 ) {
+  validarArvoreTarefas(nodes);
   async function walk(
     list: TreeNode[],
-    parentMetaId?: string,
     parentMarcoId?: string,
   ) {
-    for (const node of list) {
-      if (node.nivel === "META") {
-        const meta = await tx.metaExecucao.create({
-          data: {
-            iniciativaId,
-            codigo: node.codigo,
-            nome: node.nome,
-            indicador: node.indicador || undefined,
-            alvo: node.alvo || undefined,
-            responsavel: node.responsavel || undefined,
-          },
-        });
-        if (node.origemPerguntaCodigo) {
-          await tx.itemGeradoOrigem.create({
-            data: {
-              iniciativaId,
-              metaExecucaoId: meta.id,
-              perguntaCodigo: node.origemPerguntaCodigo,
-              valorQueGerou: node.origemValor,
-              modeloEstruturaCodigo: node.codigo,
-            },
-          });
-        }
-        await walk(node.children, meta.id);
-      } else if (node.nivel === "TAREFA") {
+    for (const [ordem, node] of list.entries()) {
+      if (node.nivel === "TAREFA") {
         const prazo = node.prazo ? new Date(node.prazo) : null;
         const marco = await tx.marcoEntrega.create({
           data: {
             iniciativaId,
-            metaExecucaoId: parentMetaId,
             codigo: node.codigo,
+            ordem,
             descricao: node.nome,
             responsavel: node.responsavel || undefined,
             prazoOriginal: prazo,
@@ -120,13 +109,14 @@ export async function persistTree(
             },
           });
         }
-        await walk(node.children, parentMetaId, marco.id);
+        await walk(node.children, marco.id);
       } else if (parentMarcoId) {
         const st = await tx.subtarefa.create({
           data: {
             marcoId: parentMarcoId,
             descricao: node.nome,
             responsavel: node.responsavel || undefined,
+            prazo: node.prazo ? new Date(node.prazo) : null,
           },
         });
         if (node.origemPerguntaCodigo) {

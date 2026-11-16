@@ -1,4 +1,4 @@
-import { prisma } from "@cip/db";
+import { prisma, type Prisma } from "@cip/db";
 import type { AuthUser } from "../middleware/auth";
 
 export async function writeAudit(params: {
@@ -9,8 +9,8 @@ export async function writeAudit(params: {
   before?: unknown;
   after?: unknown;
   ip?: string;
-}) {
-  await prisma.auditLog.create({
+}, client: Pick<Prisma.TransactionClient, "auditLog"> = prisma) {
+  await client.auditLog.create({
     data: {
       actorId: params.user?.id,
       municipioId: params.user?.municipioId || undefined,

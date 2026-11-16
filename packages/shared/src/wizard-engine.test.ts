@@ -131,10 +131,14 @@ describe("wizard-engine", () => {
     assert.equal(result.cicloInicial, "AGUARDANDO_PRE_REQUISITO");
     assert.equal(result.bloqueioLabel, "Aguardando verba");
     assert.equal(result.bloqueios[0]?.perguntaCodigo, "ORCAMENTO_LIBERADO");
-    assert.ok(result.estrutura.some((n) => n.codigo === "META_OBRA"));
+    const tarefaObra = result.estrutura.find((n) => n.codigo === "TAR_LICITACAO");
+    assert.equal(tarefaObra?.nivel, "TAREFA");
+    assert.equal(result.estrutura.some((n) => n.codigo === "META_OBRA"), false);
+    assert.equal("indicador" in (tarefaObra ?? {}), false);
+    assert.equal("alvo" in (tarefaObra ?? {}), false);
   });
 
-  it("condicional positiva inclui meta de desapropriação", () => {
+  it("condicional positiva remove agrupamento legado e promove tarefas-filhas", () => {
     const result = evaluateWizard({
       modelo: ubsModelo,
       classificacaoPrincipal: "ESTRUTURANTE",
@@ -145,10 +149,16 @@ describe("wizard-engine", () => {
       ],
     });
     assert.equal(result.cicloInicial, "EM_PLANEJAMENTO");
-    const des = result.estrutura.find((n) => n.codigo === "META_DESAPROPRIACAO");
-    assert.ok(des);
-    assert.equal(des?.children.length, 2);
-    assert.equal(des?.origemPerguntaCodigo, "DESAPROPRIACAO");
+    const tarefasDesapropriacao = result.estrutura.filter((n) =>
+      ["TAR_LAUDO", "TAR_DECRETO"].includes(n.codigo),
+    );
+    assert.equal(tarefasDesapropriacao.length, 2);
+    assert.ok(tarefasDesapropriacao.every((n) => n.nivel === "TAREFA"));
+    assert.equal(
+      result.estrutura.some((n) => n.codigo === "META_DESAPROPRIACAO"),
+      false,
+    );
+    assert.ok(tarefasDesapropriacao.every((n) => n.origemPerguntaCodigo === "DESAPROPRIACAO"));
   });
 
   it("dependência: valor desapropriação só visível se SIM", () => {
@@ -246,7 +256,203 @@ describe("wizard-engine", () => {
     });
     assert.equal(result.cicloInicial, "AGUARDANDO_PRE_REQUISITO");
     assert.equal(result.bloqueioLabel, "Aguardando verba");
-    const meta = result.estrutura.find((n) => n.codigo === "META_PLANEJAMENTO");
-    assert.ok(meta?.children.some((c) => c.codigo === "TAR_OBTER_DOTACAO"));
+    const tarefa = result.estrutura.find((n) => n.codigo === "TAR_OBTER_DOTACAO");
+    assert.equal(tarefa?.nivel, "TAREFA");
+    assert.equal(result.estrutura.some((n) => n.codigo === "META_PLANEJAMENTO"), false);
+  });
+
+  it("estrutura nativa de projeto mantém tarefas e subtarefas sem níveis extras", () => {
+    const modelo: ModeloSnapshot = {
+      codigo: "PROJETO_TAREFAS",
+      nome: "Projeto com tarefas",
+      perguntas: [],
+      estrutura: [
+        {
+          codigo: "TAR_ENTREGA",
+          nivel: "TAREFA",
+          nome: "Entregar serviço",
+          ordem: 1,
+          sempreIncluir: true,
+        },
+        {
+          codigo: "SUB_PREPARAR",
+          nivel: "SUBTAREFA",
+          parentCodigo: "TAR_ENTREGA",
+          nome: "Preparar atendimento",
+          ordem: 1,
+          sempreIncluir: true,
+        },
+      ],
+    };
+
+    const result = evaluateWizard({
+      modelo,
+      classificacaoPrincipal: "ESTRUTURANTE",
+      respostas: [],
+    });
+
+    assert.deepEqual(
+      result.estrutura.map(({ codigo, nivel, children }) => ({
+        codigo,
+        nivel,
+        children: children.map(({ codigo: childCodigo, nivel: childNivel }) => ({
+          codigo: childCodigo,
+          nivel: childNivel,
+        })),
+      })),
+      [{
+        codigo: "TAR_ENTREGA",
+        nivel: "TAREFA",
+        children: [{ codigo: "SUB_PREPARAR", nivel: "SUBTAREFA" }],
+      }],
+    );
+  });
+
+  it("preserva itens descendentes de snapshots legados sem gerar terceiro nível", () => {
+    const modelo: ModeloSnapshot = {
+      codigo: "PROJETO_LEGADO",
+      nome: "Projeto legado",
+      perguntas: [
+        {
+          codigo: "INCLUIR_TAREFA",
+          texto: "Incluir tarefas",
+          tipoResposta: "SIM_NAO",
+          impacto: "CONDICIONAL",
+          ordem: 1,
+          efeitos: [
+            {
+              quando: { eq: "SIM" },
+              incluirEstrutura: ["TAR_LEGADA", "SUB_LEGADA", "SUB_NETA"],
+            },
+          ],
+        },
+      ],
+      estrutura: [
+        {
+          codigo: "META_LEGADA",
+          nivel: "META",
+          nome: "Grupo legado",
+          indicador: "Não deve ser emitido",
+          alvo: "1",
+          ordem: 1,
+          sempreIncluir: true,
+        },
+        {
+          codigo: "TAR_LEGADA",
+          nivel: "TAREFA",
+          parentCodigo: "META_LEGADA",
+          nome: "Tarefa existente",
+          responsavel: "Equipe de obras",
+          prazo: "2026-12-10T12:00:00.000Z",
+          ordem: 1,
+        },
+        {
+          codigo: "SUB_LEGADA",
+          nivel: "SUBTAREFA",
+          parentCodigo: "TAR_LEGADA",
+          nome: "Subtarefa existente",
+          responsavel: "Ana",
+          prazo: "2026-12-05T12:00:00.000Z",
+          ordem: 1,
+        },
+        {
+          codigo: "SUB_NETA",
+          nivel: "SUBTAREFA",
+          parentCodigo: "SUB_LEGADA",
+          nome: "Subtarefa aninhada no legado",
+          responsavel: "Bruno",
+          prazo: "2026-12-06T12:00:00.000Z",
+          ordem: 1,
+        },
+        {
+          codigo: "SUB_NAO_SELECIONADA",
+          nivel: "SUBTAREFA",
+          parentCodigo: "TAR_LEGADA",
+          nome: "Subtarefa não selecionada",
+          ordem: 2,
+        },
+      ],
+    };
+
+    const result = evaluateWizard({
+      modelo,
+      classificacaoPrincipal: "ESTRUTURANTE",
+      respostas: [{ perguntaCodigo: "INCLUIR_TAREFA", valor: "SIM" }],
+    });
+
+    assert.deepEqual(result.estrutura.map(({ codigo, nivel }) => ({ codigo, nivel })), [
+      { codigo: "TAR_LEGADA", nivel: "TAREFA" },
+    ]);
+    assert.deepEqual(
+      result.estrutura[0]?.children.map(({ codigo, nivel, nome, responsavel, prazo, children }) => ({
+        codigo,
+        nivel,
+        nome,
+        responsavel,
+        prazo,
+        children: children.length,
+      })),
+      [
+        {
+          codigo: "SUB_LEGADA",
+          nivel: "SUBTAREFA",
+          nome: "Subtarefa existente",
+          responsavel: "Ana",
+          prazo: "2026-12-05T12:00:00.000Z",
+          children: 0,
+        },
+        {
+          codigo: "SUB_NETA",
+          nivel: "SUBTAREFA",
+          nome: "Subtarefa aninhada no legado",
+          responsavel: "Bruno",
+          prazo: "2026-12-06T12:00:00.000Z",
+          children: 0,
+        },
+      ],
+    );
+    assert.equal(result.estrutura[0]?.responsavel, "Equipe de obras");
+    assert.equal(result.estrutura[0]?.prazo, "2026-12-10T12:00:00.000Z");
+    assert.ok(result.estrutura.every((n) => n.origemPerguntaCodigo === "INCLUIR_TAREFA"));
+    assert.ok(
+      result.estrutura[0]?.children.every(
+        (n) => n.origemPerguntaCodigo === "INCLUIR_TAREFA",
+      ),
+    );
+    assert.equal(result.estrutura.some((n) => n.codigo === "META_LEGADA"), false);
+    assert.equal(
+      result.estrutura[0]?.children.some((n) => n.codigo === "SUB_NAO_SELECIONADA"),
+      false,
+    );
+  });
+
+  it("descarta META legada sem promover filhos TAREFA não selecionados", () => {
+    const result = evaluateWizard({
+      modelo: {
+        codigo: "PROJETO_META_AGRUPADORA",
+        nome: "Projeto com agrupador legado",
+        perguntas: [],
+        estrutura: [
+          {
+            codigo: "META_LEGADA",
+            nivel: "META",
+            nome: "Agrupador legado",
+            ordem: 1,
+            sempreIncluir: true,
+          },
+          {
+            codigo: "TAR_CONDICIONAL",
+            nivel: "TAREFA",
+            parentCodigo: "META_LEGADA",
+            nome: "Tarefa condicional",
+            ordem: 1,
+          },
+        ],
+      },
+      classificacaoPrincipal: "ESTRUTURANTE",
+      respostas: [],
+    });
+
+    assert.deepEqual(result.estrutura, []);
   });
 });

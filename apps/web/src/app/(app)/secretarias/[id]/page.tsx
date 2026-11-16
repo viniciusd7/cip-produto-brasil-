@@ -24,6 +24,16 @@ type Detail = {
       codigo?: string | null;
       plano: { nome: string };
       iniciativas: Array<{ id: string; codigo: string; nome: string }>;
+      indicadores: Array<{
+        id: string;
+        nome: string;
+        unidade: string | null;
+        valorBase: string | null;
+        valorAtual: string | null;
+        alvo: string | null;
+        periodicidade: string | null;
+        medicoes: Array<{ valorRealizado: string; dataCorte: string }>;
+      }>;
     }>;
     iniciativas: Array<{
       id: string;
@@ -32,7 +42,7 @@ type Detail = {
       ciclo: string;
       estruturante: boolean;
       metaEstrategica?: { nome: string } | null;
-      _count: { marcos: number; metasExecucao: number };
+      _count: { marcos: number };
       atualizadoEm: string;
     }>;
   };
@@ -131,6 +141,22 @@ export default async function SecretariaDetailPage({
                 {m.nome}
               </h4>
               <div className="dashboard-muted">Plano: {m.plano.nome}</div>
+              {m.indicadores.length > 0 && (
+                <ul className="dashboard-muted">
+                  {m.indicadores.map((indicador) => (
+                    <li key={indicador.id}>
+                      <strong>{indicador.nome}</strong>
+                      {" · Base: "}{indicador.valorBase ?? "—"}{indicador.unidade ? ` ${indicador.unidade}` : ""}
+                      {" · Atual: "}{indicador.valorAtual ?? "—"}{indicador.unidade ? ` ${indicador.unidade}` : ""}
+                      {" · Alvo: "}{indicador.alvo ?? "—"}{indicador.unidade ? ` ${indicador.unidade}` : ""}
+                      {indicador.periodicidade ? ` · ${indicador.periodicidade.toLowerCase()}` : ""}
+                      {indicador.medicoes[0]
+                        ? ` · Última medição: ${indicador.medicoes[0].valorRealizado}${indicador.unidade ? ` ${indicador.unidade}` : ""} (${new Date(indicador.medicoes[0].dataCorte).toLocaleDateString("pt-BR")})`
+                        : ""}
+                    </li>
+                  ))}
+                </ul>
+              )}
               <div className="tree-children">
                 {m.iniciativas.map((i) => (
                   <Link key={i.id} href={`/iniciativas/${i.id}`}>
@@ -160,8 +186,7 @@ export default async function SecretariaDetailPage({
                   {i.estruturante && <Badge tone="rose">Estruturante</Badge>}
                 </div>
                 <div className="dashboard-muted">
-                  {i.ciclo} · {i._count.metasExecucao} metas exec. · {i._count.marcos}{" "}
-                  tarefas
+                  {i.ciclo} · {i._count.marcos} tarefas
                 </div>
               </article>
             </Link>
@@ -174,7 +199,7 @@ export default async function SecretariaDetailPage({
                 <th>Código</th>
                 <th>Projeto</th>
                 <th>Meta estratégica</th>
-                <th>Desdobramento</th>
+                <th>Tarefas</th>
               </tr>
             </thead>
             <tbody>
@@ -185,9 +210,7 @@ export default async function SecretariaDetailPage({
                     <Link href={`/iniciativas/${i.id}`}>{i.nome}</Link>
                   </td>
                   <td>{i.metaEstrategica?.nome || "—"}</td>
-                  <td>
-                    {i._count.metasExecucao} metas · {i._count.marcos} tarefas
-                  </td>
+                  <td>{i._count.marcos}</td>
                 </tr>
               ))}
             </tbody>

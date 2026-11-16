@@ -155,13 +155,14 @@ describe("três catálogos de gestão pública", () => {
       }).perguntas,
       etapas: [],
       estrutura: [
-        { codigo: "META_PLANEJAMENTO", nivel: "META" as const, nome: "Recursos", ordem: 1 },
-        { codigo: "TAR_OBTER_DOTACAO", nivel: "TAREFA" as const, parentCodigo: "META_PLANEJAMENTO", nome: "Obter dotação", ordem: 1 },
+        { codigo: "TAR_PLANEJAMENTO", nivel: "TAREFA" as const, nome: "Recursos", ordem: 1 },
+        { codigo: "TAR_OBTER_DOTACAO", nivel: "SUBTAREFA" as const, parentCodigo: "TAR_PLANEJAMENTO", nome: "Obter dotação", ordem: 1 },
       ],
     };
     const valor = { codigo: "orcamento_recursos", aplicabilidade: "sim" as const, situacao: "pendente" as const, detalhes: { valor_verba: 100 } };
     const resultado = evaluateWizard({ modelo, classificacaoPrincipal: "ESTRUTURANTE", respostas: [{ perguntaCodigo: "orcamento_recursos", valor }] });
     assert.equal(resultado.bloqueioLabel, "Aguardando orçamento");
-    assert.ok(resultado.estrutura[0]?.children.some((n) => n.codigo === "TAR_OBTER_DOTACAO"));
+    assert.equal(resultado.estrutura[0]?.nivel, "TAREFA");
+    assert.ok(resultado.estrutura[0]?.children.some((n) => n.codigo === "TAR_OBTER_DOTACAO" && n.nivel === "SUBTAREFA"));
   });
 });

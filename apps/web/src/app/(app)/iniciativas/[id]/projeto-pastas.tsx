@@ -6,10 +6,9 @@ import { EvidenciaEnvio } from "./evidencia-envio";
 import { ItemTextoEditor } from "./item-texto-editor";
 import { ReprogramarTarefa } from "./reprogramar-tarefa";
 import { ResponsavelEditor } from "./responsavel-editor";
-import { SugerirTarefas } from "./sugerir-tarefas";
 import { SubtarefaToggle, TarefaAcoes } from "./tarefa-acoes";
 import type { EvidenciaItem } from "./evidencia-actions";
-import type { ProjetoDocData, ProjetoDocMarco, ProjetoDocMeta } from "./projeto-documento";
+import type { ProjetoDocData, ProjetoDocMarco } from "./projeto-documento";
 
 export const STATUS_TAREFA: Record<string, { label: string; cor: string }> = {
   VENCIDO: { label: "Atrasada", cor: "#ff5982" },
@@ -37,15 +36,6 @@ function fmt(d?: string | null) {
 
 function statusDe(m: ProjetoDocMarco) {
   return STATUS_TAREFA[m.prazoStatus] ?? { label: m.prazoStatus, cor: "#929bb4" };
-}
-
-/** Cor da pasta: a pior situação entre as tarefas abertas. */
-function corDaPasta(marcos: ProjetoDocMarco[]) {
-  if (!marcos.length) return "#929bb4";
-  if (marcos.some((m) => m.prazoStatus === "VENCIDO")) return STATUS_TAREFA.VENCIDO.cor;
-  if (marcos.every((m) => m.prazoStatus === "CONCLUIDO")) return STATUS_TAREFA.CONCLUIDO.cor;
-  if (marcos.some((m) => m.prazoStatus === "SEM_PRAZO")) return STATUS_TAREFA.SEM_PRAZO.cor;
-  return STATUS_TAREFA.NO_PRAZO.cor;
 }
 
 type Ctx = {
@@ -116,6 +106,7 @@ function TarefaLinha({ m, ctx, aberta, alternar }: { m: ProjetoDocMarco; ctx: Ct
                       <span className="pj-subs__dot" aria-label={s.concluida ? "Feita" : "Pendente"}>{s.concluida ? "✓" : ""}</span>
                     )}
                     <span className="pj-subs__nome">{s.descricao}</span>
+                    {s.prazo && <small>Prazo: {fmt(s.prazo)}</small>}
                     {ctx.canWrite ? (
                       <ResponsavelEditor
                         token={ctx.token}
@@ -218,21 +209,8 @@ function TarefaLinha({ m, ctx, aberta, alternar }: { m: ProjetoDocMarco; ctx: Ct
   );
 }
 
-type Pasta = {
-  id: string;
-  titulo: string;
-  codigo?: string | null;
-  meta?: ProjetoDocMeta;
-  marcos: ProjetoDocMarco[];
-};
-
-/**
- * Tarefas do projeto em formato de pastas: cada meta de execução é uma pasta,
- * dentro dela as tarefas e, ao abrir a tarefa, as subtarefas e evidências.
- */
 export function ProjetoPastas({
-  metasExecucao,
-  marcosSemMeta,
+  marcos,
   evidencias,
   aguardando,
   canWrite,
@@ -240,13 +218,11 @@ export function ProjetoPastas({
   token,
   equipe,
   iniciativaId,
-  secretariaId,
   metaEstrategica,
   permiteMetaPlano,
   onVerEvidencias,
 }: {
-  metasExecucao: ProjetoDocMeta[];
-  marcosSemMeta: ProjetoDocMarco[];
+  marcos: ProjetoDocMarco[];
   evidencias: EvidenciaItem[];
   aguardando: string[];
   canWrite: boolean;
@@ -259,16 +235,7 @@ export function ProjetoPastas({
   permiteMetaPlano: boolean;
   onVerEvidencias: (marcoId: string) => void;
 }) {
-  const pastas: Pasta[] = useMemo(
-    () => [
-      ...metasExecucao.map((me) => ({ id: me.id, titulo: me.nome, codigo: me.codigo, meta: me, marcos: me.marcos })),
-      ...(marcosSemMeta.length
-        ? [{ id: "__sem_meta", titulo: "Tarefas avulsas (sem meta de execução)", marcos: marcosSemMeta }]
-        : []),
-    ],
-    [metasExecucao, marcosSemMeta],
-  );
-  const todas = pastas.flatMap((p) => p.marcos);
+  const todas = marcos;
   const aguardandoSet = useMemo(() => new Set(aguardando), [aguardando]);
   const evidPorMarco = useMemo(() => {
     const map = new Map<string, EvidenciaItem[]>();
@@ -281,14 +248,6 @@ export function ProjetoPastas({
 
   const [filtro, setFiltro] = useState<Filtro>("TODAS");
   const [busca, setBusca] = useState("");
-  const [abertas, setAbertas] = useState<Set<string>>(
-    () =>
-      new Set(
-        pastas.length <= 3
-          ? pastas.map((p) => p.id)
-          : pastas.filter((p) => p.marcos.some((m) => m.prazoStatus === "VENCIDO")).map((p) => p.id),
-      ),
-  );
   const [tarefaAberta, setTarefaAberta] = useState<string | null>(null);
 
   const ctx: Ctx = {
@@ -316,25 +275,15 @@ export function ProjetoPastas({
     f === "TODAS" ? todas.length : f === "VALIDACAO" ? todas.filter((m) => aguardandoSet.has(m.id)).length : todas.filter((m) => m.prazoStatus === f).length;
   const filtrando = filtro !== "TODAS" || !!busca.trim();
 
-  function alternarPasta(id: string) {
-    setAbertas((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
   return (
     <div className="pj-pastas">
       {canWrite && (
         <ArvoreCadastro
           token={token}
           iniciativaId={iniciativaId}
-          secretariaId={secretariaId}
           metaEstrategica={metaEstrategica}
           permiteMetaPlano={permiteMetaPlano}
-          metasExecucao={metasExecucao}
+          marcos={marcos}
           equipe={equipe}
         />
       )}
@@ -367,103 +316,33 @@ export function ProjetoPastas({
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
           />
-          <button
-            type="button"
-            className="pj-link"
-            onClick={() =>
-              setAbertas((prev) => (prev.size === pastas.length ? new Set() : new Set(pastas.map((p) => p.id))))
-            }
-          >
-            {abertas.size === pastas.length ? "Recolher pastas" : "Abrir todas"}
-          </button>
         </div>
       </div>
 
-      {!pastas.length && (
+      {!todas.length && (
         <div className="pj-vazio">
           <span aria-hidden="true">🗂️</span>
-          <strong>Este projeto ainda não tem metas nem tarefas</strong>
+          <strong>Este projeto ainda não tem tarefas</strong>
           <p>
             {canWrite
-              ? "Use a árvore acima para cadastrar metas, indicadores, tarefas e subtarefas."
-              : "A consultoria vai organizar as metas e tarefas deste projeto. Você será avisado quando houver algo atribuído a você."}
+              ? "Use a árvore acima para criar tarefas."
+              : "A consultoria vai organizar as tarefas deste projeto. Você será avisado quando houver algo atribuído a você."}
           </p>
         </div>
       )}
 
       <div className="pj-arvore">
-        {pastas.map((p) => {
-          const visiveis = p.marcos.filter(passa);
-          if (filtrando && !visiveis.length) return null;
-          const aberta = filtrando || abertas.has(p.id);
-          const feitas = p.marcos.filter((m) => m.prazoStatus === "CONCLUIDO").length;
-          const atrasadas = p.marcos.filter((m) => m.prazoStatus === "VENCIDO").length;
-          const pct = p.marcos.length ? Math.round((feitas / p.marcos.length) * 100) : 0;
-          const cor = corDaPasta(p.marcos);
-          const me = p.meta;
-          return (
-            <section key={p.id} className={`pj-pasta${aberta ? " is-open" : ""}`} style={{ ["--c" as string]: cor }}>
-              <button type="button" className="pj-pasta__cab" aria-expanded={aberta} onClick={() => alternarPasta(p.id)}>
-                <span className="pj-pasta__icone" aria-hidden="true">{aberta ? "📂" : "📁"}</span>
-                <span className="pj-pasta__titulo">
-                  <small>{me ? `Meta de execução${p.codigo ? ` · ${p.codigo}` : ""}` : "Sem pasta"}</small>
-                  <strong>{p.titulo}</strong>
-                  <span className="pj-pasta__info">
-                    {me?.responsavel && <span>👤 {me.responsavel}</span>}
-                    {me?.prazo && <span>📅 até {fmt(me.prazo)}</span>}
-                    {me?.indicador && (
-                      <span>
-                        📈 {me.indicador}
-                        {(me.valorAtual || me.alvo) && ` · ${me.valorAtual || "—"} de ${me.alvo || "—"}`}
-                      </span>
-                    )}
-                  </span>
-                </span>
-                <span className="pj-pasta__nums">
-                  {atrasadas > 0 && <span className="pj-pill pj-pill--rose">{atrasadas} atrasada{atrasadas > 1 ? "s" : ""}</span>}
-                  <span className="pj-pasta__count">{feitas}/{p.marcos.length} tarefas</span>
-                </span>
-                <span className="pj-pasta__pct" aria-label={`${pct}% concluído`}>
-                  <b>{pct}%</b>
-                  <i><em style={{ width: `${pct}%` }} /></i>
-                </span>
-                <span className="pj-chevron" aria-hidden="true">›</span>
-              </button>
-
-              {aberta && (
-                <div className="pj-pasta__corpo">
-                  {!p.marcos.length && <p className="pj-vazio-mini">Pasta vazia — nenhuma tarefa cadastrada.</p>}
-                  <ul className="pj-tarefas">
-                    {visiveis.map((m) => (
-                      <TarefaLinha
-                        key={m.id}
-                        m={m}
-                        ctx={ctx}
-                        aberta={tarefaAberta === m.id}
-                        alternar={() => setTarefaAberta((t) => (t === m.id ? null : m.id))}
-                      />
-                    ))}
-                  </ul>
-                  {canWrite && (
-                    <div className="pj-pasta__rodape">
-                      {me && (
-                        <ResponsavelEditor
-                          token={token}
-                          endpoint={`/iniciativas/metas-execucao/${me.id}`}
-                          value={me.responsavel}
-                          equipe={equipe}
-                          listId="equipe-projeto"
-                          canWrite
-                        />
-                      )}
-                      {me && <SugerirTarefas token={token} metaExecucaoId={me.id} />}
-                    </div>
-                  )}
-                </div>
-              )}
-            </section>
-          );
-        })}
+        <ul className="pj-tarefas">
+          {todas.filter(passa).map((m) => (
+            <TarefaLinha
+              key={m.id}
+              m={m}
+              ctx={ctx}
+              aberta={tarefaAberta === m.id}
+              alternar={() => setTarefaAberta((t) => (t === m.id ? null : m.id))}
+            />
+          ))}
+        </ul>
         {filtrando && !todas.some(passa) && (
           <p className="pj-vazio-mini">Nenhuma tarefa encontrada com esse filtro.</p>
         )}

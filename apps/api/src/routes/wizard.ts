@@ -27,6 +27,7 @@ import { promoteToTitular } from "../services/secretaria-pessoas";
 import {
   loadModeloSnapshot,
   persistTree,
+  validarArvoreTarefas,
 } from "../services/wizard-persist";
 
 export const wizardRouter = Router();
@@ -74,14 +75,14 @@ function valorParaJson(valor: Prisma.JsonValue) {
   return valor === null ? Prisma.JsonNull : valor;
 }
 
-/** Escopo do projeto: Meta → Tarefa → Subtarefa, cada item com responsável. */
+/** Escopo do projeto: Tarefa → Subtarefa, cada item com responsável. */
 const treeNodeSchema: z.ZodType<TreeNode> = z.lazy(() =>
   z.object({
     codigo: z.string().min(1).max(120),
-    nivel: z.enum(["META", "TAREFA", "SUBTAREFA"]),
+    nivel: z.enum(["TAREFA", "SUBTAREFA"]),
+    metaExecucaoId: z.never().optional(),
+    metasExecucao: z.never().optional(),
     nome: z.string().min(2).max(500),
-    indicador: z.string().max(300).nullable().optional(),
-    alvo: z.string().max(300).nullable().optional(),
     responsavel: z.string().max(200).nullable().optional(),
     prazo: z
       .string()
@@ -95,6 +96,8 @@ const treeNodeSchema: z.ZodType<TreeNode> = z.lazy(() =>
 );
 
 const previewBaseSchema = z.object({
+  metaExecucaoId: z.never().optional(),
+  metasExecucao: z.never().optional(),
   modeloProjetoId: z.string().optional(),
   classificacaoPrincipal: z.enum([
     "ESTRUTURANTE",
@@ -265,11 +268,13 @@ wizardRouter.post(
         classificacaoPrincipal: body.classificacaoPrincipal,
         respostas: body.respostas,
       });
+      const estrutura = body.estruturaOverride || result.estrutura;
+      validarArvoreTarefas(estrutura);
 
       res.json({
         data: {
           ...result,
-          estrutura: body.estruturaOverride || result.estrutura,
+          estrutura,
         },
       });
     } catch (err) {
@@ -420,14 +425,14 @@ wizardRouter.post(
         respostas: body.respostas,
       });
       const estrutura =
-        (body.estruturaOverride as TreeNode[] | undefined) || evaluated.estrutura;
+        body.estruturaOverride || evaluated.estrutura;
 
-      const metasEscopo = (estrutura || []).filter((n) => n.nivel === "META");
-      if (!metasEscopo.length) {
+      validarArvoreTarefas(estrutura);
+      if (!estrutura.length) {
         throw new HttpError(
           422,
           "ESCOPO_INCOMPLETO",
-          "O escopo só pode ser concluído com ao menos uma meta de execução",
+          "O escopo só pode ser concluído com ao menos uma tarefa",
         );
       }
 

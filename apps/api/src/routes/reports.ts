@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import { prisma } from "@cip/db";
 import {
   iniciativaScopeFilter,
@@ -13,6 +14,7 @@ import {
   indicePonderado,
 } from "../services/gravidade";
 import { writeAudit } from "../services/audit";
+import { consultaRelatorioSchema, consultarRelatorio, exportarConsultaCsv } from "../services/relatorio-consulta";
 
 export const reportsRouter = Router();
 
@@ -254,37 +256,34 @@ type PrestacaoFiltros = {
   status: string | null;
 };
 
-const STATUS_VALIDOS = ["CONCLUIDO", "NO_PRAZO", "SEM_PRAZO", "VENCIDO"];
-
-function parseDia(valor: unknown, fimDoDia = false): Date | null {
-  if (typeof valor !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return null;
-  const d = new Date(`${valor}T${fimDoDia ? "23:59:59.999" : "00:00:00.000"}`);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
+const diaSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((valor) => {
+  const data = new Date(`${valor}T00:00:00.000Z`);
+  return !Number.isNaN(data.getTime()) && data.toISOString().slice(0, 10) === valor;
+}, "Data inválida");
+const filtrosSchema = z.object({
+  de: diaSchema.optional(),
+  ate: diaSchema.optional(),
+  secretariaId: z.string().trim().min(1).optional(),
+  projetoId: z.string().trim().min(1).optional(),
+  status: z.enum(["CONCLUIDO", "NO_PRAZO", "SEM_PRAZO", "VENCIDO", "ENCERRADO_SEM_SOLUCAO"]).optional(),
+}).refine((f) => !f.de || !f.ate || f.de <= f.ate, {
+  path: ["ate"], message: "A data final deve ser igual ou posterior à inicial",
+});
 
 function lerFiltros(query: Record<string, unknown>): PrestacaoFiltros {
-  const texto = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
-  const status = texto(query.status);
-  let de = parseDia(query.de);
-  let ate = parseDia(query.ate, true);
-  if (de && ate && de > ate) [de, ate] = [parseDia(query.ate), parseDia(query.de, true)];
+  const entrada = Object.fromEntries(Object.entries(query).filter(([, valor]) => valor !== ""));
+  const f = filtrosSchema.parse(entrada);
   return {
-    de,
-    ate,
-    secretariaId: texto(query.secretariaId),
-    iniciativaId: texto(query.projetoId),
-    status: status && STATUS_VALIDOS.includes(status) ? status : null,
+    de: f.de ? new Date(`${f.de}T00:00:00.000Z`) : null,
+    ate: f.ate ? new Date(`${f.ate}T23:59:59.999Z`) : null,
+    secretariaId: f.secretariaId ?? null,
+    iniciativaId: f.projetoId ?? null,
+    status: f.status ?? null,
   };
 }
 
 function chaveMes(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function numeroBr(valor: string | null | undefined) {
-  if (valor == null) return null;
-  const n = Number(String(valor).replace(/\./g, "").replace(",", ".").replace(/[^\d.-]/g, ""));
-  return Number.isFinite(n) ? n : null;
 }
 
 async function buildPrestacao(
@@ -296,12 +295,10 @@ async function buildPrestacao(
     !!d && (!f.de || d >= f.de) && (!f.ate || d <= f.ate);
   const temPeriodo = !!(f.de || f.ate);
 
-  const [secretariasTodas, iniciativas, plano] = await Promise.all([
+  const [secretariasMunicipio, iniciativas, plano] = await Promise.all([
     prisma.secretaria.findMany({
       where: {
         municipioId,
-        active: true,
-        ...(user.role === "gestor" ? { id: user.secretariaId || "__no_secretaria__" } : {}),
       },
       orderBy: { nome: "asc" },
       select: { id: true, nome: true, sigla: true, titularNome: true },
@@ -312,13 +309,11 @@ async function buildPrestacao(
       include: {
         marcos: {
           include: {
-            metaExecucao: { select: { id: true, nome: true } },
             subtarefas: { select: { concluida: true } },
             evidencias: { select: { id: true, status: true } },
             _count: { select: { reprogramacoes: true } },
           },
         },
-        metasExecucao: true,
         evidencias: { select: { id: true, tipo: true, status: true, createdAt: true } },
       },
     }),
@@ -329,15 +324,16 @@ async function buildPrestacao(
     }),
   ]);
 
-  const secretariaIds = new Set(secretariasTodas.map((s) => s.id));
+  const secretariasDosProjetos = new Set(iniciativas.map((i) => i.secretariaPrincipalId));
+  const secretariasTodas = secretariasMunicipio.filter((s) =>
+    user.role !== "gestor" || s.id === user.secretariaId || secretariasDosProjetos.has(s.id),
+  );
   const secNome = new Map(secretariasTodas.map((s) => [s.id, s]));
   const projetosOpcoes = iniciativas
-    .filter((i) => secretariaIds.has(i.secretariaPrincipalId))
     .map((i) => ({ id: i.id, codigo: i.codigo, nome: i.nome, secretariaId: i.secretariaPrincipalId }));
 
   const inisFiltradas = iniciativas.filter(
     (i) =>
-      secretariaIds.has(i.secretariaPrincipalId) &&
       (!f.secretariaId || i.secretariaPrincipalId === f.secretariaId) &&
       (!f.iniciativaId || i.id === f.iniciativaId),
   );
@@ -345,7 +341,7 @@ async function buildPrestacao(
   const agora = new Date();
   const todasTarefas = inisFiltradas.flatMap((i) =>
     i.marcos.map((m) => {
-      const status = prazoStatus(m, i.dataReferencia ?? agora);
+      const status = m.encerradoSemSolucaoEm ? "ENCERRADO_SEM_SOLUCAO" : prazoStatus(m, i.dataReferencia ?? agora);
       const noPrazoEntregue =
         !!m.concluidoEm && (!m.prazoVigente || m.concluidoEm.getTime() <= m.prazoVigente.getTime() + 86_399_999);
       return {
@@ -359,7 +355,6 @@ async function buildPrestacao(
         entregueNoPrazo: noPrazoEntregue,
         reprogramacoes: m._count.reprogramacoes,
         responsavel: m.responsavel,
-        meta: m.metaExecucao?.nome ?? null,
         subtarefas: { total: m.subtarefas.length, feitas: m.subtarefas.filter((s) => s.concluida).length },
         evidencias: {
           total: m.evidencias.length,
@@ -424,6 +419,7 @@ async function buildPrestacao(
 
   const porSecretaria = secretariasTodas
     .filter((s) => !f.secretariaId || s.id === f.secretariaId)
+    .filter((s) => !f.iniciativaId || inisFiltradas.some((i) => i.secretariaPrincipalId === s.id))
     .map((s) => {
       const lista = tarefas.filter((t) => t.secretariaId === s.id);
       return {
@@ -431,7 +427,10 @@ async function buildPrestacao(
         nome: s.nome,
         sigla: s.sigla,
         titular: s.titularNome,
-        projetos: new Set(lista.map((t) => t.projetoId)).size,
+        projetos: inisFiltradas.filter((i) =>
+          i.secretariaPrincipalId === s.id &&
+          (!f.status && !temPeriodo || lista.some((t) => t.projetoId === i.id)),
+        ).length,
         ...contar(lista),
       };
     })
@@ -448,27 +447,15 @@ async function buildPrestacao(
         ...contar(lista),
       };
     })
-    .filter((p) => p.total > 0)
+    .filter((p) => !f.status && !temPeriodo || p.total > 0)
     .sort((a, b) => b.atrasadas - a.atrasadas || (a.pctEmDia ?? 0) - (b.pctEmDia ?? 0));
 
-  const metasExecucao = inisFiltradas.flatMap((i) =>
-    i.metasExecucao
-      .filter((m) => !temPeriodo || !m.prazo || dentro(m.prazo))
-      .map((m) => {
-        const concluida = m.status === "CONCLUIDA" || m.status === "CONCLUIDO";
-        const situacao = concluida
-          ? "CONCLUIDA"
-          : !m.prazo
-            ? "SEM_PRAZO"
-            : m.prazo < agora
-              ? "VENCIDA"
-              : "EM_ANDAMENTO";
-        return { id: m.id, nome: m.nome, projeto: i.nome, prazo: m.prazo, situacao };
-      }),
-  );
-
   const evidencias = inisFiltradas
-    .flatMap((i) => i.evidencias)
+    .flatMap((i) => i.evidencias.map((e) => ({
+      ...e,
+      secretaria: secNome.get(i.secretariaPrincipalId)?.sigla || secNome.get(i.secretariaPrincipalId)?.nome || "",
+      projeto: `${i.codigo} · ${i.nome}`,
+    })))
     .filter((e) => !temPeriodo || dentro(e.createdAt));
   const evPorTipo = (["FOTO", "VIDEO", "DOCUMENTO"] as const).map((tipo) => ({
     tipo,
@@ -478,19 +465,34 @@ async function buildPrestacao(
   const metasEst = await prisma.metaEstrategica.findMany({
     where: {
       plano: { municipioId },
-      ...(f.secretariaId
-        ? { secretariaId: f.secretariaId }
-        : user.role === "gestor"
-          ? { secretariaId: user.secretariaId || "__no_secretaria__" }
-          : {}),
+      iniciativas: {
+        some: { id: { in: inisFiltradas.map((iniciativa) => iniciativa.id) } },
+      },
     },
     orderBy: { nome: "asc" },
     include: {
       secretaria: { select: { nome: true, sigla: true } },
       medicoes: {
-        where: f.ate ? { dataCorte: { lte: f.ate } } : {},
+        where: temPeriodo ? { dataCorte: { ...(f.de ? { gte: f.de } : {}), ...(f.ate ? { lte: f.ate } : {}) } } : {},
         orderBy: { dataCorte: "desc" },
         take: 1,
+      },
+      iniciativas: {
+        where: { id: { in: inisFiltradas.map((iniciativa) => iniciativa.id) } },
+        select: { id: true, codigo: true, nome: true },
+        orderBy: { codigo: "asc" },
+      },
+      indicadores: {
+        where: { ativo: true },
+        include: {
+          medicoes: {
+            where: temPeriodo ? { dataCorte: { ...(f.de ? { gte: f.de } : {}), ...(f.ate ? { lte: f.ate } : {}) } } : {},
+            orderBy: { dataCorte: "desc" },
+            take: 1,
+            select: { dataCorte: true, valorRealizado: true },
+          },
+        },
+        orderBy: { createdAt: "asc" },
       },
     },
   });
@@ -529,38 +531,37 @@ async function buildPrestacao(
     evolucao: meses,
     porSecretaria,
     projetos,
-    metasExecucao: {
-      total: metasExecucao.length,
-      concluidas: metasExecucao.filter((m) => m.situacao === "CONCLUIDA").length,
-      emAndamento: metasExecucao.filter((m) => m.situacao === "EM_ANDAMENTO").length,
-      semPrazo: metasExecucao.filter((m) => m.situacao === "SEM_PRAZO").length,
-      vencidas: metasExecucao.filter((m) => m.situacao === "VENCIDA").length,
-    },
+    evidenciasDetalhadas: evidencias.map((e) => ({
+      id: e.id, secretaria: e.secretaria, projeto: e.projeto,
+      tipo: e.tipo || "DOCUMENTO", status: e.status, criadaEm: e.createdAt.toISOString(),
+    })),
     metasEstrategicas: metasEst.map((m) => {
       const atual = m.medicoes[0];
-      const realizado = numeroBr(atual?.valorRealizado);
-      const alvo = numeroBr(m.alvo);
-      const base = numeroBr(m.valorBase);
-      let pct: number | null = null;
-      if (realizado != null && alvo != null) {
-        pct = base != null && alvo !== base
-          ? Math.round(((realizado - base) / (alvo - base)) * 100)
-          : alvo
-            ? Math.round((realizado / alvo) * 100)
-            : null;
-        if (pct != null) pct = Math.max(0, Math.min(100, pct));
-      }
       return {
         id: m.id,
         nome: m.nome,
-        indicador: m.indicador,
         unidade: m.unidade,
         alvo: m.alvo,
         base: m.valorBase,
         secretaria: m.secretaria?.sigla || m.secretaria?.nome || null,
         realizado: atual?.valorRealizado ?? null,
         dataCorte: atual?.dataCorte?.toISOString() ?? null,
-        pct,
+        projetos: m.iniciativas,
+        indicadores: m.indicadores.map((indicador) => ({
+          id: indicador.id,
+          nome: indicador.nome,
+          unidade: indicador.unidade,
+          valorBase: indicador.valorBase,
+          alvo: indicador.alvo,
+          valorAtual: indicador.valorAtual,
+          periodicidade: indicador.periodicidade,
+          medicao: indicador.medicoes[0]
+            ? {
+                valorRealizado: indicador.medicoes[0].valorRealizado,
+                dataCorte: indicador.medicoes[0].dataCorte.toISOString(),
+              }
+            : null,
+        })),
       };
     }),
     tarefas: tarefas
@@ -571,7 +572,6 @@ async function buildPrestacao(
           (a.prazo?.getTime() ?? Infinity) - (b.prazo?.getTime() ?? Infinity)
         );
       })
-      .slice(0, 500)
       .map((t) => ({
         ...t,
         secretaria: secNome.get(t.secretariaId)?.sigla || secNome.get(t.secretariaId)?.nome || "",
@@ -584,81 +584,42 @@ async function buildPrestacao(
 
 reportsRouter.get("/prestacao.json", async (req, res, next) => {
   try {
+    const consultaFiltros = consultaRelatorioSchema.parse(req.query);
     const data = await buildPrestacao(req.user!, lerFiltros(req.query as Record<string, unknown>));
-    res.json({ data });
+    const consulta = consultarRelatorio(data, consultaFiltros);
+    await writeAudit({
+      user: req.user, action: "GERAR_RELATORIO", entity: "Relatorio",
+      after: { tipo: consulta.tipo, filtros: data.filtros, busca: consulta.busca,
+        ordenar: consulta.ordenar, direcao: consulta.direcao, linhas: consulta.total },
+      ip: req.ip,
+    });
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json({ data: { ...data, consulta, csv: exportarConsultaCsv(consulta) } });
   } catch (err) {
     next(err);
   }
 });
 
-const STATUS_ROTULO: Record<string, string> = {
-  CONCLUIDO: "Concluída",
-  NO_PRAZO: "No prazo",
-  SEM_PRAZO: "Sem prazo",
-  VENCIDO: "Atrasada",
-};
-
-function csvCampo(v: unknown) {
-  const s = v == null ? "" : String(v);
-  return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-function dataBr(iso: string | null) {
-  return iso ? new Date(iso).toLocaleDateString("pt-BR") : "";
-}
-
 reportsRouter.get("/prestacao.csv", async (req, res, next) => {
   try {
+    const consultaFiltros = consultaRelatorioSchema.parse(req.query);
     const data = await buildPrestacao(req.user!, lerFiltros(req.query as Record<string, unknown>));
-    const header = [
-      "Secretaria",
-      "Projeto",
-      "Meta",
-      "Tarefa",
-      "Responsável",
-      "Situação",
-      "Prazo",
-      "Prazo original",
-      "Concluída em",
-      "Reprogramações",
-      "Subtarefas feitas",
-      "Evidências",
-      "Evidências aprovadas",
-    ];
-    const linhas = [header.join(";")];
-    for (const t of data.tarefas) {
-      linhas.push(
-        [
-          t.secretaria,
-          `${t.projetoCodigo} · ${t.projetoNome}`,
-          t.meta,
-          t.descricao,
-          t.responsavel,
-          STATUS_ROTULO[t.status] ?? t.status,
-          dataBr(t.prazo),
-          dataBr(t.prazoOriginal),
-          dataBr(t.concluidoEm),
-          t.reprogramacoes,
-          `${t.subtarefas.feitas}/${t.subtarefas.total}`,
-          t.evidencias.total,
-          t.evidencias.aprovadas,
-        ]
-          .map(csvCampo)
-          .join(";"),
-      );
-    }
+    const consulta = consultarRelatorio(data, consultaFiltros);
 
     await writeAudit({
       user: req.user,
       action: "EXPORT_CSV",
       entity: "Relatorio",
-      after: { tipo: "prestacao.csv", filtros: data.filtros, linhas: data.tarefas.length },
+      after: { tipo: "prestacao.csv", filtros: data.filtros, consulta: {
+        tipo: consulta.tipo, busca: consulta.busca, ordenar: consulta.ordenar, direcao: consulta.direcao,
+      }, linhas: consulta.total },
       ip: req.ip,
     });
 
+    res.setHeader("Cache-Control", "private, no-store");
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", 'attachment; filename="cip-prestacao-de-contas.csv"');
-    res.send(`\uFEFF${linhas.join("\n")}`);
+    res.send(exportarConsultaCsv(consulta));
   } catch (err) {
     next(err);
   }

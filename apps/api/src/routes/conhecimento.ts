@@ -9,6 +9,7 @@ import {
 import { HttpError } from "../middleware/error";
 import { requireAuth, requirePermission } from "../middleware/auth";
 import { writeAudit } from "../services/audit";
+import { classifyKnowledgeText } from "../services/conhecimento-classificacao";
 import {
   deleteKnowledgeFile,
   DOCX_MIME,
@@ -115,12 +116,18 @@ const docSchema = z.object({
   observacao: z.string().optional(),
 });
 
+const createDocSchema = docSchema.extend({
+  tipo: z.enum(["AUTO", ...KNOWLEDGE_DOCUMENT_TYPES]),
+});
+
 function assertKnowledgeDocumentFile(tipo: string, hasFile: boolean) {
-  if (isKnowledgeDocumentRequired(tipo) && !hasFile) {
+  if ((tipo === "AUTO" || isKnowledgeDocumentRequired(tipo)) && !hasFile) {
     throw new HttpError(
       422,
       "DOCUMENT_FILE_REQUIRED",
-      "O arquivo do Plano de Governo é obrigatório.",
+      tipo === "AUTO"
+        ? "O arquivo é obrigatório para classificação automática."
+        : "O arquivo do Plano de Governo é obrigatório.",
     );
   }
 }
@@ -131,7 +138,7 @@ conhecimentoRouter.post(
   parseMultipartDocumento,
   async (req, res, next) => {
     try {
-      const body = docSchema.parse(req.body);
+      const body = createDocSchema.parse(req.body);
       if (
         body.statusConferencia &&
         body.statusConferencia !== "PENDENTE" &&
@@ -144,6 +151,15 @@ conhecimentoRouter.post(
       const conteudoExtraido = file
         ? await extractKnowledgeText(file.buffer, file.originalname, file.mimetype)
         : undefined;
+      let tipo: (typeof KNOWLEDGE_DOCUMENT_TYPES)[number];
+      if (body.tipo === "AUTO") {
+        if (conteudoExtraido === undefined) {
+          throw new HttpError(422, "DOCUMENT_FILE_REQUIRED", "O arquivo é obrigatório para classificação automática.");
+        }
+        tipo = classifyKnowledgeText(conteudoExtraido);
+      } else {
+        tipo = body.tipo;
+      }
       const storageKey = file
         ? await saveKnowledgeFile(
             file.buffer,
@@ -159,6 +175,7 @@ conhecimentoRouter.post(
           data: {
             municipioId: req.user!.municipioId,
             ...body,
+            tipo,
             arquivoNome: file?.originalname,
             storageKey,
             conteudoExtraido,

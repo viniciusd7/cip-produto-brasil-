@@ -83,11 +83,17 @@ export type ModeloPerguntaDef = {
 
 export type ModeloEstruturaDef = {
   codigo: string;
+  /** @deprecated META is accepted only to read existing model snapshots. */
   nivel: "META" | "TAREFA" | "SUBTAREFA";
   parentCodigo?: string | null;
   nome: string;
+  /** @deprecated Execution goals are not part of generated project scope. */
   indicador?: string | null;
+  /** @deprecated Execution goals are not part of generated project scope. */
   alvo?: string | null;
+  responsavel?: string | null;
+  /** Prazo ISO do item de escopo. */
+  prazo?: string | null;
   ordem: number;
   sempreIncluir?: boolean;
 };
@@ -113,15 +119,14 @@ export type RespostaViabilidade = {
   valor: string | number | boolean | null | CondicaoResposta | Record<string, unknown>;
 };
 
+/** Escopo emitido pelo wizard: tarefas de projeto com subtarefas diretas. */
 export type TreeNode = {
   codigo: string;
-  nivel: "META" | "TAREFA" | "SUBTAREFA";
+  nivel: "TAREFA" | "SUBTAREFA";
   nome: string;
-  indicador?: string | null;
-  alvo?: string | null;
-  /** Quem responde pela meta, tarefa ou subtarefa. */
+  /** Quem responde pela tarefa ou subtarefa. */
   responsavel?: string | null;
-  /** Prazo ISO (apenas tarefas). */
+  /** Prazo ISO da tarefa ou subtarefa. */
   prazo?: string | null;
   origemPerguntaCodigo?: string | null;
   origemValor?: string | null;
@@ -273,6 +278,12 @@ function buildTree(
   included: Set<string>,
   origem: Map<string, { perguntaCodigo: string; valor: string }>,
 ): TreeNode[] {
+  type ModeloTreeNode = ModeloEstruturaDef & {
+    origemPerguntaCodigo?: string | null;
+    origemValor?: string | null;
+    children: ModeloTreeNode[];
+  };
+
   const byParent = new Map<string | null, ModeloEstruturaDef[]>();
   for (const item of items) {
     if (!included.has(item.codigo) && !item.sempreIncluir) continue;
@@ -283,18 +294,14 @@ function buildTree(
     byParent.set(key, list);
   }
 
-  function walk(parent: string | null): TreeNode[] {
+  function walk(parent: string | null): ModeloTreeNode[] {
     const list = (byParent.get(parent) || []).sort((a, b) => a.ordem - b.ordem);
     return list
       .filter((i) => included.has(i.codigo))
       .map((i) => {
         const o = origem.get(i.codigo);
         return {
-          codigo: i.codigo,
-          nivel: i.nivel,
-          nome: i.nome,
-          indicador: i.indicador,
-          alvo: i.alvo,
+          ...i,
           origemPerguntaCodigo: o?.perguntaCodigo ?? null,
           origemValor: o?.valor ?? null,
           children: walk(i.codigo),
@@ -302,7 +309,43 @@ function buildTree(
       });
   }
 
-  return walk(null);
+  function subtarefas(nodes: ModeloTreeNode[]): TreeNode[] {
+    return nodes.flatMap((node) => [
+      {
+        codigo: node.codigo,
+        nivel: "SUBTAREFA" as const,
+        nome: node.nome,
+        responsavel: node.responsavel ?? null,
+        prazo: node.prazo ?? null,
+        origemPerguntaCodigo: node.origemPerguntaCodigo ?? null,
+        origemValor: node.origemValor ?? null,
+        children: [],
+      },
+      ...subtarefas(node.children),
+    ]);
+  }
+
+  function tarefa(node: ModeloTreeNode): TreeNode {
+    return {
+      codigo: node.codigo,
+      nivel: "TAREFA",
+      nome: node.nome,
+      responsavel: node.responsavel ?? null,
+      prazo: node.prazo ?? null,
+      origemPerguntaCodigo: node.origemPerguntaCodigo ?? null,
+      origemValor: node.origemValor ?? null,
+      children: subtarefas(node.children),
+    };
+  }
+
+  function tarefas(nodes: ModeloTreeNode[]): TreeNode[] {
+    return nodes.flatMap((node) =>
+      node.nivel === "META" ? tarefas(node.children) : [tarefa(node)],
+    );
+  }
+
+  // Historical META nodes are grouping-only; promote their task children to the project.
+  return tarefas(walk(null));
 }
 
 /** Maior nível de prioridade disparado por qualquer pergunta visível. */

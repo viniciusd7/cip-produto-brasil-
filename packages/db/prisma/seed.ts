@@ -577,52 +577,15 @@ async function main() {
     },
   ];
 
-  const metaExecEdu = await prisma.metaExecucao.upsert({
-    where: { id: "meta-exec-edu-jl" },
-    update: {
-      nome: "Concluir intervenções físicas e regulares da Escola João Lima",
-      indicador: "% etapas críticas concluídas",
-      alvo: "100%",
-      valorAtual: "33%",
-      unidade: "%",
-      criterio: "Desapropriação, acesso, licitação e saldo de obra concluídos",
-      responsavel: "Educação / Infraestrutura",
-      prazo: new Date("2026-12-15T12:00:00.000Z"),
-      status: "EM_ANDAMENTO",
-    },
-    create: {
-      id: "meta-exec-edu-jl",
-      iniciativaId: iniciativaEdu.id,
-      codigo: "MX-EDU-01",
-      nome: "Concluir intervenções físicas e regulares da Escola João Lima",
-      indicador: "% etapas críticas concluídas",
-      alvo: "100%",
-      valorAtual: "33%",
-      unidade: "%",
-      criterio: "Desapropriação, acesso, licitação e saldo de obra concluídos",
-      responsavel: "Educação / Infraestrutura",
-      prazo: new Date("2026-12-15T12:00:00.000Z"),
-      ordem: 1,
-      status: "EM_ANDAMENTO",
-    },
-  });
-
   for (let i = 0; i < marcosEdu.length; i++) {
     const m = marcosEdu[i];
     const existing = await prisma.marcoEntrega.findFirst({
       where: { iniciativaId: iniciativaEdu.id, codigo: m.codigo },
     });
-    if (existing) {
-      await prisma.marcoEntrega.update({
-        where: { id: existing.id },
-        data: { metaExecucaoId: metaExecEdu.id },
-      });
-      continue;
-    }
+    if (existing) continue;
     const marco = await prisma.marcoEntrega.create({
       data: {
         iniciativaId: iniciativaEdu.id,
-        metaExecucaoId: metaExecEdu.id,
         equipamentoId: equipamento.id,
         codigo: m.codigo,
         descricao: m.descricao,
@@ -723,68 +686,6 @@ async function main() {
         },
       });
     }
-  }
-
-  const metaExecCul = await prisma.metaExecucao.upsert({
-    where: { id: "meta-exec-cul-jl" },
-    update: {
-      nome: "Preservar e restaurar o equipamento Escola João Lima",
-      indicador: "Etapas de escoramento/restauro concluídas",
-      alvo: "3/3",
-      valorAtual: "1/3",
-      unidade: "etapas",
-      responsavel: "Cultura",
-      prazo: new Date("2026-09-30T12:00:00.000Z"),
-      status: "EM_ANDAMENTO",
-    },
-    create: {
-      id: "meta-exec-cul-jl",
-      iniciativaId: iniciativaCul.id,
-      codigo: "MX-CUL-01",
-      nome: "Preservar e restaurar o equipamento Escola João Lima",
-      indicador: "Etapas de escoramento/restauro concluídas",
-      alvo: "3/3",
-      valorAtual: "1/3",
-      unidade: "etapas",
-      responsavel: "Cultura",
-      prazo: new Date("2026-09-30T12:00:00.000Z"),
-      ordem: 1,
-      status: "EM_ANDAMENTO",
-    },
-  });
-  await prisma.marcoEntrega.updateMany({
-    where: { iniciativaId: iniciativaCul.id },
-    data: { metaExecucaoId: metaExecCul.id },
-  });
-
-  // Meta de infraestrutura — vencida para alimentar o board
-  const iniInfra = await prisma.iniciativa.findFirst({
-    where: { municipioId: municipio.id, codigo: "INF-AV-01" },
-  });
-  if (iniInfra) {
-    await prisma.metaExecucao.upsert({
-      where: { id: "meta-exec-inf-av" },
-      update: {
-        valorAtual: "40%",
-        alvo: "100%",
-        prazo: new Date("2026-09-15T12:00:00.000Z"),
-        status: "EM_ANDAMENTO",
-      },
-      create: {
-        id: "meta-exec-inf-av",
-        iniciativaId: iniInfra.id,
-        codigo: "MX-INF-01",
-        nome: "Avançar a execução da obra prioritária de infraestrutura",
-        indicador: "% físico executado",
-        alvo: "100%",
-        valorAtual: "40%",
-        unidade: "%",
-        responsavel: "Infraestrutura",
-        prazo: new Date("2026-09-15T12:00:00.000Z"),
-        ordem: 1,
-        status: "EM_ANDAMENTO",
-      },
-    });
   }
 
   // Verificações AT-02

@@ -16,10 +16,6 @@ export type SecretariaOverview = {
   indicePonderado: number;
   diasSemAtualizacao: number | null;
   classificacao: string;
-  metasTotal?: number;
-  metasComValor?: number;
-  metasAtrasadas?: number;
-  metasSemPrazo?: number;
   titular?: { nome?: string | null };
 };
 
@@ -39,25 +35,6 @@ export type OverviewResponse = {
       noPrazo?: number;
       indicePonderado: number;
       metodoVersao: string;
-    };
-    metas?: {
-      total: number;
-      comIndicador: number;
-      comValor: number;
-      cobertura: number;
-      atrasadas: number;
-      semPrazo: number;
-      concluidas: number;
-      pedemAcao: Array<{
-        id: string;
-        nome: string;
-        iniciativaId: string;
-        iniciativaNome: string;
-        secretaria: string;
-        valorAtual: string | null;
-        alvo: string | null;
-        prazo: string | null;
-      }>;
     };
     agenda: {
       entraves: Array<{ tipo: string; qtd: number }>;
@@ -114,13 +91,23 @@ export type OverviewResponse = {
         nome: string;
         codigo?: string | null;
         secretariaNome?: string | null;
-        indicador?: string | null;
         valorBase?: string | null;
         alvo?: string | null;
         unidade?: string | null;
         perspectivaBsc?: string | null;
         resultadoChaveOkr?: string | null;
         projetos: number;
+        projetosVinculados: Array<{ id: string; codigo: string; nome: string }>;
+        indicadores: Array<{
+          id: string;
+          nome: string;
+          unidade?: string | null;
+          valorBase?: string | null;
+          alvo?: string | null;
+          valorAtual?: string | null;
+          periodicidade?: string | null;
+          ultimaMedicao: string | null;
+        }>;
         desvio: number | null;
         aguardandoMedicao: boolean;
         medicaoAtual: {

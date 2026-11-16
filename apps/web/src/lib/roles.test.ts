@@ -3,8 +3,9 @@ import { describe, it } from "node:test";
 import { canUploadKnowledgeRole, getHomeForRole, getNavForRole, getNextStepForRole } from "./roles";
 
 describe("navegação sem a área de implantação", () => {
-  it("encaminha o consultor para as secretarias", () => {
-    assert.equal(getHomeForRole("analista"), "/secretarias");
+  it("encaminha o consultor ao cenário e mantém secretarias como próximo passo", () => {
+    assert.equal(getHomeForRole("analista"), "/painel");
+    assert.ok(getNavForRole("analista").some((item) => item.href === "/painel"));
     assert.equal(getNextStepForRole("analista").href, "/secretarias");
   });
 

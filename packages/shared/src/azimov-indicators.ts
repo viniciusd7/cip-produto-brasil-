@@ -69,7 +69,6 @@ export const PAINEL_TOC = [
   { id: "visao", label: "Situação geral", href: "/painel#visao" },
   { id: "secretarias", label: "Secretarias", href: "/painel#secretarias" },
   { id: "meta-estrategica", label: "Metas estratégicas", href: "/painel#meta-estrategica" },
-  { id: "meta-execucao", label: "Metas de execução", href: "/painel#meta-execucao" },
   { id: "atencao", label: "Atenção agora", href: "/painel#atencao" },
   { id: "detalhes", label: "Análise detalhada", href: "/painel#detalhes" },
 ] as const;

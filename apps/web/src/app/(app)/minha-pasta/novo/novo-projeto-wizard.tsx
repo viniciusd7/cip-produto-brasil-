@@ -28,6 +28,7 @@ import { AjudaCampo, RotuloComAjuda } from "@/components/ajuda-campo";
 import { FluxoArvore, type FluxoNode } from "@/components/fluxo-arvore";
 import { EscopoEditor, temResponsavel, type EscopoNo } from "./escopo-editor";
 import { mesclarEscopo } from "./mesclar-escopo";
+import { normalizarEscopo, type NoApi } from "./normalizar-escopo";
 
 type Secretaria = {
   id: string;
@@ -70,20 +71,6 @@ type PreviewData = {
   etapas: EtapaPreview[];
   etapaAtual: string | null;
   avisos: string[];
-};
-
-/** Nó do escopo como devolvido pela API (preview). */
-type NoApi = {
-  codigo: string;
-  nivel: string;
-  nome: string;
-  indicador?: string | null;
-  alvo?: string | null;
-  responsavel?: string | null;
-  prazo?: string | null;
-  origemPerguntaCodigo?: string | null;
-  origemValor?: string | null;
-  children?: NoApi[];
 };
 
 type Classificacao =
@@ -141,31 +128,13 @@ const ETAPA_LABEL: Record<string, string> = {
   NAO_APLICAVEL: "Não se aplica",
 };
 
-function paraEscopo(n: NoApi): EscopoNo {
-  return {
-    codigo: n.codigo,
-    nivel: n.nivel as EscopoNo["nivel"],
-    nome: n.nome,
-    indicador: n.indicador ?? null,
-    alvo: n.alvo ?? null,
-    responsavel: n.responsavel ?? null,
-    prazo: n.prazo ?? null,
-    origemPerguntaCodigo: n.origemPerguntaCodigo ?? null,
-    origemValor: n.origemValor ?? null,
-    manual: false,
-    children: (n.children || []).map(paraEscopo),
-  };
-}
-
 function paraTreeNode(n: EscopoNo): TreeNode {
   return {
     codigo: n.codigo,
     nivel: n.nivel,
     nome: n.nome.trim(),
-    indicador: n.indicador ?? null,
-    alvo: n.alvo ?? null,
     responsavel: n.responsavel?.trim() || null,
-    prazo: n.nivel === "TAREFA" ? (n.prazo ?? null) : null,
+    prazo: n.prazo ?? null,
     origemPerguntaCodigo: n.origemPerguntaCodigo ?? null,
     origemValor: n.origemValor ?? null,
     children: n.children.map(paraTreeNode),
@@ -432,38 +401,24 @@ export function NovoProjetoWizard({
       etapaAtual: json.data.etapaAtual ?? null,
       avisos: json.data.avisos || [],
     });
-    const estruturaModelo = ((json.data.estrutura || []) as NoApi[]).map(paraEscopo);
+    const estruturaModelo = normalizarEscopo((json.data.estrutura || []) as NoApi[]);
     const proximoPasso = classificacao === "ACAO_DIARIA"
       ? respostas.acao_providencia
       : classificacao === "PLANO_GOVERNO"
         ? respostas.plano_proximo_marco
         : undefined;
     if (typeof proximoPasso === "string" && proximoPasso.trim()) {
-      const codigoMeta = classificacao === "ACAO_DIARIA" ? "META_ACAO" : "META_PLANO";
+      const codigoTarefa = classificacao === "ACAO_DIARIA" ? "META_ACAO_PROXIMO" : "META_PLANO_PROXIMO";
       estruturaModelo.push({
-        codigo: codigoMeta,
-        nivel: "META",
-        nome: classificacao === "ACAO_DIARIA" ? "Executar ação" : "Cumprir compromisso",
-        indicador: null,
-        alvo: null,
+        codigo: codigoTarefa,
+        nivel: "TAREFA",
+        nome: proximoPasso.trim(),
         responsavel: null,
         prazo: null,
         origemPerguntaCodigo: null,
         origemValor: null,
         manual: false,
-        children: [{
-          codigo: `${codigoMeta}_PROXIMO`,
-          nivel: "TAREFA",
-          nome: proximoPasso.trim(),
-          indicador: null,
-          alvo: null,
-          responsavel: null,
-          prazo: null,
-          origemPerguntaCodigo: null,
-          origemValor: null,
-          manual: false,
-          children: [],
-        }],
+        children: [],
       });
     }
     setEscopo((anterior) => {
@@ -471,16 +426,9 @@ export function NovoProjetoWizard({
       if (typeof proximoPasso !== "string" || !proximoPasso.trim() || proximoPasso.trim() === ultimoPassoGerado) {
         return mesclado;
       }
-      const codigoMeta = classificacao === "ACAO_DIARIA" ? "META_ACAO" : "META_PLANO";
-      return mesclado.map((meta) =>
-        meta.codigo !== codigoMeta ? meta : {
-          ...meta,
-          children: meta.children.map((tarefa) =>
-            tarefa.codigo === `${codigoMeta}_PROXIMO`
-              ? { ...tarefa, nome: proximoPasso.trim() }
-              : tarefa,
-          ),
-        },
+      const codigoTarefa = classificacao === "ACAO_DIARIA" ? "META_ACAO_PROXIMO" : "META_PLANO_PROXIMO";
+      return mesclado.map((tarefa) =>
+        tarefa.codigo === codigoTarefa ? { ...tarefa, nome: proximoPasso.trim() } : tarefa,
       );
     });
     if (typeof proximoPasso === "string") setUltimoPassoGerado(proximoPasso.trim());
@@ -582,10 +530,10 @@ export function NovoProjetoWizard({
       const respErr = validateResponsavel();
       if (respErr) throw new Error(respErr);
       if (escopoComNomeVazio(escopo)) {
-        throw new Error("Dê nome a todas as metas, tarefas e subtarefas do escopo");
+        throw new Error("Dê nome a todas as tarefas e subtarefas do escopo");
       }
-      if (!escopo.some((n) => n.nivel === "META")) {
-        throw new Error("Inclua ao menos uma meta de execução antes de concluir o escopo");
+      if (!escopo.length) {
+        throw new Error("Inclua ao menos uma tarefa antes de concluir o escopo");
       }
 
       const selected = Object.values(equipePorSecretaria)
@@ -666,8 +614,6 @@ export function NovoProjetoWizard({
       codigo: n.codigo,
       nome: n.nome,
       nivel: n.nivel,
-      indicador: n.indicador,
-      alvo: n.alvo,
       responsavel: n.responsavel,
       prazo: n.prazo,
       origemPerguntaCodigo: origemLabel(n.origemPerguntaCodigo) || n.origemPerguntaCodigo,
@@ -1030,7 +976,7 @@ export function NovoProjetoWizard({
       {steps[step] === "Escopo" && (
         <Card
           title="Escopo e responsáveis"
-          subtitle="Desdobre o projeto em metas, tarefas e subtarefas e defina quem responde por cada uma. Nada é salvo até a confirmação."
+          subtitle="Desdobre o projeto em tarefas e subtarefas e defina quem responde por cada uma. Nada é salvo até a confirmação."
         >
           <div className="stack">
             <div className="chip-row">
@@ -1160,7 +1106,7 @@ export function NovoProjetoWizard({
                   showOrigemLabel={estruturante}
                 />
               ) : (
-                <p className="dashboard-muted">Nenhuma meta no escopo. Volte ao passo Escopo para adicionar.</p>
+                <p className="dashboard-muted">Nenhuma tarefa no escopo. Volte ao passo Escopo para adicionar.</p>
               )}
             </div>
           </div>

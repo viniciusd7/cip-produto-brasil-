@@ -194,13 +194,6 @@
 .alertCard small, .agendaStrip small { color: var(--muted); font-size: 10px; }
 .alertFoot { margin-top: 16px !important; font-size: 12px; color: #b7b5ca; }
 .alertFoot a { color: #c1b5f2; text-decoration: underline; text-underline-offset: 3px; }
-.metasStrip { margin-top: 18px; border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; background: linear-gradient(140deg, #242838, #1c2030); }
-.metasStrip h2 { font-size: 18px; margin-top: 4px !important; }
-.metasGrid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
-.metasGrid > div { display: flex; flex-direction: column; gap: 4px; padding: 12px; border-radius: 12px; background: rgba(255,255,255,.03); border: 1px solid var(--border); }
-.metasGrid strong { font-size: 26px; font-weight: 600; letter-spacing: -.03em; color: var(--ink); }
-.metasGrid span { font-size: 11px; color: var(--muted); }
-@media (max-width: 900px) { .metasGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .healthSection { margin-top: 46px; scroll-margin-top: 24px; }
 .sectionHead { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 20px; }
 .sectionHead h2 { font-size: 32px; }
@@ -482,11 +475,6 @@
 .gl-pasta__barra span { display: block; height: 100%; background: var(--c); }
 .gl-pasta__info { grid-area: info; font-size: 0.78rem; color: #9aa3bf; }
 
-.gl-duas {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  gap: 22px;
-}
 .gl-metas {
   list-style: none;
   margin: 0;
@@ -519,13 +507,14 @@
 }
 .gl-metas__barra span { display: block; height: 100%; background: var(--c); border-radius: inherit; }
 .gl-metas small { display: block; margin-top: 4px; color: #9aa3bf; }
-
-.gl-exec { display: grid; gap: 16px; }
-.gl-exec__grande { display: flex; align-items: baseline; gap: 10px; }
-.gl-exec__grande strong { font-size: 3rem; line-height: 1; color: var(--c); }
-.gl-exec__grande span { color: #c5cbe0; }
-.gl-exec__nota { margin: 0; color: #9aa3bf; font-size: 0.88rem; }
-.gl-exec__nota strong { color: #f1f3fc; }
+.gl-metas__indicadores {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+.gl-metas__indicadores li { color: #c5cbe0; }
+.gl-metas__indicadores strong { color: #f1f3fc; }
 
 .gl-atencao {
   list-style: none;
@@ -594,7 +583,6 @@
 @media (max-width: 1100px) {
   .gl-hero { grid-template-columns: minmax(180px, 220px) minmax(0, 1fr); }
   .gl-hero__numeros { grid-column: 1 / -1; grid-template-columns: repeat(3, 1fr); }
-  .gl-duas { grid-template-columns: 1fr; }
 }
 @media (max-width: 700px) {
   .gl-hero { grid-template-columns: 1fr; justify-items: center; text-align: center; }
@@ -623,6 +611,4 @@
 .gl-chips button b { color: #9aa3bf; }
 .gl-chips button[aria-pressed="true"] { border-color: var(--c); background: color-mix(in srgb, var(--c) 16%, #202332); }
 .gl-chips button[aria-pressed="true"] b { color: #f1f3fc; }
-.gl-metas__link { color: #f1f3fc; font-weight: 700; text-decoration: none; }
-.gl-metas__link:hover { text-decoration: underline; }
 .gl-secs { margin-bottom: 18px; }

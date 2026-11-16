@@ -87,7 +87,7 @@ export default async function IniciativaPage({
         title={item.nome}
         description={
           item.descricao ||
-          "Tarefas organizadas em pastas por meta de execução, com as evidências de cada entrega."
+          "Tarefas e subtarefas do projeto, com as evidências de cada entrega."
         }
         actions={
           <Link

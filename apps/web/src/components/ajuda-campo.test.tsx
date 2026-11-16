@@ -15,20 +15,18 @@ test("a ajuda tem identificação acessível e não envolve o campo no controle 
   assert.match(renderToStaticMarkup(<AjudaCampo campo="Prazo">Escolha a data.</AjudaCampo>), /Escolha a data/);
 });
 
-test("a ajuda contempla campos de metas, tarefas e subtarefas", () => {
+test("a ajuda contempla campos de tarefas e subtarefas", () => {
   const html = renderToStaticMarkup(
     <EscopoEditor
-      nodes={[{ codigo: "m", nivel: "META", nome: "Meta", children: [
-        { codigo: "t", nivel: "TAREFA", nome: "Tarefa", children: [
-          { codigo: "s", nivel: "SUBTAREFA", nome: "Subtarefa", children: [] },
-        ] },
+      nodes={[{ codigo: "t", nivel: "TAREFA", nome: "Tarefa", children: [
+        { codigo: "s", nivel: "SUBTAREFA", nome: "Subtarefa", children: [] },
       ] }]}
       onChange={() => {}}
       equipe={[]}
       listId="equipe"
     />,
   );
-  for (const campo of ["O que precisa ser entregue", "Responsável pela meta", "Indicador da meta", "Resultado esperado", "Tarefa", "Prazo", "Subtarefa"]) {
+  for (const campo of ["Tarefa", "Prazo", "Subtarefa", "Prazo da subtarefa"]) {
     assert.ok(html.includes(`aria-label="Ajuda sobre ${campo}"`), campo);
   }
   assert.equal((html.match(/aria-label="Ajuda sobre Quem faz\?"/g) || []).length, 2);

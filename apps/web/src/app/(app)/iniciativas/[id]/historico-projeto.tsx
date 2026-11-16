@@ -16,7 +16,7 @@ type HistoricoItem = {
 const ENTIDADE: Record<string, string> = {
   Iniciativa: "o projeto",
   MarcoEntrega: "uma tarefa",
-  MetaExecucao: "uma meta de execução",
+  MetaExecucao: "um registro anterior do projeto",
   Subtarefa: "uma subtarefa",
   Evidencia: "uma evidência",
 };

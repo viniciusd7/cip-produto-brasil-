@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { apiFetch } from "@/lib/api";
-import { getHomeForRole, getRoleLabel } from "@/lib/roles";
+import { getRoleLabel } from "@/lib/roles";
+import { changeTenantSession } from "@/lib/tenant-session";
 
 type TenantOption = {
   id: string;
@@ -22,26 +22,15 @@ type ContextResponse = {
   };
 };
 
-type TenantSwitchResponse = {
-  data: {
-    accessToken: string;
-    user: {
-      role: string;
-      municipioId: string;
-      municipioNome: string;
-    };
-  };
-};
-
 export function TenantSwitcher({
   initialMunicipio,
 }: {
   initialMunicipio?: string | null;
 }) {
-  const router = useRouter();
   const { data: session, update } = useSession();
   const [contexts, setContexts] = useState<ContextResponse["data"] | null>(null);
   const [error, setError] = useState("");
+  const [switching, setSwitching] = useState(false);
 
   useEffect(() => {
     if (!session?.accessToken) return;
@@ -69,22 +58,19 @@ export function TenantSwitcher({
   }, [session?.accessToken]);
 
   async function onChange(municipioId: string) {
-    if (!session?.accessToken || !contexts) return;
+    if (!session?.accessToken || !contexts || switching) return;
     setError("");
+    setSwitching(true);
     try {
-      const result = await apiFetch<TenantSwitchResponse>("/auth/select-tenant", {
-        method: "POST",
-        token: session.accessToken,
-        body: JSON.stringify({ municipioId: municipioId || null }),
+      const home = await changeTenantSession({
+        session,
+        municipioId,
+        update,
       });
-      await update({ accessToken: result.data.accessToken });
-      setContexts({
-        ...contexts,
-        activeMunicipioId: result.data.user.municipioId || null,
-      });
-      router.push(getHomeForRole(result.data.user.role));
-      router.refresh();
+      // Reinicia o cache e o estado local também ao trocar de /painel para /painel.
+      window.location.replace(home);
     } catch (cause) {
+      setSwitching(false);
       setError(
         cause instanceof Error
           ? cause.message
@@ -123,6 +109,8 @@ export function TenantSwitcher({
         <span>Ambiente ativo</span>
         <select
           aria-label="Trocar prefeitura"
+          disabled={switching}
+          aria-busy={switching}
           value={activeMunicipioId}
           onChange={(event) => void onChange(event.target.value)}
         >

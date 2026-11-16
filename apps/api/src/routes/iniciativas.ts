@@ -15,6 +15,7 @@ import {
 import { HttpError } from "../middleware/error";
 import { writeAudit } from "../services/audit";
 import { criarIniciativa } from "../services/criacao-iniciativa";
+import { transacaoEstrategica } from "../services/integridade-estrategica";
 import { camposResponsavel, notificarAtribuicao, resolverResponsavel } from "../services/responsaveis";
 import { prazoStatus } from "../services/prazo";
 import {
@@ -27,6 +28,14 @@ import { assertExecucaoPermitida } from "../services/wizard-persist";
 import { criariaCiclo } from "../services/dependencias";
 import { relacaoCriariaCiclo as criaCicloRelacao } from "../services/relacoes-iniciativa";
 import { assertMarcoExecutorAccess } from "../middleware/tarefa-auth";
+import {
+  criarIndicadorProjeto,
+  criarMetaProjeto,
+  indicadorProjetoSchema,
+  lerEstrategiaProjeto,
+  listarPlanosEstrategiaProjeto,
+  metaProjetoSchema,
+} from "../services/estrategia-projeto";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -36,6 +45,62 @@ const upload = multer({
 export const iniciativasRouter = Router();
 
 iniciativasRouter.use(requireAuth);
+
+iniciativasRouter.get(
+  "/:id/estrategia/planos",
+  requirePermission("iniciativa:read"),
+  async (req, res, next) => {
+    try {
+      await assertIniciativaAccess(req.user!, req.params.id);
+      res.json({ data: await listarPlanosEstrategiaProjeto(req.user!, req.params.id) });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+iniciativasRouter.get(
+  "/:id/estrategia",
+  requirePermission("iniciativa:read"),
+  async (req, res, next) => {
+    try {
+      await assertIniciativaAccess(req.user!, req.params.id);
+      res.json({ data: await lerEstrategiaProjeto(req.user!, req.params.id) });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+iniciativasRouter.post(
+  "/:id/estrategia",
+  requirePermission("iniciativa:write"),
+  async (req, res, next) => {
+    try {
+      await assertIniciativaAccess(req.user!, req.params.id);
+      const body = metaProjetoSchema.parse(req.body);
+      const data = await criarMetaProjeto(req.user!, req.params.id, body, req.ip);
+      res.status(201).json({ data });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+iniciativasRouter.post(
+  "/:id/estrategia/indicadores",
+  requirePermission("iniciativa:write"),
+  async (req, res, next) => {
+    try {
+      await assertIniciativaAccess(req.user!, req.params.id);
+      const body = indicadorProjetoSchema.parse(req.body);
+      const data = await criarIndicadorProjeto(req.user!, req.params.id, body, req.ip);
+      res.status(201).json({ data });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 iniciativasRouter.get(
   "/",
@@ -203,6 +268,8 @@ iniciativasRouter.get(
 );
 
 const createSchema = z.object({
+  metaExecucaoId: z.never().optional(),
+  metasExecucao: z.never().optional(),
   codigo: z.string().min(2).optional(),
   nome: z.string().min(3),
   descricao: z.string().optional(),
@@ -392,13 +459,14 @@ iniciativasRouter.post(
 );
 
 const marcoSchema = z.object({
+  metasExecucao: z.never().optional(),
   codigo: z.string().optional(),
   descricao: z.string().min(3),
   responsavel: z.string().optional(),
   responsavelUserId: z.string().nullable().optional(),
   prazoOriginal: z.string().datetime().nullable().optional(),
   ordem: z.number().int().optional(),
-  metaExecucaoId: z.string().optional(),
+  metaExecucaoId: z.never().optional(),
   gravidade: z.enum(["LEVE", "MODERADA", "GRAVE", "CRITICA"]).optional(),
 });
 
@@ -414,19 +482,6 @@ iniciativasRouter.post(
       await assertIniciativaAccess(req.user!, ini.id);
 
       const body = marcoSchema.parse(req.body);
-      if (body.metaExecucaoId) {
-        const meta = await prisma.metaExecucao.findFirst({
-          where: { id: body.metaExecucaoId, iniciativaId: ini.id },
-          select: { id: true },
-        });
-        if (!meta) {
-          throw new HttpError(
-            400,
-            "INVALID_META",
-            "A meta não pertence a este projeto",
-          );
-        }
-      }
       const responsavelUser = await resolverResponsavel(ini.municipioId, body.responsavelUserId);
       const prazo = body.prazoOriginal ? new Date(body.prazoOriginal) : null;
       const ordem =
@@ -434,7 +489,6 @@ iniciativasRouter.post(
         (await prisma.marcoEntrega.count({
           where: {
             iniciativaId: ini.id,
-            metaExecucaoId: body.metaExecucaoId ?? null,
           },
         }));
       const marco = await prisma.marcoEntrega.create({
@@ -447,7 +501,6 @@ iniciativasRouter.post(
           prazoOriginal: prazo,
           prazoVigente: prazo,
           ordem,
-          metaExecucaoId: body.metaExecucaoId,
           gravidade: body.gravidade,
         },
       });
@@ -1045,20 +1098,6 @@ iniciativasRouter.post(
   },
 );
 
-const metaExecSchema = z.object({
-  codigo: z.string().optional(),
-  nome: z.string().min(3),
-  indicador: z.string().optional(),
-  criterio: z.string().optional(),
-  alvo: z.string().optional(),
-  unidade: z.string().optional(),
-  responsavel: z.string().optional(),
-  responsavelUserId: z.string().nullable().optional(),
-  prazo: z.string().datetime().optional(),
-  ordem: z.number().int().optional(),
-  status: z.string().optional(),
-});
-
 iniciativasRouter.post(
   "/:id/metas-execucao",
   requirePermission("iniciativa:write"),
@@ -1068,47 +1107,8 @@ iniciativasRouter.post(
         where: { id: req.params.id },
       });
       if (!ini) throw new HttpError(404, "NOT_FOUND", "Iniciativa não encontrada");
-      await assertMunicipioAccess(req.user!, ini.municipioId, "Iniciativa");
-      const body = metaExecSchema.parse(req.body);
-
-      const responsavelUser = await resolverResponsavel(ini.municipioId, body.responsavelUserId);
-      const row = await prisma.metaExecucao.create({
-        data: {
-          iniciativaId: ini.id,
-          codigo: body.codigo,
-          nome: body.nome,
-          indicador: body.indicador,
-          criterio: body.criterio,
-          alvo: body.alvo,
-          unidade: body.unidade,
-          responsavel: body.responsavel,
-          ...camposResponsavel(responsavelUser),
-          prazo: body.prazo ? new Date(body.prazo) : null,
-          ordem: body.ordem ?? 0,
-          status: body.status || "EM_ANDAMENTO",
-        },
-      });
-      await notificarAtribuicao({
-        municipioId: ini.municipioId,
-        novo: responsavelUser,
-        autorId: req.user!.id,
-        entidadeTipo: "META_EXECUCAO",
-        entidadeId: row.id,
-        rotulo: "uma meta de execução",
-        descricao: `${ini.codigo} · ${ini.nome}: ${row.nome}.`,
-        link: `/iniciativas/${ini.id}?aba=andamento`,
-      });
-
-      await writeAudit({
-        user: req.user,
-        action: "CREATE",
-        entity: "MetaExecucao",
-        entityId: row.id,
-        after: row,
-        ip: req.ip,
-      });
-
-      res.status(201).json({ data: row });
+      await assertIniciativaAccess(req.user!, ini.id);
+      throw new HttpError(410, "META_EXECUCAO_DESCONTINUADA", "Metas de execução foram descontinuadas. Cadastre tarefas diretamente no projeto");
     } catch (err) {
       next(err);
     }
@@ -1242,10 +1242,12 @@ function bodyWouldConclude(body: unknown) {
  * Responsável vem da equipe da pasta principal ou de uma correlacionada.
  */
 const vinculosSchema = z.object({
+  metaExecucaoId: z.never().optional(),
+  metasExecucao: z.never().optional(),
   responsavelPessoaId: z.string().nullable().optional(),
   responsavel: z.string().max(200).nullable().optional(),
   secretariaIds: z.array(z.string()).optional(),
-  metaEstrategicaId: z.string().nullable().optional(),
+  metaEstrategicaId: z.string().min(1).nullable().optional(),
 });
 
 iniciativasRouter.patch(
@@ -1332,7 +1334,29 @@ iniciativasRouter.patch(
         data.responsavel = body.responsavel?.trim() || null;
       }
 
-      const updated = await prisma.$transaction(async (tx) => {
+      const updated = await transacaoEstrategica(async (tx) => {
+        if (body.metaEstrategicaId !== undefined) {
+          const atual = await tx.iniciativa.findUniqueOrThrow({
+            where: { id: ini.id },
+            select: { metaEstrategicaId: true },
+          });
+          if (atual.metaEstrategicaId && atual.metaEstrategicaId !== body.metaEstrategicaId) {
+            const outrosProjetos = await tx.iniciativa.count({
+              where: {
+                metaEstrategicaId: atual.metaEstrategicaId,
+                id: { not: ini.id },
+                municipioId: ini.municipioId,
+              },
+            });
+            if (!outrosProjetos) {
+              throw new HttpError(
+                409,
+                "META_ULTIMO_PROJETO",
+                "Não é possível retirar o último projeto da meta estratégica. Vincule outro projeto antes de trocar ou remover a meta",
+              );
+            }
+          }
+        }
         if (body.secretariaIds !== undefined) {
           await tx.iniciativaSecretaria.deleteMany({
             where: {
@@ -1374,6 +1398,8 @@ iniciativasRouter.patch(
 );
 
 const metaPatchSchema = z.object({
+  iniciativaId: z.never().optional(),
+  metaExecucaoId: z.never().optional(),
   responsavel: z.string().max(200).nullable().optional(),
   responsavelUserId: z.string().nullable().optional(),
 });
@@ -1429,6 +1455,8 @@ iniciativasRouter.patch(
 );
 
 const marcoPatchSchema = z.object({
+  metaExecucaoId: z.string().nullable().optional(),
+  metasExecucao: z.never().optional(),
   responsavel: z.string().max(200).nullable().optional(),
   responsavelUserId: z.string().nullable().optional(),
   descricao: z.string().min(3).optional(),
@@ -1451,10 +1479,14 @@ iniciativasRouter.patch(
       );
       assertMarcoExecutorAccess(req.user!, existing.responsavelUserId);
       const body = marcoPatchSchema.parse(req.body);
+      if (body.metaExecucaoId != null && body.metaExecucaoId !== existing.metaExecucaoId) {
+        throw new HttpError(422, "META_EXECUCAO_DESCONTINUADA", "Não é permitido vincular tarefas a metas de execução");
+      }
       const responsavelUser = await resolverResponsavel(existing.iniciativa.municipioId, body.responsavelUserId);
       const row = await prisma.marcoEntrega.update({
         where: { id: existing.id },
         data: {
+          ...(body.metaExecucaoId === null ? { metaExecucaoId: null } : {}),
           ...(body.descricao !== undefined ? { descricao: body.descricao } : {}),
           ...(body.responsavel !== undefined
             ? { responsavel: body.responsavel?.trim() || null }

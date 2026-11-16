@@ -16,7 +16,6 @@ export type Indicador = {
   periodicidade?: string | null;
   fonte?: string | null;
   polaridade?: "MAIOR_MELHOR" | "MENOR_MELHOR";
-  progresso?: number | null;
   responsavelUser?: { id: string; name: string } | null;
 };
 
@@ -78,7 +77,6 @@ export function PlanoEstrutura({ planos, ...ctx }: Ctx & { planos: Plano[] }) {
 }
 
 function PlanoCard({ plano, ...ctx }: Ctx & { plano: Plano }) {
-  const [novaMeta, setNovaMeta] = useState(false);
   const semIndicador = plano.metas.filter((m) => m.indicadores.length === 0).length;
   return (
     <Card
@@ -90,85 +88,16 @@ function PlanoCard({ plano, ...ctx }: Ctx & { plano: Plano }) {
       ]
         .filter(Boolean)
         .join(" · ")}
-      action={ctx.podeEditar && !novaMeta ? <Button onClick={() => setNovaMeta(true)}>+ Meta estratégica</Button> : undefined}
     >
       {plano.descricao && <p className="dashboard-muted" style={{ marginTop: 0 }}>{plano.descricao}</p>}
-      {novaMeta && <NovaMetaForm planoId={plano.id} onClose={() => setNovaMeta(false)} {...ctx} />}
+      {ctx.podeEditar && <p className="dashboard-muted">Crie metas estratégicas dentro de um projeto ou no assistente de novo projeto, selecionando este plano.</p>}
       <div className="gp-metas">
         {plano.metas.map((meta) => (
           <MetaCard key={meta.id} meta={meta} {...ctx} />
         ))}
-        {!plano.metas.length && <p className="dashboard-muted">Adicione a primeira meta estratégica e vincule a secretaria responsável.</p>}
+        {!plano.metas.length && <p className="dashboard-muted">Este plano ainda não possui metas estratégicas vinculadas a projetos.</p>}
       </div>
     </Card>
-  );
-}
-
-function NovaMetaForm({ planoId, onClose, token, secretarias, responsaveis }: Ctx & { planoId: string; onClose: () => void }) {
-  const router = useRouter();
-  const [erro, setErro] = useState("");
-  const [salvando, setSalvando] = useState(false);
-
-  async function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = new FormData(e.currentTarget);
-    setSalvando(true);
-    setErro("");
-    try {
-      const prazo = txt(form, "prazo");
-      await apiFetch("/planejamento/metas", {
-        token,
-        method: "POST",
-        body: JSON.stringify({
-          planoId,
-          nome: txt(form, "nome"),
-          codigo: txt(form, "codigo"),
-          descricao: txt(form, "descricao"),
-          secretariaId: txt(form, "secretariaId"),
-          responsavelUserId: txt(form, "responsavelUserId") ?? null,
-          prazo: prazo ? new Date(`${prazo}T12:00:00`).toISOString() : null,
-        }),
-      });
-      onClose();
-      router.refresh();
-    } catch (err) {
-      setErro(err instanceof Error ? err.message : "Não foi possível criar a meta.");
-    } finally {
-      setSalvando(false);
-    }
-  }
-
-  return (
-    <form onSubmit={submit} className="gp-form">
-      <strong>Nova meta estratégica</strong>
-      <div className="gp-form__grid">
-        <div><label htmlFor={`codigo-${planoId}`}>Código</label><input id={`codigo-${planoId}`} name="codigo" placeholder="EIXO-01" /></div>
-        <div className="gp-form__wide"><label htmlFor={`nome-${planoId}`}>Meta</label><input id={`nome-${planoId}`} name="nome" required minLength={3} placeholder="Ampliar a cobertura da atenção básica" /></div>
-      </div>
-      <div><label htmlFor={`desc-${planoId}`}>Resultado esperado</label><input id={`desc-${planoId}`} name="descricao" placeholder="O que muda para o cidadão ao final do mandato" /></div>
-      <div className="gp-form__grid">
-        <div>
-          <label htmlFor={`sec-${planoId}`}>Secretaria responsável</label>
-          <select id={`sec-${planoId}`} name="secretariaId" required>
-            <option value="">Selecione…</option>
-            {secretarias.map((s) => <option key={s.id} value={s.id}>{secretariaLabel(s)}</option>)}
-          </select>
-        </div>
-        <div>
-          <label htmlFor={`resp-${planoId}`}>Responsável (notificado)</label>
-          <select id={`resp-${planoId}`} name="responsavelUserId">
-            <option value="">A definir</option>
-            {responsaveis.map((r) => <option key={r.id} value={r.id}>{opcaoResponsavel(r)}</option>)}
-          </select>
-        </div>
-        <div><label htmlFor={`prazo-${planoId}`}>Prazo</label><input id={`prazo-${planoId}`} name="prazo" type="date" /></div>
-      </div>
-      {erro && <p role="alert" className="gp-erro">{erro}</p>}
-      <div className="chip-row">
-        <Button type="submit" disabled={salvando}>{salvando ? "Salvando…" : "Criar meta"}</Button>
-        <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
-      </div>
-    </form>
   );
 }
 
@@ -245,7 +174,7 @@ function MetaCard({ meta, token, secretarias, responsaveis, sugestoes, podeEdita
       <section className="gp-meta__section" aria-label={`Indicadores da meta ${meta.nome}`}>
         <div className="gp-meta__section-head">
           <strong>Indicadores ({meta.indicadores.length})</strong>
-          {podeEditar && (
+          {podeEditar && meta.iniciativas > 0 && (
             <div className="chip-row">
               <Button
                 variant="ghost"
@@ -280,7 +209,7 @@ function MetaCard({ meta, token, secretarias, responsaveis, sugestoes, podeEdita
                 </div>
                 <div className="chip-row">
                   <Button
-                    disabled={ocupado}
+                    disabled={ocupado || meta.iniciativas === 0}
                     onClick={() => void executar(() => apiFetch(`/planejamento/sugestoes/${s.id}/decidir`, { token, method: "POST", body: JSON.stringify({ aceitar: true }) }))}
                   >
                     Aceitar
@@ -298,7 +227,8 @@ function MetaCard({ meta, token, secretarias, responsaveis, sugestoes, podeEdita
           </div>
         )}
 
-        {novoIndicador && (
+        {podeEditar && meta.iniciativas === 0 && <p className="dashboard-muted">Vincule esta meta a um projeto antes de adicionar indicadores ou aceitar sugestões.</p>}
+        {novoIndicador && meta.iniciativas > 0 && (
           <NovoIndicadorForm
             metaId={meta.id}
             token={token}
@@ -331,7 +261,6 @@ function IndicadorItem({
 }) {
   const [medir, setMedir] = useState(false);
   const un = ind.unidade ? ` ${ind.unidade}` : "";
-  const pct = ind.progresso ?? null;
 
   async function registrar(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -355,20 +284,12 @@ function IndicadorItem({
     <div className="projeto-indicador-chip">
       <div className="projeto-indicador-chip__head">
         <strong>{ind.nome}</strong>
-        <Badge tone={pct === null ? "neutral" : pct >= 70 ? "success" : pct >= 35 ? "warning" : "danger"}>
-          {pct === null ? "sem medição" : `${pct}%`}
-        </Badge>
       </div>
       <div className="gp-ind__metrics">
         <span><small>Base</small>{ind.valorBase ? `${ind.valorBase}${un}` : "—"}</span>
         <span><small>Atual</small>{ind.valorAtual ? `${ind.valorAtual}${un}` : "—"}</span>
         <span><small>Alvo</small>{ind.alvo ? `${ind.alvo}${un}` : "—"}</span>
       </div>
-      {pct !== null && (
-        <div className="projeto-progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`Progresso de ${ind.nome}`}>
-          <div className="projeto-progress__bar" style={{ width: `${pct}%` }} />
-        </div>
-      )}
       <span className="dashboard-muted" style={{ fontSize: 12 }}>
         {[ind.periodicidade && ind.periodicidade.toLowerCase(), ind.fonte, ind.polaridade === "MENOR_MELHOR" && "quanto menor, melhor", `Responsável: ${ind.responsavelUser?.name || "a definir"}`]
           .filter(Boolean)

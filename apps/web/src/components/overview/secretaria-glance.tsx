@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { BarraEmpilhada, COR, Medidor, numero, veredito } from "./governo-glance";
+import { BarraEmpilhada, COR, Medidor, veredito } from "./governo-glance";
 import type { CenarioSecretariaResponse } from "./cenario-secretaria";
 import "./overview-painel.css";
 
@@ -43,7 +43,7 @@ export function SecretariaGlance({
   mostrarMetas?: boolean;
   extra?: ReactNode;
 }) {
-  const { indicadores: ind, metasEstrategicas, metasExecucao } = dados;
+  const { indicadores: ind, metasEstrategicas } = dados;
   const projetos = dados.projetos ?? [];
   const atencao = dados.tarefasAtencao ?? [];
   const saude = ind.totalTarefas ? Math.round(((ind.concluidas + ind.noPrazo) / ind.totalTarefas) * 100) : null;
@@ -57,10 +57,6 @@ export function SecretariaGlance({
           ? "Há atrasos ou tarefas sem prazo que pedem acompanhamento."
           : "Muitas entregas atrasadas. Priorize as tarefas em vermelho abaixo.";
 
-  const metasExecConcluidas = metasExecucao.filter((m) => m.prazoStatus === "CONCLUIDO").length;
-  const metasExecVencidas = metasExecucao.filter((m) => m.prazoStatus === "VENCIDO").length;
-  const metasExecSemPrazo = metasExecucao.filter((m) => m.prazoStatus === "SEM_PRAZO").length;
-  const metasExecAndamento = Math.max(0, metasExecucao.length - metasExecConcluidas - metasExecVencidas - metasExecSemPrazo);
   const principais = projetos.filter((p) => p.participacao === "PRINCIPAL").length;
   const correlacionados = projetos.length - principais;
 
@@ -86,7 +82,6 @@ export function SecretariaGlance({
         <ul className="gl-hero__numeros">
           <li><strong>{ind.projetos}</strong><span>projetos{correlacionados ? ` (${correlacionados} em parceria)` : ""}</span></li>
           <li><strong>{ind.totalTarefas}</strong><span>tarefas</span></li>
-          <li><strong>{metasExecucao.length}</strong><span>metas de execução</span></li>
           <li><strong>{metasEstrategicas.length}</strong><span>metas estratégicas</span></li>
         </ul>
       </section>
@@ -172,7 +167,7 @@ export function SecretariaGlance({
         </section>
       )}
 
-      {mostrarMetas && <div className="gl-duas">
+      {mostrarMetas && (
         <section className="gl-bloco">
           <header className="gl-bloco__cab">
             <div>
@@ -183,10 +178,6 @@ export function SecretariaGlance({
           {metasEstrategicas.length ? (
             <ul className="gl-metas">
               {metasEstrategicas.map((m) => {
-                const realizado = numero(m.medicaoAtual?.valorRealizado);
-                const alvo = numero(m.alvo);
-                const pct = realizado != null && alvo ? Math.max(0, Math.min(100, Math.round((realizado / alvo) * 100))) : null;
-                const cor = m.aguardandoMedicao ? COR.lilas : m.desvio != null && m.desvio < 0 ? COR.rosa : COR.verde;
                 const situacao = m.aguardandoMedicao
                   ? "Aguardando medição"
                   : m.desvio == null
@@ -195,16 +186,39 @@ export function SecretariaGlance({
                       ? "Abaixo do esperado"
                       : "No ritmo esperado";
                 return (
-                  <li key={m.id} style={{ ["--c" as string]: cor }}>
+                  <li key={m.id}>
                     <div className="gl-metas__topo">
                       <strong>{m.nome}</strong>
                       <span className="gl-metas__situacao">{situacao}</span>
                     </div>
-                    <span className="gl-metas__barra" aria-hidden="true"><span style={{ width: `${pct ?? 0}%` }} /></span>
                     <small>
-                      {m.indicador || "Indicador a definir"} · {m.medicaoAtual?.valorRealizado ?? "—"} de {m.alvo || "—"} {m.unidade || ""}
-                      {pct != null ? ` (${pct}%)` : ""}
+                      {m.medicaoAtual
+                        ? `Valor medido: ${m.medicaoAtual.valorRealizado}${m.unidade ? ` ${m.unidade}` : ""}${m.medicaoAtual.valorEsperado != null ? ` · esperado: ${m.medicaoAtual.valorEsperado}${m.unidade ? ` ${m.unidade}` : ""}` : ""}`
+                        : "Sem medição registrada"}
                     </small>
+                    <small>
+                      Projetos: {m.projetosVinculados.length
+                        ? m.projetosVinculados.map((projeto) => `${projeto.codigo} · ${projeto.nome}`).join("; ")
+                        : "Nenhum projeto vinculado"}
+                    </small>
+                    {m.indicadores.length ? (
+                      <ul className="gl-metas__indicadores">
+                        {m.indicadores.map((indicador) => (
+                          <li key={indicador.id}>
+                            <strong>{indicador.nome}</strong>
+                            <small>
+                              Base: {indicador.valorBase ?? "—"}{indicador.unidade ? ` ${indicador.unidade}` : ""}
+                              {" · Atual: "}{indicador.valorAtual ?? "—"}{indicador.unidade ? ` ${indicador.unidade}` : ""}
+                              {" · Alvo: "}{indicador.alvo ?? "—"}{indicador.unidade ? ` ${indicador.unidade}` : ""}
+                              {indicador.periodicidade ? ` · ${indicador.periodicidade.toLowerCase()}` : ""}
+                              {indicador.ultimaMedicao ? ` · medido em ${dataCurta(indicador.ultimaMedicao)}` : ""}
+                            </small>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <small>Sem indicadores vinculados.</small>
+                    )}
                   </li>
                 );
               })}
@@ -213,58 +227,7 @@ export function SecretariaGlance({
             <p className="gl-vazio">Nenhuma meta estratégica ligada a esta secretaria ainda.</p>
           )}
         </section>
-
-        <section className="gl-bloco">
-          <header className="gl-bloco__cab">
-            <div>
-              <p className="gl-kicker">Entregas dos projetos</p>
-              <h2>Metas de execução</h2>
-            </div>
-          </header>
-          <div className="gl-exec">
-            <div className="gl-exec__grande" style={{ ["--c" as string]: COR.verde }}>
-              <strong>{metasExecConcluidas}</strong>
-              <span>de {metasExecucao.length} concluídas</span>
-            </div>
-            <BarraEmpilhada
-              partes={[
-                { rotulo: "concluídas", valor: metasExecConcluidas, cor: COR.verde },
-                { rotulo: "em andamento", valor: metasExecAndamento, cor: COR.azul },
-                { rotulo: "sem prazo", valor: metasExecSemPrazo, cor: COR.ouro },
-                { rotulo: "vencidas", valor: metasExecVencidas, cor: COR.rosa },
-              ]}
-            />
-            {metasExecucao.length > 0 && (
-              <ul className="gl-metas">
-                {metasExecucao.slice(0, 5).map((m) => {
-                  const atual = numero(m.valorAtual);
-                  const alvo = numero(m.alvo);
-                  const pct = atual != null && alvo ? Math.max(0, Math.min(100, Math.round((atual / alvo) * 100))) : null;
-                  const e = ESTADO[m.prazoStatus] ?? { rotulo: "No prazo", cor: COR.azul };
-                  const cor = m.prazoStatus === "NO_PRAZO" ? COR.azul : e.cor;
-                  return (
-                    <li key={m.id} style={{ ["--c" as string]: cor }}>
-                      <div className="gl-metas__topo">
-                        <Link href={`/iniciativas/${m.iniciativaId}?aba=andamento`} className="gl-metas__link">{m.nome}</Link>
-                        <span className="gl-metas__situacao">
-                          {m.prazoStatus === "NO_PRAZO" ? `até ${dataCurta(m.prazo)}` : m.prazoStatus === "VENCIDO" ? "Vencida" : e.rotulo}
-                        </span>
-                      </div>
-                      <span className="gl-metas__barra" aria-hidden="true"><span style={{ width: `${pct ?? 0}%` }} /></span>
-                      <small>
-                        {m.indicador || "Indicador a definir"} · {m.valorAtual || "—"} de {m.alvo || "—"} {m.unidade || ""}
-                      </small>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            <p className="gl-exec__nota">
-              <strong>{ind.coberturaMetas}%</strong> das metas têm o valor atual informado.
-            </p>
-          </div>
-        </section>
-      </div>}
+      )}
     </div>
   );
 }

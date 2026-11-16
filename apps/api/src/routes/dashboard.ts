@@ -7,7 +7,6 @@ import {
   requirePermission,
 } from "../middleware/auth";
 import { prazoStatus } from "../services/prazo";
-import { progressoIndicador } from "../services/indicadores";
 import { HttpError } from "../middleware/error";
 import {
   classificarSecretaria,
@@ -28,7 +27,6 @@ dashboardRouter.get("/resumo", async (req, res, next) => {
       include: {
         secretariaPrincipal: true,
         marcos: { include: { reprogramacoes: true } },
-        metasExecucao: true,
         impedimentos: {
           where: { status: { in: ["ABERTO", "EM_ENCAMINHAMENTO"] } },
         },
@@ -87,63 +85,6 @@ dashboardRouter.get("/resumo", async (req, res, next) => {
       }
     }
 
-    type MetaAgg = {
-      id: string;
-      iniciativaId: string;
-      iniciativaNome: string;
-      secretariaId: string;
-      secretariaNome: string;
-      nome: string;
-      indicador: string | null;
-      alvo: string | null;
-      valorAtual: string | null;
-      prazo: Date | null;
-      status: string;
-      prazoStatus: string;
-    };
-
-    const metaConcluida = (status: string) => {
-      const v = status.toUpperCase();
-      return v.includes("CONCLUID") || v === "ENCERRADA" || v === "ATINGIDA";
-    };
-
-    const metasAgg: MetaAgg[] = [];
-    for (const ini of iniciativas) {
-      const ref = ini.dataReferencia ?? dataRef;
-      for (const meta of ini.metasExecucao) {
-        const prazoSt = metaConcluida(meta.status)
-          ? "CONCLUIDO"
-          : prazoStatus(
-              { prazoVigente: meta.prazo, concluidoEm: null },
-              ref,
-            );
-        metasAgg.push({
-          id: meta.id,
-          iniciativaId: ini.id,
-          iniciativaNome: ini.nome,
-          secretariaId: ini.secretariaPrincipalId,
-          secretariaNome: ini.secretariaPrincipal.nome,
-          nome: meta.nome,
-          indicador: meta.indicador,
-          alvo: meta.alvo,
-          valorAtual: meta.valorAtual,
-          prazo: meta.prazo,
-          status: meta.status,
-          prazoStatus: prazoSt,
-        });
-      }
-    }
-
-    const metasTotal = metasAgg.length;
-    const metasComIndicador = metasAgg.filter((m) => !!m.indicador?.trim()).length;
-    const metasComValor = metasAgg.filter((m) => !!m.valorAtual?.trim()).length;
-    const metasAtrasadas = metasAgg.filter((m) => m.prazoStatus === "VENCIDO");
-    const metasSemPrazo = metasAgg.filter((m) => m.prazoStatus === "SEM_PRAZO");
-    const metasConcluidas = metasAgg.filter((m) => m.prazoStatus === "CONCLUIDO").length;
-    const metasCobertura = metasTotal
-      ? Math.round((metasComValor / metasTotal) * 1000) / 10
-      : 0;
-
     const totalTarefas = marcosAgg.length;
     const concluidas = marcosAgg.filter((m) => m.status === "CONCLUIDO").length;
     const atrasadas = marcosAgg.filter((m) => m.status === "VENCIDO");
@@ -194,7 +135,7 @@ dashboardRouter.get("/resumo", async (req, res, next) => {
       },
       orderBy: { nome: "asc" },
     });
-    if (!secretarias.length) {
+    if (!secretarias.length && req.user!.role !== "analista") {
       throw new HttpError(
         403,
         "SECRETARIA_REQUIRED",
@@ -233,7 +174,6 @@ dashboardRouter.get("/resumo", async (req, res, next) => {
         return Math.max(max, d);
       }, 0);
 
-      const metasSec = metasAgg.filter((m) => m.secretariaId === s.id);
       return {
         id: s.id,
         nome: s.nome,
@@ -257,10 +197,6 @@ dashboardRouter.get("/resumo", async (req, res, next) => {
         noPrazo: marcos.filter((m) => m.status === "NO_PRAZO").length,
         pctAtraso: pctAtr,
         indicePonderado: idx,
-        metasTotal: metasSec.length,
-        metasComValor: metasSec.filter((m) => !!m.valorAtual?.trim()).length,
-        metasAtrasadas: metasSec.filter((m) => m.prazoStatus === "VENCIDO").length,
-        metasSemPrazo: metasSec.filter((m) => m.prazoStatus === "SEM_PRAZO").length,
         maiorAtrasoDias,
         atualizadoEm: last?.toISOString() ?? null,
         diasSemAtualizacao: dias,
@@ -345,6 +281,12 @@ dashboardRouter.get("/resumo", async (req, res, next) => {
     const metasEstrategicas = await prisma.metaEstrategica.findMany({
       where: {
         plano: { municipioId },
+        iniciativas: {
+          some: {
+            municipioId,
+            AND: [iniciativaScopeFilter(req.user!)],
+          },
+        },
         ...(req.user!.role === "gestor"
           ? {
               OR: [
@@ -358,6 +300,25 @@ dashboardRouter.get("/resumo", async (req, res, next) => {
         secretaria: true,
         plano: true,
         medicoes: { orderBy: { dataCorte: "desc" }, take: 2 },
+        iniciativas: {
+          where: {
+            municipioId,
+            AND: [iniciativaScopeFilter(req.user!)],
+          },
+          select: { id: true, codigo: true, nome: true },
+          orderBy: { codigo: "asc" },
+        },
+        indicadores: {
+          where: { ativo: true },
+          include: {
+            medicoes: {
+              orderBy: { dataCorte: "desc" },
+              take: 1,
+              select: { dataCorte: true },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        },
         _count: {
           select: {
             iniciativas:
@@ -383,7 +344,6 @@ dashboardRouter.get("/resumo", async (req, res, next) => {
         codigo: m.codigo,
         secretariaId: m.secretariaId,
         secretariaNome: m.secretaria?.nome ?? null,
-        indicador: m.indicador,
         valorBase: m.valorBase,
         alvo: m.alvo,
         unidade: m.unidade,
@@ -392,6 +352,17 @@ dashboardRouter.get("/resumo", async (req, res, next) => {
         perspectivaBsc: m.perspectivaBsc,
         resultadoChaveOkr: m.resultadoChaveOkr,
         projetos: m._count.iniciativas,
+        projetosVinculados: m.iniciativas,
+        indicadores: m.indicadores.map((indicador) => ({
+          id: indicador.id,
+          nome: indicador.nome,
+          unidade: indicador.unidade,
+          valorBase: indicador.valorBase,
+          alvo: indicador.alvo,
+          valorAtual: indicador.valorAtual,
+          periodicidade: indicador.periodicidade,
+          ultimaMedicao: indicador.medicoes[0]?.dataCorte.toISOString() ?? null,
+        })),
         medicaoAtual: atual
           ? {
               dataCorte: atual.dataCorte.toISOString(),
@@ -488,25 +459,6 @@ dashboardRouter.get("/resumo", async (req, res, next) => {
           indicePonderado: indice,
           metodoVersao: GRAVIDADE_METODO_VERSAO,
         },
-        metas: {
-          total: metasTotal,
-          comIndicador: metasComIndicador,
-          comValor: metasComValor,
-          cobertura: metasCobertura,
-          atrasadas: metasAtrasadas.length,
-          semPrazo: metasSemPrazo.length,
-          concluidas: metasConcluidas,
-          pedemAcao: metasAtrasadas.slice(0, 10).map((m) => ({
-            id: m.id,
-            nome: m.nome,
-            iniciativaId: m.iniciativaId,
-            iniciativaNome: m.iniciativaNome,
-            secretaria: m.secretariaNome,
-            valorAtual: m.valorAtual,
-            alvo: m.alvo,
-            prazo: m.prazo?.toISOString() ?? null,
-          })),
-        },
         kpis: {
           totalIniciativas: iniciativas.length,
           emAcompanhamento: iniciativas.filter(
@@ -560,7 +512,6 @@ dashboardRouter.get("/resumo", async (req, res, next) => {
             planos: await prisma.planoGoverno.count({ where: { municipioId } }),
             secretarias: secretarias.length,
             projetos: iniciativas.length,
-            metasExec: metasTotal,
             tarefas: totalTarefas,
           },
         },
@@ -661,10 +612,8 @@ dashboardRouter.get("/agenda", async (req, res, next) => {
             secretaria: { select: { id: true, nome: true } },
           },
         },
-        metasExecucao: { select: { id: true, nome: true } },
         marcos: {
           include: {
-            metaExecucao: { select: { id: true, nome: true } },
             subtarefas: { select: { id: true, concluida: true } },
           },
           orderBy: [{ ordem: "asc" }, { prazoVigente: "asc" }],
@@ -712,8 +661,6 @@ dashboardRouter.get("/agenda", async (req, res, next) => {
         minha: marco.responsavelUserId === req.user!.id,
         aguardandoValidacao: aguardandoValidacao.has(marco.id),
         prazo: marco.prazoVigente?.toISOString() ?? null,
-        meta: marco.metaExecucao?.nome ?? null,
-        metaExecucaoId: marco.metaExecucao?.id ?? null,
         subtarefas: {
           total: marco.subtarefas.length,
           concluidas: marco.subtarefas.filter((subtarefa) => subtarefa.concluida)
@@ -903,10 +850,36 @@ dashboardRouter.get("/cenario-secretaria", async (req, res, next) => {
     const metasEstrategicas = await prisma.metaEstrategica.findMany({
       where: {
         plano: { municipioId },
+        iniciativas: {
+          some: {
+            municipioId,
+            AND: [iniciativaScopeFilter(req.user!)],
+          },
+        },
         OR: [{ secretariaId: selectedId }, { secretariaId: null }],
       },
       include: {
         medicoes: { orderBy: { dataCorte: "desc" }, take: 2 },
+        iniciativas: {
+          where: {
+            municipioId,
+            AND: [iniciativaScopeFilter(req.user!)],
+          },
+          select: { id: true, codigo: true, nome: true },
+          orderBy: { codigo: "asc" },
+        },
+        indicadores: {
+          where: { ativo: true },
+          include: {
+            responsavelUser: { select: { id: true, name: true } },
+            medicoes: {
+              orderBy: { dataCorte: "desc" },
+              take: 1,
+              select: { dataCorte: true },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        },
         _count: {
           select: {
             iniciativas:
@@ -937,43 +910,13 @@ dashboardRouter.get("/cenario-secretaria", async (req, res, next) => {
         ],
       },
       include: {
-        metasExecucao: true,
         marcos: true,
-        metaEstrategica: true,
       },
       orderBy: { atualizadoEm: "desc" },
     });
 
     const dataRef =
       iniciativas.find((i) => i.dataReferencia)?.dataReferencia ?? new Date();
-
-    const metaConcluida = (status: string) => {
-      const v = status.toUpperCase();
-      return v.includes("CONCLUID") || v === "ENCERRADA" || v === "ATINGIDA";
-    };
-
-    const metasExecucao = iniciativas.flatMap((ini) =>
-      ini.metasExecucao.map((meta) => {
-        const prazoSt = metaConcluida(meta.status)
-          ? "CONCLUIDO"
-          : prazoStatus({ prazoVigente: meta.prazo, concluidoEm: null }, dataRef);
-        return {
-          id: meta.id,
-          nome: meta.nome,
-          indicador: meta.indicador,
-          alvo: meta.alvo,
-          valorAtual: meta.valorAtual,
-          unidade: meta.unidade,
-          prazo: meta.prazo?.toISOString() ?? null,
-          status: meta.status,
-          prazoStatus: prazoSt,
-          iniciativaId: ini.id,
-          iniciativaNome: ini.nome,
-          iniciativaCodigo: ini.codigo,
-          metaEstrategicaNome: ini.metaEstrategica?.nome ?? null,
-        };
-      }),
-    );
 
     const marcos = iniciativas.flatMap((ini) =>
       ini.marcos.map((m) => prazoStatus(m, ini.dataReferencia ?? dataRef)),
@@ -1023,9 +966,6 @@ dashboardRouter.get("/cenario-secretaria", async (req, res, next) => {
       .slice(0, 6)
       .map(({ venceLogo: _v, ...t }) => t);
 
-    const metasComValor = metasExecucao.filter((m) => !!m.valorAtual?.trim()).length;
-    const metasAtrasadas = metasExecucao.filter((m) => m.prazoStatus === "VENCIDO").length;
-
     const estrategiaCards = metasEstrategicasDaPasta.map((m) => {
       const atual = m.medicoes[0];
       const realizado = parseNum(atual?.valorRealizado ?? null);
@@ -1034,7 +974,6 @@ dashboardRouter.get("/cenario-secretaria", async (req, res, next) => {
         id: m.id,
         nome: m.nome,
         codigo: m.codigo,
-        indicador: m.indicador,
         valorBase: m.valorBase,
         alvo: m.alvo,
         unidade: m.unidade,
@@ -1043,6 +982,18 @@ dashboardRouter.get("/cenario-secretaria", async (req, res, next) => {
         perspectivaBsc: m.perspectivaBsc,
         resultadoChaveOkr: m.resultadoChaveOkr,
         projetos: m._count.iniciativas,
+        projetosVinculados: m.iniciativas,
+        indicadores: m.indicadores.map((indicador) => ({
+          id: indicador.id,
+          nome: indicador.nome,
+          unidade: indicador.unidade,
+          valorBase: indicador.valorBase,
+          alvo: indicador.alvo,
+          valorAtual: indicador.valorAtual,
+          periodicidade: indicador.periodicidade,
+          responsavel: indicador.responsavelUser,
+          ultimaMedicao: indicador.medicoes[0]?.dataCorte.toISOString() ?? null,
+        })),
         medicaoAtual: atual
           ? {
               dataCorte: atual.dataCorte.toISOString(),
@@ -1073,17 +1024,10 @@ dashboardRouter.get("/cenario-secretaria", async (req, res, next) => {
           titularCargo: selectedMeta.titularCargo,
         },
         metasEstrategicas: estrategiaCards,
-        metasExecucao,
         projetos,
         tarefasAtencao,
         indicadores: {
           projetos: iniciativas.length,
-          metasExecucao: metasExecucao.length,
-          metasComValor,
-          coberturaMetas: metasExecucao.length
-            ? Math.round((metasComValor / metasExecucao.length) * 1000) / 10
-            : 0,
-          metasAtrasadas,
           totalTarefas,
           concluidas,
           atrasadas,
@@ -1273,35 +1217,30 @@ dashboardRouter.get("/pasta-resumo", async (req, res, next) => {
     }
 
     const idsEmEscopo = [...focus.projetosPrincipais, ...focus.projetosCorrelacionados].map((p) => p.id);
-    const [metasEstrategicasRows, metasExecucaoRows] = await Promise.all([
-      prisma.metaEstrategica.findMany({
-        where: { secretariaId: focus.secretaria.id, plano: { municipioId } },
-        include: {
-          plano: { select: { nome: true } },
-          responsavelUser: { select: { id: true, name: true } },
-          indicadores: {
-            where: { ativo: true },
-            include: {
-              responsavelUser: { select: { id: true, name: true } },
-              medicoes: { orderBy: { dataCorte: "desc" }, take: 1, select: { dataCorte: true } },
-            },
-            orderBy: { createdAt: "asc" },
+    const metasEstrategicasRows = await prisma.metaEstrategica.findMany({
+      where: {
+        secretariaId: focus.secretaria.id,
+        plano: { municipioId },
+        iniciativas: { some: { id: { in: idsEmEscopo } } },
+      },
+      include: {
+        plano: { select: { nome: true } },
+        responsavelUser: { select: { id: true, name: true } },
+        indicadores: {
+          where: { ativo: true },
+          include: {
+            responsavelUser: { select: { id: true, name: true } },
+            medicoes: { orderBy: { dataCorte: "desc" }, take: 1, select: { dataCorte: true } },
           },
-          iniciativas: { select: { id: true } },
+          orderBy: { createdAt: "asc" },
         },
-        orderBy: [{ codigo: "asc" }, { nome: "asc" }],
-      }),
-      prisma.metaExecucao.findMany({
-        where: { iniciativaId: { in: idsEmEscopo } },
-        include: {
-          iniciativa: { select: { id: true, codigo: true, nome: true, secretariaPrincipalId: true, dataReferencia: true } },
-          responsavelUser: { select: { id: true, name: true } },
-          marcos: { select: { prazoOriginal: true, prazoVigente: true, concluidoEm: true, encerradoSemSolucaoEm: true } },
-          indicadores: { where: { ativo: true }, select: { id: true, nome: true, valorBase: true, alvo: true, valorAtual: true, unidade: true } },
+        iniciativas: {
+          where: { id: { in: idsEmEscopo } },
+          select: { id: true },
         },
-        orderBy: [{ prazo: "asc" }, { ordem: "asc" }],
-      }),
-    ]);
+      },
+      orderBy: [{ codigo: "asc" }, { nome: "asc" }],
+    });
     const statusProjeto = new Map(
       [...focus.projetosPrincipais, ...focus.projetosCorrelacionados].map((p) => [p.id, p]),
     );
@@ -1334,41 +1273,12 @@ dashboardRouter.get("/pasta-resumo", async (req, res, next) => {
           fonte: ind.fonte,
           responsavel: ind.responsavelUser,
           ultimaMedicao: ind.medicoes[0]?.dataCorte.toISOString() ?? null,
-          progresso: progressoIndicador(ind),
         })),
       };
     });
-    const metasExecucao = metasExecucaoRows.map((meta) => {
-      const estados = meta.marcos.map((m) =>
-        m.encerradoSemSolucaoEm ? "CONCLUIDO" : prazoStatus(m, meta.iniciativa.dataReferencia ?? dataRef),
-      );
-      const concluidas = estados.filter((e) => e === "CONCLUIDO").length;
-      return {
-        id: meta.id,
-        codigo: meta.codigo,
-        nome: meta.nome,
-        status: meta.status,
-        alvo: meta.alvo,
-        valorAtual: meta.valorAtual,
-        unidade: meta.unidade,
-        prazo: meta.prazo?.toISOString() ?? null,
-        responsavel: meta.responsavelUser ?? (meta.responsavel ? { id: null, name: meta.responsavel } : null),
-        participacao: meta.iniciativa.secretariaPrincipalId === focus.secretaria.id ? "PRINCIPAL" : "CORRELACIONADO",
-        projeto: { id: meta.iniciativa.id, codigo: meta.iniciativa.codigo, nome: meta.iniciativa.nome },
-        tarefas: {
-          total: estados.length,
-          concluidas,
-          atrasadas: estados.filter((e) => e === "VENCIDO").length,
-        },
-        pctConclusao: estados.length ? Math.round((concluidas / estados.length) * 100) : 0,
-        indicadores: meta.indicadores.map((ind) => ({ ...ind, progresso: progressoIndicador(ind) })),
-      };
-    });
-
     res.json({
       data: {
         metasEstrategicas,
-        metasExecucao,
         secretaria: {
           id: focus.secretaria.id,
           nome: focus.secretaria.nome,

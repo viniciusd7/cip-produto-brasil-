@@ -3,19 +3,14 @@
 import { Button } from "@cip/ui";
 import { RotuloComAjuda } from "@/components/ajuda-campo";
 
-/** Nó editável do escopo: Meta → Tarefa → Subtarefa, cada um com responsável. */
 export type EscopoNo = {
   codigo: string;
-  nivel: "META" | "TAREFA" | "SUBTAREFA";
+  nivel: "TAREFA" | "SUBTAREFA";
   nome: string;
-  indicador?: string | null;
-  alvo?: string | null;
   responsavel?: string | null;
-  /** ISO (apenas tarefas). */
   prazo?: string | null;
   origemPerguntaCodigo?: string | null;
   origemValor?: string | null;
-  /** Criado pela equipe no wizard (não veio do modelo). */
   manual?: boolean;
   children: EscopoNo[];
 };
@@ -30,263 +25,73 @@ export function criarNo(nivel: EscopoNo["nivel"], nome: string): EscopoNo {
   return { codigo: novoCodigo(nivel), nivel, nome, manual: true, children: [] };
 }
 
-/** Responsável está preenchido? Usado nos avisos do wizard. */
 export function temResponsavel(no: { responsavel?: string | null }) {
   return Boolean(no.responsavel?.trim());
 }
 
-function patchAt<T>(lista: T[], index: number, patch: Partial<T>): T[] {
-  return lista.map((item, i) => (i === index ? { ...item, ...patch } : item));
-}
-
-function removeAt<T>(lista: T[], index: number): T[] {
-  return lista.filter((_, i) => i !== index);
-}
-
-function dataParaIso(valor: string): string | null {
-  if (!valor) return null;
-  // Meio-dia local evita que o fuso desloque o dia ao salvar.
-  return new Date(`${valor}T12:00:00`).toISOString();
-}
-
-function isoParaData(iso?: string | null): string {
-  return iso ? iso.slice(0, 10) : "";
-}
-
-export function EscopoEditor({
-  nodes,
-  onChange,
-  equipe,
-  listId,
-}: {
+export function EscopoEditor({ nodes, onChange, equipe, listId }: {
   nodes: EscopoNo[];
   onChange: (next: EscopoNo[]) => void;
-  /** Nomes da equipe das pastas envolvidas (sugestões de responsável). */
   equipe: string[];
   listId: string;
 }) {
-  function atualizarMeta(mi: number, patch: Partial<EscopoNo>) {
-    onChange(patchAt(nodes, mi, patch));
-  }
-
-  function atualizarTarefas(mi: number, tarefas: EscopoNo[]) {
-    onChange(patchAt(nodes, mi, { children: tarefas }));
-  }
-
-  function atualizarSubtarefas(mi: number, ti: number, subs: EscopoNo[]) {
-    const tarefas = nodes[mi].children;
-    atualizarTarefas(mi, patchAt(tarefas, ti, { children: subs }));
+  function atualizar(index: number, patch: Partial<EscopoNo>) {
+    onChange(nodes.map((no, i) => i === index ? { ...no, ...patch } : no));
   }
 
   return (
     <div className="stack">
       <datalist id={listId}>
-        {equipe.map((nome) => (
-          <option key={nome} value={nome} />
-        ))}
+        {equipe.map((nome) => <option key={nome} value={nome} />)}
       </datalist>
-
-      {!nodes.length && (
-        <p className="dashboard-muted">
-          Nenhuma meta ainda. Adicione a primeira meta para desdobrar o projeto em tarefas.
-        </p>
-      )}
-
-      {nodes.map((meta, mi) => (
-        <article key={meta.codigo} className="entity-card">
+      {!nodes.length && <p className="dashboard-muted">Nenhuma tarefa ainda. Adicione a primeira tarefa do projeto.</p>}
+      {nodes.map((tarefa, ti) => (
+        <article key={tarefa.codigo} className="entity-card">
           <div className="entity-card__top">
-            <strong>Meta {mi + 1}</strong>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onChange(removeAt(nodes, mi))}
-            >
-              Remover meta
+            <strong>Tarefa {ti + 1}</strong>
+            <Button type="button" variant="ghost" onClick={() => onChange(nodes.filter((_, i) => i !== ti))}>
+              Remover tarefa
             </Button>
           </div>
           <div className="form-grid form-grid--2">
             <div>
-              <RotuloComAjuda htmlFor={`${meta.codigo}-nome`} campo="O que precisa ser entregue" ajuda="Descreva a meta de execução: a entrega concreta que o projeto precisa realizar." />
-              <input
-                id={`${meta.codigo}-nome`}
-                value={meta.nome}
-                onChange={(e) => atualizarMeta(mi, { nome: e.target.value })}
-              />
+              <RotuloComAjuda htmlFor={`${tarefa.codigo}-nome`} campo="Tarefa" ajuda="Descreva uma atividade necessária para realizar o projeto." />
+              <input id={`${tarefa.codigo}-nome`} value={tarefa.nome} onChange={(e) => atualizar(ti, { nome: e.target.value })} />
             </div>
             <div>
-              <RotuloComAjuda htmlFor={`${meta.codigo}-responsavel`} campo="Responsável pela meta" ajuda="Informe a pessoa ou equipe que acompanha esta meta." />
-              <input
-                id={`${meta.codigo}-responsavel`}
-                list={listId}
-                value={meta.responsavel ?? ""}
-                placeholder="Nome ou equipe"
-                onChange={(e) => atualizarMeta(mi, { responsavel: e.target.value })}
-              />
+              <RotuloComAjuda htmlFor={`${tarefa.codigo}-responsavel`} campo="Quem faz?" ajuda="Informe a pessoa ou equipe que executa a tarefa." />
+              <input id={`${tarefa.codigo}-responsavel`} list={listId} value={tarefa.responsavel ?? ""} placeholder="Nome ou equipe" onChange={(e) => atualizar(ti, { responsavel: e.target.value })} />
+            </div>
+            <div>
+              <RotuloComAjuda htmlFor={`${tarefa.codigo}-prazo`} campo="Prazo" ajuda="Escolha a data prevista para concluir a tarefa. É opcional." />
+              <input id={`${tarefa.codigo}-prazo`} type="date" value={tarefa.prazo?.slice(0, 10) ?? ""} onChange={(e) => atualizar(ti, { prazo: e.target.value ? new Date(`${e.target.value}T12:00:00`).toISOString() : null })} />
             </div>
           </div>
-          <div className="form-grid form-grid--2" style={{ marginTop: 12 }}>
-            <div>
-              <RotuloComAjuda htmlFor={`${meta.codigo}-indicador`} campo="Indicador da meta" ajuda="Informe o que será medido para acompanhar a meta, por exemplo, unidades entregues. É opcional." />
-              <input
-                id={`${meta.codigo}-indicador`}
-                value={meta.indicador ?? ""}
-                onChange={(e) => atualizarMeta(mi, { indicador: e.target.value })}
-                placeholder="Ex.: unidades entregues"
-                maxLength={300}
-              />
-            </div>
-            <div>
-              <RotuloComAjuda htmlFor={`${meta.codigo}-alvo`} campo="Resultado esperado" ajuda="Informe o valor ou resultado que se deseja atingir para o indicador. É opcional." />
-              <input
-                id={`${meta.codigo}-alvo`}
-                value={meta.alvo ?? ""}
-                onChange={(e) => atualizarMeta(mi, { alvo: e.target.value })}
-                placeholder="Ex.: 10 unidades"
-                maxLength={300}
-              />
-            </div>
-          </div>
-
-          <div className="stack" style={{ marginTop: 12 }}>
-            {meta.children.map((tarefa, ti) => (
-              <div key={tarefa.codigo} className="dashboard-list-item" style={{ display: "block" }}>
-                <div className="form-grid form-grid--2">
-                  <div>
-                    <RotuloComAjuda htmlFor={`${tarefa.codigo}-nome`} campo="Tarefa" ajuda="Descreva uma atividade necessária para realizar a meta." />
-                    <input
-                      id={`${tarefa.codigo}-nome`}
-                      value={tarefa.nome}
-                      onChange={(e) =>
-                        atualizarTarefas(
-                          mi,
-                          patchAt(meta.children, ti, { nome: e.target.value }),
-                        )
-                      }
-                    />
-                  </div>
-                  <div>
-                    <RotuloComAjuda htmlFor={`${tarefa.codigo}-responsavel`} campo="Quem faz?" ajuda="Informe a pessoa ou equipe que executa a tarefa." />
-                    <input
-                      id={`${tarefa.codigo}-responsavel`}
-                      list={listId}
-                      value={tarefa.responsavel ?? ""}
-                      placeholder="Nome ou equipe"
-                      onChange={(e) =>
-                        atualizarTarefas(
-                          mi,
-                          patchAt(meta.children, ti, { responsavel: e.target.value }),
-                        )
-                      }
-                    />
-                  </div>
-                  <div>
-                    <RotuloComAjuda htmlFor={`${tarefa.codigo}-prazo`} campo="Prazo" ajuda="Escolha a data prevista para concluir a tarefa. É opcional." />
-                    <input
-                      id={`${tarefa.codigo}-prazo`}
-                      type="date"
-                      value={isoParaData(tarefa.prazo)}
-                      onChange={(e) =>
-                        atualizarTarefas(
-                          mi,
-                          patchAt(meta.children, ti, { prazo: dataParaIso(e.target.value) }),
-                        )
-                      }
-                    />
-                  </div>
-                  <div style={{ display: "flex", alignItems: "end" }}>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => atualizarTarefas(mi, removeAt(meta.children, ti))}
-                    >
-                      Remover tarefa
-                    </Button>
+          <ul className="stack" style={{ listStyle: "none", paddingLeft: 16, marginTop: 10 }}>
+            {tarefa.children.map((sub, si) => (
+              <li key={sub.codigo} className="form-grid form-grid--2">
+                <div>
+                  <RotuloComAjuda htmlFor={`${sub.codigo}-nome`} campo="Subtarefa" ajuda="Descreva um passo necessário para concluir a tarefa." />
+                  <input id={`${sub.codigo}-nome`} value={sub.nome} onChange={(e) => atualizar(ti, { children: tarefa.children.map((s, i) => i === si ? { ...s, nome: e.target.value } : s) })} />
+                </div>
+                <div>
+                  <RotuloComAjuda htmlFor={`${sub.codigo}-responsavel`} campo="Quem faz?" ajuda="Informe a pessoa ou equipe que executa a subtarefa." />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input id={`${sub.codigo}-responsavel`} list={listId} value={sub.responsavel ?? ""} placeholder="Nome ou equipe" onChange={(e) => atualizar(ti, { children: tarefa.children.map((s, i) => i === si ? { ...s, responsavel: e.target.value } : s) })} />
+                    <Button type="button" variant="ghost" aria-label={`Remover subtarefa ${sub.nome}`} onClick={() => atualizar(ti, { children: tarefa.children.filter((_, i) => i !== si) })}>×</Button>
                   </div>
                 </div>
-
-                <ul className="stack" style={{ listStyle: "none", paddingLeft: 16, marginTop: 10 }}>
-                  {tarefa.children.map((sub, si) => (
-                    <li key={sub.codigo} className="form-grid form-grid--2">
-                      <div>
-                        <RotuloComAjuda htmlFor={`${sub.codigo}-nome`} campo="Subtarefa" ajuda="Descreva um passo menor necessário para concluir a tarefa." />
-                        <input
-                          id={`${sub.codigo}-nome`}
-                          value={sub.nome}
-                          onChange={(e) =>
-                            atualizarSubtarefas(
-                              mi,
-                              ti,
-                              patchAt(tarefa.children, si, { nome: e.target.value }),
-                            )
-                          }
-                        />
-                      </div>
-                      <div>
-                        <RotuloComAjuda htmlFor={`${sub.codigo}-responsavel`} campo="Quem faz?" ajuda="Informe a pessoa ou equipe que executa a subtarefa." />
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <input
-                            id={`${sub.codigo}-responsavel`}
-                            list={listId}
-                            value={sub.responsavel ?? ""}
-                            placeholder="Nome ou equipe"
-                            onChange={(e) =>
-                              atualizarSubtarefas(
-                                mi,
-                                ti,
-                                patchAt(tarefa.children, si, { responsavel: e.target.value }),
-                              )
-                            }
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={() =>
-                              atualizarSubtarefas(mi, ti, removeAt(tarefa.children, si))
-                            }
-                          >
-                            ×
-                          </Button>
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  style={{ marginTop: 8 }}
-                  onClick={() =>
-                    atualizarSubtarefas(mi, ti, [
-                      ...tarefa.children,
-                      criarNo("SUBTAREFA", "Nova subtarefa"),
-                    ])
-                  }
-                >
-                  + Subtarefa
-                </Button>
-              </div>
+                <div>
+                  <RotuloComAjuda htmlFor={`${sub.codigo}-prazo`} campo="Prazo da subtarefa" ajuda="Escolha a data prevista para concluir a subtarefa. É opcional." />
+                  <input id={`${sub.codigo}-prazo`} type="date" value={sub.prazo?.slice(0, 10) ?? ""} onChange={(e) => atualizar(ti, { children: tarefa.children.map((s, i) => i === si ? { ...s, prazo: e.target.value ? new Date(`${e.target.value}T12:00:00`).toISOString() : null } : s) })} />
+                </div>
+              </li>
             ))}
-
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() =>
-                atualizarTarefas(mi, [...meta.children, criarNo("TAREFA", "Nova tarefa")])
-              }
-            >
-              + Tarefa
-            </Button>
-          </div>
+          </ul>
+          <Button type="button" variant="ghost" onClick={() => atualizar(ti, { children: [...tarefa.children, criarNo("SUBTAREFA", "Nova subtarefa")] })}>+ Subtarefa</Button>
         </article>
       ))}
-
-      <Button
-        type="button"
-        variant="secondary"
-        onClick={() => onChange([...nodes, criarNo("META", "Nova meta")])}
-      >
-        + Meta
-      </Button>
+      <Button type="button" variant="secondary" onClick={() => onChange([...nodes, criarNo("TAREFA", "Nova tarefa")])}>+ Tarefa</Button>
     </div>
   );
 }

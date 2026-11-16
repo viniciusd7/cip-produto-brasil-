@@ -16,12 +16,6 @@ export const COR = {
 
 const ORDEM = ["INTERVENCAO", "DADOS_DEFASADOS", "ACOMPANHAMENTO", "ROTINA"];
 
-export function numero(valor: string | null | undefined) {
-  if (valor == null) return null;
-  const n = Number(String(valor).replace(/\./g, "").replace(",", ".").replace(/[^\d.-]/g, ""));
-  return Number.isFinite(n) ? n : null;
-}
-
 export function saudeGoverno(governo: Data["governo"]) {
   if (!governo.totalTarefas) return null;
   const abertasEmDia = Math.max(0, governo.abertas - governo.atrasadas - governo.semPrazo);
@@ -90,7 +84,7 @@ export function BarraEmpilhada({ partes }: { partes: Array<{ rotulo: string; val
 }
 
 export function GovernoGlance({ data, secretarias: secretariasSlot }: { data: Data; secretarias?: ReactNode }) {
-  const { governo, porSecretaria, metas, estrategia, tarefasPedemAcao } = data;
+  const { governo, porSecretaria, estrategia, tarefasPedemAcao } = data;
   const saude = saudeGoverno(governo);
   const v = veredito(saude);
   const abertasEmDia = Math.max(0, governo.abertas - governo.atrasadas - governo.semPrazo);
@@ -103,8 +97,6 @@ export function GovernoGlance({ data, secretarias: secretariasSlot }: { data: Da
   );
 
   const metasEstrategicas = estrategia?.metas ?? [];
-  const metasExec = metas ?? { total: 0, comValor: 0, cobertura: 0, atrasadas: 0, semPrazo: 0, concluidas: 0, pedemAcao: [] };
-  const metasEmAndamento = Math.max(0, metasExec.total - metasExec.concluidas - metasExec.atrasadas - metasExec.semPrazo);
 
   const atencao = [
     ...(tarefasPedemAcao?.atrasadas ?? []).map((t) => ({
@@ -114,14 +106,6 @@ export function GovernoGlance({ data, secretarias: secretariasSlot }: { data: Da
       titulo: t.descricao,
       onde: `${t.secretaria} · ${t.iniciativaNome}`,
       href: `/iniciativas/${t.iniciativaId}?aba=andamento`,
-    })),
-    ...metasExec.pedemAcao.map((m) => ({
-      key: `m-${m.id}`,
-      cor: COR.lilas,
-      rotulo: "Meta vencida",
-      titulo: m.nome,
-      onde: `${m.secretaria} · ${m.iniciativaNome}`,
-      href: `/iniciativas/${m.iniciativaId}`,
     })),
     ...(tarefasPedemAcao?.vencemEm15d ?? []).map((t) => ({
       key: `v-${t.id}`,
@@ -204,8 +188,7 @@ export function GovernoGlance({ data, secretarias: secretariasSlot }: { data: Da
       </section>
       )}
 
-      <div className="gl-duas">
-        <section id="meta-estrategica" className="gl-bloco">
+      <section id="meta-estrategica" className="gl-bloco">
           <header className="gl-bloco__cab">
             <div>
               <p className="gl-kicker">Plano de governo</p>
@@ -215,10 +198,6 @@ export function GovernoGlance({ data, secretarias: secretariasSlot }: { data: Da
           {metasEstrategicas.length ? (
             <ul className="gl-metas">
               {metasEstrategicas.slice(0, 6).map((m) => {
-                const realizado = numero(m.medicaoAtual?.valorRealizado);
-                const alvo = numero(m.alvo);
-                const pct = realizado != null && alvo ? Math.max(0, Math.min(100, Math.round((realizado / alvo) * 100))) : null;
-                const cor = m.aguardandoMedicao ? COR.lilas : m.desvio != null && m.desvio < 0 ? COR.rosa : COR.verde;
                 const situacao = m.aguardandoMedicao
                   ? "Aguardando medição"
                   : m.desvio == null
@@ -227,17 +206,38 @@ export function GovernoGlance({ data, secretarias: secretariasSlot }: { data: Da
                       ? "Abaixo do esperado"
                       : "No ritmo esperado";
                 return (
-                  <li key={m.id} style={{ ["--c" as string]: cor }}>
+                  <li key={m.id}>
                     <div className="gl-metas__topo">
                       <strong>{m.nome}</strong>
                       <span className="gl-metas__situacao">{situacao}</span>
                     </div>
-                    <span className="gl-metas__barra" aria-hidden="true"><span style={{ width: `${pct ?? 0}%` }} /></span>
                     <small>
-                      {m.indicador || "Indicador a definir"} ·{" "}
-                      {realizado != null ? `${m.medicaoAtual?.valorRealizado}` : "—"} de {m.alvo || "—"} {m.unidade || ""}
-                      {pct != null ? ` (${pct}%)` : ""}
+                      {m.medicaoAtual
+                        ? `Valor medido: ${m.medicaoAtual.valorRealizado}${m.unidade ? ` ${m.unidade}` : ""}${m.medicaoAtual.valorEsperado != null ? ` · esperado: ${m.medicaoAtual.valorEsperado}${m.unidade ? ` ${m.unidade}` : ""}` : ""}`
+                        : "Sem medição registrada"}
                     </small>
+                    <small>
+                      Projetos: {m.projetosVinculados.length
+                        ? m.projetosVinculados.map((projeto) => `${projeto.codigo} · ${projeto.nome}`).join("; ")
+                        : "Nenhum projeto vinculado"}
+                    </small>
+                    {m.indicadores.length ? (
+                      <ul className="gl-metas__indicadores">
+                        {m.indicadores.map((indicador) => (
+                          <li key={indicador.id}>
+                            <strong>{indicador.nome}</strong>
+                            <small>
+                              Base: {indicador.valorBase ?? "—"}{indicador.unidade ? ` ${indicador.unidade}` : ""}
+                              {" · Atual: "}{indicador.valorAtual ?? "—"}{indicador.unidade ? ` ${indicador.unidade}` : ""}
+                              {" · Alvo: "}{indicador.alvo ?? "—"}{indicador.unidade ? ` ${indicador.unidade}` : ""}
+                              {indicador.periodicidade ? ` · ${indicador.periodicidade.toLowerCase()}` : ""}
+                            </small>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <small>Sem indicadores vinculados.</small>
+                    )}
                   </li>
                 );
               })}
@@ -245,34 +245,7 @@ export function GovernoGlance({ data, secretarias: secretariasSlot }: { data: Da
           ) : (
             <p className="gl-vazio">O consultor ainda não cadastrou metas estratégicas.</p>
           )}
-        </section>
-
-        <section id="meta-execucao" className="gl-bloco">
-          <header className="gl-bloco__cab">
-            <div>
-              <p className="gl-kicker">Entregas dos projetos</p>
-              <h2>Metas de execução</h2>
-            </div>
-          </header>
-          <div className="gl-exec">
-            <div className="gl-exec__grande" style={{ ["--c" as string]: COR.verde }}>
-              <strong>{metasExec.concluidas}</strong>
-              <span>de {metasExec.total} concluídas</span>
-            </div>
-            <BarraEmpilhada
-              partes={[
-                { rotulo: "concluídas", valor: metasExec.concluidas, cor: COR.verde },
-                { rotulo: "em andamento", valor: metasEmAndamento, cor: COR.azul },
-                { rotulo: "sem prazo", valor: metasExec.semPrazo, cor: COR.ouro },
-                { rotulo: "vencidas", valor: metasExec.atrasadas, cor: COR.rosa },
-              ]}
-            />
-            <p className="gl-exec__nota">
-              <strong>{metasExec.cobertura}%</strong> das metas têm o valor atual informado pelos indicadores.
-            </p>
-          </div>
-        </section>
-      </div>
+      </section>
 
       <section id="atencao" className="gl-bloco">
         <header className="gl-bloco__cab">

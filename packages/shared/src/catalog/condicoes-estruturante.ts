@@ -297,7 +297,14 @@ export const QUIZ_P03_BASE: TemaCondicao[] = [
     efeitos: [
       {
         quando: { in: ["pendente", "a_avaliar", "atendida"] },
-        incluirEstrutura: ["META_CONTRATACAO"],
+        incluirEstrutura: [
+          "TAR_ETP",
+          "TAR_ORCAMENTO",
+          "TAR_PCA",
+          "TAR_PARECER_JURIDICO",
+          "TAR_PUBLICAR_JULGAR",
+          "TAR_ASSINAR_CONTRATO",
+        ],
       },
     ],
   },

@@ -39,7 +39,7 @@ export function getHomeForRole(role?: string | null) {
     case "gestor":
       return "/minha-pasta";
     case "analista":
-      return "/secretarias";
+      return "/painel";
     case "prefeito":
     case "leitura":
     default:
@@ -97,15 +97,6 @@ export function getNextStepForRole(role?: string | null): {
   }
 }
 
-export const RELATORIOS_NAV = [
-  { href: "/relatorios", label: "Visão geral" },
-  { href: "/relatorios/secretarias", label: "Secretarias" },
-  { href: "/relatorios/metas", label: "Metas" },
-  { href: "/relatorios/projetos", label: "Projetos" },
-  { href: "/relatorios/tarefas", label: "Tarefas" },
-  { href: "/relatorios/evidencias", label: "Evidências" },
-] as const;
-
 export type NavItem = {
   href: string;
   label: string;
@@ -153,6 +144,7 @@ export function getNavForRole(role?: string | null): NavItem[] {
     );
   } else if (r === "analista") {
     [
+      "/painel",
       "/secretarias",
       "/carteira",
       "/acoes",
@@ -171,9 +163,7 @@ export function getNavForRole(role?: string | null): NavItem[] {
   allow.add("/base-conhecimento");
   if (r !== "leitura") allow.add("/notificacoes");
 
-  const items = ALL_NAV.filter((n) => allow.has(n.href)).map((n) =>
-    n.href === "/relatorios" ? { ...n, children: [...RELATORIOS_NAV] } : n,
-  );
+  const items = ALL_NAV.filter((n) => allow.has(n.href));
   if (r === "gestor") {
     const pasta = items.findIndex((n) => n.href === "/minha-pasta");
     items.splice(pasta + 1, 0, {

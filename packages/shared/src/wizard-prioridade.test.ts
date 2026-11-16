@@ -159,11 +159,10 @@ describe("etapas — grupos e prontidão", () => {
     assert.ok(codigosDaArvore(r.estrutura).includes("TAR_OBTER_DOTACAO"));
   });
 
-  it("terreno a desapropriar inclui o processo completo na ordem da lei", () => {
+  it("terreno a desapropriar gera tarefas na ordem da lei sem meta de execução", () => {
     const r = estado(R({ situacao_imovel: "Precisa desapropriar imóvel" }));
     const codigos = codigosDaArvore(r.estrutura);
     for (const c of [
-      "META_DESAPROPRIACAO",
       "TAR_DUP",
       "TAR_AVALIACAO",
       "TAR_OFERTA",
@@ -173,11 +172,14 @@ describe("etapas — grupos e prontidão", () => {
     }
     assert.equal(r.cicloInicial, "AGUARDANDO_PRE_REQUISITO");
     assert.equal(r.bloqueioLabel, "Aguardando desapropriação");
-    const meta = r.estrutura.find((n) => n.codigo === "META_DESAPROPRIACAO");
+    const tarefa = r.estrutura.find((n) => n.codigo === "TAR_DUP");
+    assert.equal(tarefa?.nivel, "TAREFA");
     assert.deepEqual(
-      meta?.children.map((c) => c.codigo),
+      r.estrutura.slice(0, 4).map((n) => n.codigo),
       ["TAR_DUP", "TAR_AVALIACAO", "TAR_OFERTA", "TAR_IMISSAO_POSSE"],
     );
+    assert.ok(r.estrutura.every((n) => n.nivel === "TAREFA"));
+    assert.ok(!codigos.includes("META_DESAPROPRIACAO"));
   });
 
   it("sem necessidade de contratação não inclui tarefas de licitação", () => {

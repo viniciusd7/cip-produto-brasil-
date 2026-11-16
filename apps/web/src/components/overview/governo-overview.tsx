@@ -68,10 +68,8 @@ function Radar({ pasta, color }: { pasta: SecretariaOverview; color: string }) {
 
 function recommendation(p: SecretariaOverview) {
   if (!p.projetos) return "Vincular o primeiro projeto a esta secretaria para iniciar o acompanhamento.";
-  if (!p.tarefasTotal && !(p.metasTotal || 0)) return "Cadastrar metas de execução e as primeiras tarefas para iniciar o acompanhamento.";
+  if (!p.tarefasTotal) return "Registrar as primeiras tarefas dos projetos para iniciar o acompanhamento.";
   if (p.classificacao === "DADOS_DEFASADOS") return "Validar a situação das entregas e atualizar a carteira antes da próxima reunião.";
-  if ((p.metasAtrasadas || 0) > 0) return `Atualizar as ${p.metasAtrasadas} metas com prazo vencido e registrar o valor atual dos indicadores.`;
-  if ((p.metasTotal || 0) > 0 && (p.metasComValor || 0) === 0) return "Registrar o valor atual das metas de execução vinculadas aos projetos.";
   if (p.criticas) return `Revisar as ${p.criticas} tarefas críticas e pactuar as providências com os responsáveis.`;
   if (p.semPrazo) return `Definir datas para as ${p.semPrazo} tarefas sem prazo e revisar os encaminhamentos.`;
   if (p.atrasadas) return `Solicitar causa, providência e responsável para as ${p.atrasadas} tarefas atrasadas.`;
@@ -79,8 +77,7 @@ function recommendation(p: SecretariaOverview) {
 }
 
 export function GovernoOverview({ payload, municipio, role }: { payload: OverviewResponse; municipio: string; role?: string }) {
-  const { governo, porSecretaria, agenda, projetosEstruturantes, pendencias, tarefasPedemAcao, metas, estrategia } = payload.data;
-  const metasResumo = metas || { total: 0, comIndicador: 0, comValor: 0, cobertura: 0, atrasadas: 0, semPrazo: 0, concluidas: 0, pedemAcao: [] as NonNullable<OverviewResponse["data"]["metas"]>["pedemAcao"] };
+  const { governo, porSecretaria, agenda, projetosEstruturantes, pendencias, tarefasPedemAcao, estrategia } = payload.data;
   const [detalhe, setDetalhe] = useState(false);
   const [tab, setTab] = useState("compare");
   const [query, setQuery] = useState("");
@@ -201,8 +198,6 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
                   <span><b>{p.atrasadas}</b> tarefas atr.</span>
                   <span><b>{p.semPrazo}</b> sem prazo</span>
                   <span><b>{p.criticas}</b> críticas</span>
-                  <span><b>{p.metasTotal || 0}</b> metas</span>
-                  <span><b>{p.metasAtrasadas || 0}</b> metas atr.</span>
                 </div>
                 <div className={s.recommendation}><small>Próxima cobrança sugerida</small><p>{recommendation(p)}</p></div>
                 <footer>
@@ -264,7 +259,9 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
                     {m.perspectivaBsc && <span className="dashboard-muted">{m.perspectivaBsc}</span>}
                   </div>
                   <p className="dashboard-muted" style={{ margin: "8px 0" }}>
-                    {m.indicador || "Indicador a definir"} · alvo {m.alvo || "—"} {m.unidade || ""}
+                    Projetos: {m.projetosVinculados.length
+                      ? m.projetosVinculados.map((projeto) => `${projeto.codigo} · ${projeto.nome}`).join("; ")
+                      : "Nenhum projeto vinculado"}
                   </p>
                   {m.resultadoChaveOkr && <p className="dashboard-muted">OKR: {m.resultadoChaveOkr}</p>}
                   {m.aguardandoMedicao ? (
@@ -278,6 +275,21 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
                   )}
                   {m.medicaoAnterior && (
                     <p className="dashboard-muted">Anterior: {m.medicaoAnterior.valorRealizado}</p>
+                  )}
+                  {m.indicadores.length ? (
+                    <ul className="dashboard-muted">
+                      {m.indicadores.map((indicador) => (
+                        <li key={indicador.id}>
+                          <strong>{indicador.nome}</strong>
+                          {" · Base: "}{indicador.valorBase ?? "—"}{indicador.unidade ? ` ${indicador.unidade}` : ""}
+                          {" · Atual: "}{indicador.valorAtual ?? "—"}{indicador.unidade ? ` ${indicador.unidade}` : ""}
+                          {" · Alvo: "}{indicador.alvo ?? "—"}{indicador.unidade ? ` ${indicador.unidade}` : ""}
+                          {indicador.periodicidade ? ` · ${indicador.periodicidade.toLowerCase()}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="dashboard-muted">Sem indicadores vinculados.</p>
                   )}
                 </div>
               ))}
@@ -468,20 +480,6 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
           )}
         </div>
 
-        <div className={s.metasStrip} aria-label="Metas de execução">
-          <div>
-            <p className={s.kicker}>Metas de execução · base do projeto</p>
-            <h2>Indicadores das metas cadastradas</h2>
-          </div>
-          <div className={s.metasGrid}>
-            <div><strong>{metasResumo.total}</strong><span>metas</span></div>
-            <div><strong>{metasResumo.comValor}</strong><span>com valor atual</span></div>
-            <div><strong>{metasResumo.cobertura}%</strong><span>cobertura de atualização</span></div>
-            <div><strong>{metasResumo.atrasadas}</strong><span>metas com prazo vencido</span></div>
-            <div><strong>{metasResumo.semPrazo}</strong><span>metas sem prazo</span></div>
-            <div><strong>{metasResumo.concluidas}</strong><span>metas concluídas</span></div>
-          </div>
-        </div>
       </section>
 
 
@@ -521,18 +519,18 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
             <button type="button" className={s.button} onClick={() => chooseGroup("INTERVENCAO")}>Filtrar pastas ↗</button>
           </article>
           <article className={`${s.panel} ${s.decisionCard}`} style={{ ["--accent" as string]: "#b9a0ff" }}>
-            <span className={s.healthPill} style={{ ["--health" as string]: "#b9a0ff" }}><i />Metas e informação</span>
-            <h3>Metas vencidas e pastas defasadas</h3>
-            <strong className={s.decisionNumber}>{metasResumo.atrasadas}</strong>
+            <span className={s.healthPill} style={{ ["--health" as string]: "#b9a0ff" }}><i />Informação da base</span>
+            <h3>Pastas sem atualização</h3>
+            <strong className={s.decisionNumber}>{agenda.pastasDesatualizadas.length}</strong>
             <p>
-              {metasResumo.atrasadas} metas com prazo vencido · {agenda.pastasDesatualizadas?.length || 0} pastas defasadas
-              {(agenda.pastasDesatualizadas || []).length ? ` (${(agenda.pastasDesatualizadas || []).slice(0, 2).map((p) => p.nome).join(", ")})` : ""}.
+              {agenda.pastasDesatualizadas.length} pastas sem atualização registrada
+              {agenda.pastasDesatualizadas.length ? ` (${agenda.pastasDesatualizadas.slice(0, 2).map((p) => p.nome).join(", ")})` : ""}.
             </p>
             <div className={s.recommendation}>
               <small>Pedido sugerido</small>
-              <p>Atualizar valor atual das metas e a carteira antes da próxima reunião.</p>
+              <p>Revisar as informações da carteira antes da próxima reunião.</p>
             </div>
-            <Link href="/relatorios/metas" className={s.button}>Ver relatórios ↗</Link>
+            <Link href="/carteira" className={s.button}>Abrir carteira ↗</Link>
           </article>
         </div>
         <div className={`${s.panel} ${s.actionList}`}>
@@ -556,13 +554,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
                 <b aria-hidden="true">↗</b>
               </Link>
             ))}
-            {metasResumo.pedemAcao.slice(0, 3).map((m) => (
-              <Link key={`meta-${m.id}`} href={`/iniciativas/${m.iniciativaId}`}>
-                <span><strong>{m.nome}</strong><small>Meta vencida · {m.secretaria} · atual: {m.valorAtual || "—"} / alvo: {m.alvo || "—"}</small></span>
-                <b aria-hidden="true">↗</b>
-              </Link>
-            ))}
-            {!tarefasPedemAcao?.atrasadas?.length && !tarefasPedemAcao?.vencemEm15d?.length && !tarefasPedemAcao?.semPrazo?.length && !metasResumo.pedemAcao.length && (
+            {!tarefasPedemAcao?.atrasadas?.length && !tarefasPedemAcao?.vencemEm15d?.length && !tarefasPedemAcao?.semPrazo?.length && (
               <p>Nenhum item pedindo ação nesta base.</p>
             )}
           </div>
@@ -583,8 +575,8 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
             <span className={s.healthPill} style={{ ["--health" as string]: SERIES.semAtraso }}><i />Entregas</span>
             <h3>Concluídas na base</h3>
             <strong className={s.decisionNumber}>{governo.concluidas}</strong>
-            <p>Tarefas concluídas · {metasResumo.concluidas} metas concluídas · {metasResumo.cobertura}% das metas com valor atual.</p>
-            <div className={s.recommendation}><small>Antes de divulgar</small><p>Validar evidências e o valor atual das metas nas pastas com maior volume de conclusão.</p></div>
+            <p>Tarefas concluídas na base.</p>
+            <div className={s.recommendation}><small>Antes de divulgar</small><p>Validar as evidências das entregas antes da divulgação.</p></div>
           </article>
           <article className={s.panel}>
             <span className={s.healthPill} style={{ ["--health" as string]: SERIES.atraso }}><i />Pendências</span>

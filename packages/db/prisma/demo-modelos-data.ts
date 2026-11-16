@@ -114,7 +114,6 @@ export async function createDemoProjects(
   for (const [index, p] of demo.projetos.entries()) {
     const classes = classifications[index];
     const concluded = index === 3;
-    const metaId = id(`execucao-${index}`);
     const initiativeId = id(`projeto-${index}`);
     const owner = `Equipe fictícia de ${p.secretaria}`;
     await tx.iniciativa.create({
@@ -146,22 +145,6 @@ export async function createDemoProjects(
             secretariaId: id("secretaria-PLA"),
             papel: "PARTICIPANTE",
             responsavel: "Equipe fictícia de Planejamento",
-          },
-        },
-        metasExecucao: {
-          create: {
-            id: metaId,
-            codigo: `DEMO-MX-${index + 1}`,
-            nome: p.meta,
-            indicador: p.indicador,
-            criterio: "Valores simulados; conferir entregas com evidências antes de validar.",
-            alvo: String(p.alvo),
-            valorAtual: String(p.atual),
-            unidade: p.unidade,
-            prazo: index === 0 ? date("2026-10-30") : index === 2 ? null : date("2026-12-15"),
-            status: concluded ? "CONCLUIDA" : "EM_ANDAMENTO",
-            responsavel: owner,
-            ordem: 1,
           },
         },
         impedimentos: index === 0 ? {
@@ -205,7 +188,6 @@ export async function createDemoProjects(
         data: {
           id: id(`tarefa-${index}-${task}`),
           iniciativaId: initiativeId,
-          metaExecucaoId: metaId,
           codigo: `DEMO-T${index + 1}-${task + 1}`,
           descricao: [
             "Concluir diagnóstico demonstrativo do território",

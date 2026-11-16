@@ -8,8 +8,6 @@ export function mesclarEscopo(anterior: EscopoNo[], novo: EscopoNo[]): EscopoNo[
     return {
       ...n,
       nome: antigo.nome,
-      indicador: antigo.indicador,
-      alvo: antigo.alvo,
       responsavel: antigo.responsavel,
       prazo: antigo.prazo,
       children: mesclarEscopo(antigo.children, n.children),

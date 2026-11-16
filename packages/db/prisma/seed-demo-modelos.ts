@@ -10,7 +10,7 @@ async function main() {
   if (!args.includes("--apply") || args.includes("--help")) {
     console.log("Seed demonstrativo v1 — plano estático, sem conexão com banco.");
     for (const demo of DEMO_MUNICIPIOS) {
-      console.log(`${demo.nome}: 5 secretarias, 4 projetos, 4 metas estratégicas, 4 metas de execução, 16 tarefas, 4 indicadores.`);
+      console.log(`${demo.nome}: 5 secretarias, 4 projetos, 4 metas estratégicas, 0 metas de execução, 16 tarefas, 4 indicadores.`);
     }
     console.log("Aplicar: pnpm db:seed:modelos --apply");
     console.log("Exige DEMO_DATABASE_URL local (loopback, sem parâmetros, banco cip_demo_<nome>), DEMO_SEED_CONFIRM (nome do banco) e DEMO_SEED_PASSWORD (16+ caracteres, até 72 bytes).");

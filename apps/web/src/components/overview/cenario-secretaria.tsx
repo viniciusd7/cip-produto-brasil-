@@ -25,13 +25,24 @@ export type CenarioSecretariaResponse = {
       id: string;
       nome: string;
       codigo?: string | null;
-      indicador?: string | null;
       valorBase?: string | null;
       alvo?: string | null;
       unidade?: string | null;
       perspectivaBsc?: string | null;
       resultadoChaveOkr?: string | null;
       projetos: number;
+      projetosVinculados: Array<{ id: string; codigo: string; nome: string }>;
+      indicadores: Array<{
+        id: string;
+        nome: string;
+        unidade?: string | null;
+        valorBase?: string | null;
+        alvo?: string | null;
+        valorAtual?: string | null;
+        periodicidade?: string | null;
+        responsavel?: { id: string; name: string } | null;
+        ultimaMedicao: string | null;
+      }>;
       desvio: number | null;
       aguardandoMedicao: boolean;
       medicaoAtual: {
@@ -41,27 +52,8 @@ export type CenarioSecretariaResponse = {
         fonte: string | null;
       } | null;
     }>;
-    metasExecucao: Array<{
-      id: string;
-      nome: string;
-      indicador?: string | null;
-      alvo?: string | null;
-      valorAtual?: string | null;
-      unidade?: string | null;
-      prazo?: string | null;
-      status: string;
-      prazoStatus: string;
-      iniciativaId: string;
-      iniciativaNome: string;
-      iniciativaCodigo: string;
-      metaEstrategicaNome?: string | null;
-    }>;
     indicadores: {
       projetos: number;
-      metasExecucao: number;
-      metasComValor: number;
-      coberturaMetas: number;
-      metasAtrasadas: number;
       totalTarefas: number;
       concluidas: number;
       atrasadas: number;

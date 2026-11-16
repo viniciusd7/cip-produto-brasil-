@@ -886,6 +886,24 @@ adminRouter.get(
           metas: {
             include: {
               plano: true,
+              indicadores: {
+                where: { ativo: true },
+                select: {
+                  id: true,
+                  nome: true,
+                  unidade: true,
+                  valorBase: true,
+                  valorAtual: true,
+                  alvo: true,
+                  periodicidade: true,
+                  medicoes: {
+                    orderBy: { dataCorte: "desc" },
+                    take: 1,
+                    select: { valorRealizado: true, dataCorte: true },
+                  },
+                },
+                orderBy: { createdAt: "asc" },
+              },
               iniciativas: {
                 select: {
                   id: true,
@@ -902,7 +920,7 @@ adminRouter.get(
             orderBy: { atualizadoEm: "desc" },
             include: {
               metaEstrategica: true,
-              _count: { select: { marcos: true, metasExecucao: true } },
+              _count: { select: { marcos: true } },
             },
           },
         },
