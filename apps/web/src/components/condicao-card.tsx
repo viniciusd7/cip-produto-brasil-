@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+import { AjudaCampo } from "@/components/ajuda-campo";
 import {
   RESPOSTA_FECHADA_LABEL,
   RESPOSTA_FECHADA_OPCOES,
@@ -13,14 +15,36 @@ import {
 
 export type CondicaoValorState = string | CondicaoResposta;
 
+function CampoComAjuda({
+  mostrar,
+  campo,
+  ajuda,
+  children,
+}: {
+  mostrar?: boolean;
+  campo: string;
+  ajuda: string;
+  children: ReactNode;
+}) {
+  if (!mostrar) return <>{children}</>;
+  return (
+    <div>
+      <AjudaCampo campo={campo}>{ajuda}</AjudaCampo>
+      {children}
+    </div>
+  );
+}
+
 export function CondicaoCard({
   pergunta,
   valor,
   onChange,
+  mostrarAjuda = false,
 }: {
   pergunta: ModeloPerguntaDef;
   valor: CondicaoValorState | undefined;
   onChange: (next: CondicaoValorState) => void;
+  mostrarAjuda?: boolean;
 }) {
   const parsed = parseCondicaoResposta(pergunta.codigo, valor ?? "a_avaliar");
   const fechada = respostaFechada(parsed);
@@ -116,6 +140,7 @@ export function CondicaoCard({
       ) : null}
 
       {isSelecao ? (
+        <CampoComAjuda mostrar={mostrarAjuda} campo={rotulo} ajuda={pergunta.ajuda || perguntaTxt}>
         <label className="condicao-card__field">
           <span>Situação</span>
           <select
@@ -142,9 +167,11 @@ export function CondicaoCard({
             ))}
           </select>
         </label>
+        </CampoComAjuda>
       ) : null}
 
       {isNumero ? (
+        <CampoComAjuda mostrar={mostrarAjuda} campo={rotulo} ajuda={pergunta.ajuda || perguntaTxt}>
         <label className="condicao-card__field">
           <span>Valor</span>
           <input
@@ -154,9 +181,11 @@ export function CondicaoCard({
             onChange={(e) => onChange(e.target.value)}
           />
         </label>
+        </CampoComAjuda>
       ) : null}
 
       {isTexto ? (
+        <CampoComAjuda mostrar={mostrarAjuda} campo={rotulo} ajuda={pergunta.ajuda || perguntaTxt}>
         <label className="condicao-card__field">
           <span>Resposta</span>
           <textarea
@@ -166,6 +195,7 @@ export function CondicaoCard({
             placeholder={pergunta.ajuda || undefined}
           />
         </label>
+        </CampoComAjuda>
       ) : null}
 
       {(isFechada ||
@@ -176,6 +206,7 @@ export function CondicaoCard({
       !isTexto ? (
         <>
           {isImpedimento ? (
+            <CampoComAjuda mostrar={mostrarAjuda} campo={rotulo} ajuda={pergunta.ajuda || perguntaTxt}>
             <label className="condicao-card__field">
               <span>Este item é necessário?</span>
               <select
@@ -200,7 +231,9 @@ export function CondicaoCard({
                 <option value="NAO_SE_APLICA">Não se aplica</option>
               </select>
             </label>
+            </CampoComAjuda>
           ) : (
+            <CampoComAjuda mostrar={mostrarAjuda} campo={rotulo} ajuda={pergunta.ajuda || perguntaTxt}>
             <label className="condicao-card__field">
               <span>Situação: {rotulo}</span>
               <select
@@ -233,9 +266,11 @@ export function CondicaoCard({
                 ))}
               </select>
             </label>
+            </CampoComAjuda>
           )}
 
           {isImpedimento && parsed.aplicabilidade === "sim" ? (
+            <CampoComAjuda mostrar={mostrarAjuda} campo="Situação do item" ajuda="Indique se o item necessário já foi atendido ou ainda está pendente.">
             <label className="condicao-card__field">
               <span>Situação do item</span>
               <select
@@ -253,10 +288,12 @@ export function CondicaoCard({
                 <option value="atendida">Atendido</option>
               </select>
             </label>
+            </CampoComAjuda>
           ) : null}
 
           {isFechada ? (
             <>
+              <CampoComAjuda mostrar={mostrarAjuda} campo="Fundamento" ajuda="Informe a fonte, documento ou avaliação que justifica a situação informada.">
               <label className="condicao-card__field">
                 <span>
                   {fechada === "nao_se_aplica"
@@ -270,8 +307,10 @@ export function CondicaoCard({
                   placeholder="Fonte, documento ou avaliação da área competente"
                 />
               </label>
+              </CampoComAjuda>
               {(fechada === "pendente" || fechada === "a_avaliar") && (
                 <div className="condicao-card__grid">
+                  <CampoComAjuda mostrar={mostrarAjuda} campo="Próxima providência" ajuda="Descreva a próxima ação necessária para resolver ou avaliar este item.">
                   <label className="condicao-card__field">
                     <span>Próxima providência</span>
                     <input
@@ -280,6 +319,8 @@ export function CondicaoCard({
                       placeholder="Ex.: solicitar avaliação à área financeira"
                     />
                   </label>
+                  </CampoComAjuda>
+                  <CampoComAjuda mostrar={mostrarAjuda} campo="Quem acompanha" ajuda="Informe a pessoa ou área que acompanhará a providência.">
                   <label className="condicao-card__field">
                     <span>Quem acompanha</span>
                     <input
@@ -288,6 +329,7 @@ export function CondicaoCard({
                       placeholder="Pessoa ou área competente"
                     />
                   </label>
+                  </CampoComAjuda>
                 </div>
               )}
             </>
@@ -302,7 +344,8 @@ export function CondicaoCard({
             const raw = parsed.detalhes?.[campo.chave];
             const val = raw === null || raw === undefined ? "" : String(raw);
             return (
-              <label key={campo.chave} className="condicao-card__field">
+              <CampoComAjuda key={campo.chave} mostrar={mostrarAjuda} campo={campo.label} ajuda={campo.ajuda || campo.placeholder || `Informe ${campo.label.toLowerCase()} para detalhar este item do projeto.`}>
+              <label className="condicao-card__field">
                 <span>{campo.label}</span>
                 {campo.tipo === "textarea" ? (
                   <textarea
@@ -325,6 +368,7 @@ export function CondicaoCard({
                   <span className="condicao-card__ajuda">{campo.ajuda}</span>
                 ) : null}
               </label>
+              </CampoComAjuda>
             );
           })}
         </div>

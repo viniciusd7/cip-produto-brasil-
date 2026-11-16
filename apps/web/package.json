@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start --port 3000",
     "lint": "eslint",
+    "test": "tsx --test src/lib/*.test.ts src/components/*.test.tsx src/components/overview/*.test.tsx 'src/app/(app)/minha-pasta/novo/'*.test.ts 'src/app/(app)/planejamento/'*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -26,6 +27,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.5",
     "tailwindcss": "^4",
+    "tsx": "^4.20.5",
     "typescript": "^5"
   }
 }

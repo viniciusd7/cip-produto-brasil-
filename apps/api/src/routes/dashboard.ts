@@ -412,23 +412,6 @@ dashboardRouter.get("/resumo", async (req, res, next) => {
       };
     });
 
-    const docsPendentes =
-      req.user!.role === "gestor"
-        ? []
-        : await prisma.documentoConhecimento.findMany({
-            where: {
-              municipioId,
-              tipo: { in: ["PPA", "LDO", "LOA"] },
-              statusConferencia: { not: "CONFERIDO" },
-            },
-            select: {
-              id: true,
-              tipo: true,
-              titulo: true,
-              statusConferencia: true,
-            },
-          });
-
     const equipamentosAlerta = await prisma.equipamentoPublico.findMany({
       where: {
         municipioId,
@@ -639,7 +622,7 @@ dashboardRouter.get("/resumo", async (req, res, next) => {
               ).length,
             }),
           ),
-          alertasOrcamento: docsPendentes,
+          alertasOrcamento: [],
           alertaEquipamentos,
         },
       },

@@ -24,6 +24,7 @@ import {
 import { API_URL } from "@/lib/api";
 import { secretariaChipLabel, secretariaLabel } from "@/lib/secretaria-label";
 import { CondicaoCard, type CondicaoValorState } from "@/components/condicao-card";
+import { AjudaCampo, RotuloComAjuda } from "@/components/ajuda-campo";
 import { FluxoArvore, type FluxoNode } from "@/components/fluxo-arvore";
 import { EscopoEditor, temResponsavel, type EscopoNo } from "./escopo-editor";
 import { mesclarEscopo } from "./mesclar-escopo";
@@ -645,6 +646,7 @@ export function NovoProjetoWizard({
             key={p.codigo}
             pergunta={p}
             valor={respostas[p.codigo]}
+            mostrarAjuda
             onChange={(next) => setResposta(p.codigo, next)}
           />
         ))}
@@ -750,7 +752,7 @@ export function NovoProjetoWizard({
               </div>
             )}
             <div>
-              <label htmlFor="projeto-secretaria">Secretaria principal</label>
+              <RotuloComAjuda htmlFor="projeto-secretaria" campo="Secretaria principal" ajuda="Escolha a secretaria que coordena e responde pelo projeto." />
               <select
                 id="projeto-secretaria"
                 value={secretariaId}
@@ -770,16 +772,19 @@ export function NovoProjetoWizard({
               </select>
             </div>
             <div>
-              <label htmlFor="projeto-nome">Nome</label>
+              <RotuloComAjuda htmlFor="projeto-nome" campo="Nome" ajuda="Dê um nome claro e breve que identifique o projeto." />
               <input id="projeto-nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
             </div>
             <div>
-              <label>Secretarias correlacionadas</label>
+              <div className="rotulo-com-ajuda">
+                <span id="projeto-secretarias-label">Secretarias correlacionadas</span>
+                <AjudaCampo campo="Secretarias correlacionadas">Selecione as outras secretarias que participam da entrega. A seleção é opcional.</AjudaCampo>
+              </div>
               <p className="dashboard-muted" style={{ margin: "4px 0 8px", fontSize: 12 }}>
                 Pastas que participam da entrega (ex.: planejamento, administração/recursos, obras).
                 O responsável e as tarefas podem ser de qualquer uma delas.
               </p>
-              <div className="chip-row">
+              <div className="chip-row" role="group" aria-labelledby="projeto-secretarias-label">
                 {secretarias
                   .filter((s) => s.id !== secretariaId)
                   .map((s) => {
@@ -807,7 +812,7 @@ export function NovoProjetoWizard({
             </div>
             <div className="form-grid form-grid--2">
               <div>
-                <label htmlFor="projeto-codigo">Código</label>
+                <RotuloComAjuda htmlFor="projeto-codigo" campo="Código" ajuda="Identificador opcional do projeto. Se ficar vazio, será gerado automaticamente." />
                 <input
                   id="projeto-codigo"
                   value={codigo}
@@ -816,7 +821,7 @@ export function NovoProjetoWizard({
                 />
               </div>
               <div>
-                <label htmlFor="projeto-responsavel">Responsável do projeto</label>
+                <RotuloComAjuda htmlFor="projeto-responsavel" campo="Responsável do projeto" ajuda="Selecione quem coordena o projeto ou cadastre uma pessoa na secretaria principal." />
                 <select
                   id="projeto-responsavel"
                   value={responsavelPessoaId}
@@ -864,7 +869,7 @@ export function NovoProjetoWizard({
             {registrandoNovo && (
               <div className="form-grid form-grid--2">
                 <div>
-                  <label htmlFor="projeto-novo-responsavel">Nome do responsável</label>
+                  <RotuloComAjuda htmlFor="projeto-novo-responsavel" campo="Nome do responsável" ajuda="Informe o nome completo da pessoa que será cadastrada como responsável." />
                   <input
                     id="projeto-novo-responsavel"
                     value={novoNome}
@@ -874,7 +879,7 @@ export function NovoProjetoWizard({
                   />
                 </div>
                 <div>
-                  <label htmlFor="projeto-novo-cargo">Cargo</label>
+                  <RotuloComAjuda htmlFor="projeto-novo-cargo" campo="Cargo" ajuda="Informe o cargo ou função da pessoa responsável." />
                   <input
                     id="projeto-novo-cargo"
                     value={novoCargo}
@@ -884,7 +889,7 @@ export function NovoProjetoWizard({
                   />
                 </div>
                 <div>
-                  <label htmlFor="projeto-novo-telefone">Telefone</label>
+                  <RotuloComAjuda htmlFor="projeto-novo-telefone" campo="Telefone" ajuda="Telefone de contato do responsável, se disponível. É opcional." />
                   <input
                     id="projeto-novo-telefone"
                     value={novoTelefone}
@@ -893,7 +898,7 @@ export function NovoProjetoWizard({
                   />
                 </div>
                 <div>
-                  <label htmlFor="projeto-novo-email">E-mail</label>
+                  <RotuloComAjuda htmlFor="projeto-novo-email" campo="E-mail" ajuda="E-mail de contato do responsável, se disponível. É opcional." />
                   <input
                     id="projeto-novo-email"
                     type="email"
@@ -905,13 +910,18 @@ export function NovoProjetoWizard({
               </div>
             )}
             <div>
-              <label htmlFor="projeto-descricao">
-                {estruturante
+              <RotuloComAjuda htmlFor="projeto-descricao"
+                campo={estruturante
                   ? "Problema público *"
                   : classificacao === "PLANO_GOVERNO"
                     ? "Compromisso do plano e resultado esperado *"
                     : "O que precisa ser feito e onde? *"}
-              </label>
+                ajuda={estruturante
+                  ? "Descreva o problema, quem é afetado e onde ele acontece."
+                  : classificacao === "PLANO_GOVERNO"
+                    ? "Explique o compromisso assumido no plano e o resultado que se espera alcançar."
+                    : "Descreva a necessidade e o local em que a ação será realizada."}
+              />
               <textarea
                 id="projeto-descricao"
                 rows={3}
@@ -927,7 +937,7 @@ export function NovoProjetoWizard({
             {classificacao !== "ACAO_DIARIA" && (
               <>
                 <div>
-                  <label htmlFor="projeto-entrega">{estruturante ? "O que será entregue e para quem *" : "Entrega concreta deste ciclo *"}</label>
+                  <RotuloComAjuda htmlFor="projeto-entrega" campo={estruturante ? "O que será entregue e para quem *" : "Entrega concreta deste ciclo *"} ajuda="Descreva o produto ou serviço concreto que será entregue e, quando aplicável, quem o receberá." />
                   <textarea
                     id="projeto-entrega"
                     rows={3}
@@ -937,7 +947,7 @@ export function NovoProjetoWizard({
                   />
                 </div>
                 {estruturante && <div>
-                  <label htmlFor="projeto-beneficiarios">Público beneficiado</label>
+                  <RotuloComAjuda htmlFor="projeto-beneficiarios" campo="Público beneficiado" ajuda="Informe os grupos de pessoas ou comunidades beneficiadas pela entrega. É opcional." />
                   <input
                     id="projeto-beneficiarios"
                     value={beneficiariosTxt}
@@ -946,7 +956,7 @@ export function NovoProjetoWizard({
                   />
                 </div>}
                 {estruturante && <div>
-                  <label htmlFor="projeto-fora-escopo">O que fica fora deste projeto</label>
+                  <RotuloComAjuda htmlFor="projeto-fora-escopo" campo="O que fica fora deste projeto" ajuda="Registre entregas ou atividades que não fazem parte deste projeto, para evitar dúvidas. É opcional." />
                   <textarea
                     id="projeto-fora-escopo"
                     rows={2}
@@ -959,7 +969,7 @@ export function NovoProjetoWizard({
             )}
             {exigeMeta && (
               <div>
-                <label htmlFor="projeto-meta">Meta estratégica do Plano de Governo</label>
+                <RotuloComAjuda htmlFor="projeto-meta" campo="Meta estratégica do Plano de Governo" ajuda="Escolha a meta do plano à qual este projeto contribui ou crie uma nova meta." />
                 <select
                   id="projeto-meta"
                   value={metaId}
@@ -975,9 +985,9 @@ export function NovoProjetoWizard({
                   ))}
                 </select>
                 {metaId === "__nova__" && <div className="stack" style={{ marginTop: 12 }}>
-                  <label>Nome da nova meta<input value={novaMetaNome} onChange={(e) => setNovaMetaNome(e.target.value)} placeholder="Ex.: ampliar em 200 as vagas em creches" /></label>
-                  <label>Plano de governo<select value={planoId} onChange={(e) => setPlanoId(e.target.value)}>{planos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}<option value="__novo__">+ Criar plano de governo</option></select></label>
-                  {planoId === "__novo__" && <label>Nome e período do plano<input value={novoPlanoNome} onChange={(e) => setNovoPlanoNome(e.target.value)} placeholder="Ex.: Plano de Governo 2025–2028" /></label>}
+                  <div><RotuloComAjuda htmlFor="projeto-nova-meta" campo="Nome da nova meta" ajuda="Descreva o resultado estratégico que se pretende alcançar no plano de governo." /><input id="projeto-nova-meta" value={novaMetaNome} onChange={(e) => setNovaMetaNome(e.target.value)} placeholder="Ex.: ampliar em 200 as vagas em creches" /></div>
+                  <div><RotuloComAjuda htmlFor="projeto-plano" campo="Plano de governo" ajuda="Escolha o plano ao qual a nova meta pertence ou crie um plano." /><select id="projeto-plano" value={planoId} onChange={(e) => setPlanoId(e.target.value)}>{planos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}<option value="__novo__">+ Criar plano de governo</option></select></div>
+                  {planoId === "__novo__" && <div><RotuloComAjuda htmlFor="projeto-novo-plano" campo="Nome e período do plano" ajuda="Identifique o plano de governo e o período de gestão a que se refere." /><input id="projeto-novo-plano" value={novoPlanoNome} onChange={(e) => setNovoPlanoNome(e.target.value)} placeholder="Ex.: Plano de Governo 2025–2028" /></div>}
                   <p className="dashboard-muted">A meta será criada junto com o projeto ao confirmar.</p>
                 </div>}
               </div>

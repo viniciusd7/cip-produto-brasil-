@@ -72,10 +72,27 @@ pnpm dev                # web :3000 + api :4000
 Credenciais de demonstração ficam em [`docs/DEMO.md`](docs/DEMO.md) (ambiente local apenas).  
 **Não execute `pnpm db:seed` em produção.** Em produção, `NEXTAUTH_SECRET` / `JWT_SECRET` são obrigatórios.
 
+### Prefeituras fictícias independentes
+
+**Para reaproveitar CMD e Belo Horizonte já existentes, use a conversão separada:**
+`pnpm db:convert:modelos --help`. Ela exige IDs explícitos, usa dry-run por padrão
+e preserva registros/acessos. Veja [instruções de conversão local](docs/conversao-prefeituras-locais.md).
+O seed abaixo cria raízes próprias em banco separado e não serve para conversão.
+
+`pnpm db:seed:modelos` exibe, sem conectar ao banco, o plano para **Prefeitura
+Modelo 1** e **Prefeitura Modelo 2**, com projetos, metas, tarefas e indicadores.
+A aplicação exige `--apply`, URL local/confirmação de um banco PostgreSQL dedicado
+`cip_demo_<nome>` e senha explícita. Inclui `demo@modelos.example.test`, com
+seletor das duas prefeituras e perfil de leitura. Não execute no banco atual
+(`127.0.0.1:5434/cip`, bloqueado pelo comando) nem use o seed legado para esse fim.
+Veja [execução segura e acesso à demonstração](docs/seed-prefeituras-modelo.md).
+
 ## Scripts
 
 - `pnpm dev` — sobe web e api em paralelo
 - `pnpm build` — build de todos os pacotes/apps
+- `pnpm test` — executa os testes configurados dos pacotes; integrações de banco exigem URLs de teste descartáveis e são ignoradas quando não configuradas
+- `pnpm typecheck` / `pnpm lint` — verificam tipos e regras de lint disponíveis
 - `pnpm db:seed` — popula município piloto + iniciativas
 - `pnpm docker:up` / `pnpm docker:down`
 

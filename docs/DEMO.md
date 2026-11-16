@@ -1,5 +1,10 @@
 # Ambiente demo (somente desenvolvimento local)
 
+Para as novas **Prefeitura Modelo 1** e **Prefeitura Modelo 2**, use o
+[seed separado de prefeituras fictícias](seed-prefeituras-modelo.md), que exige
+banco PostgreSQL isolado e senha explícita. As contas e instruções abaixo
+pertencem ao **seed legado do piloto**, não às prefeituras Modelo.
+
 **Não use estas contas em produção.** Não execute `pnpm db:seed` contra banco
 de staging/produção com dados reais.
 

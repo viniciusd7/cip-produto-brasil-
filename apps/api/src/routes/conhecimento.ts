@@ -2,6 +2,10 @@ import { Router, type NextFunction, type Request, type Response } from "express"
 import multer from "multer";
 import { z } from "zod";
 import { prisma } from "@cip/db";
+import {
+  isKnowledgeDocumentRequired,
+  KNOWLEDGE_DOCUMENT_TYPES,
+} from "@cip/shared";
 import { HttpError } from "../middleware/error";
 import { requireAuth, requirePermission } from "../middleware/auth";
 import { writeAudit } from "../services/audit";
@@ -85,18 +89,10 @@ conhecimentoRouter.get(
         orderBy: [{ tipo: "asc" }, { updatedAt: "desc" }],
         select: documentoPublicSelect,
       });
-      const pendentes = docs.filter((d) => d.statusConferencia !== "CONFERIDO");
       res.json({
         data: docs,
         meta: {
-          alertasOrcamento: pendentes
-            .filter((d) => ["PPA", "LDO", "LOA"].includes(d.tipo))
-            .map((d) => ({
-              id: d.id,
-              tipo: d.tipo,
-              titulo: d.titulo,
-              statusConferencia: d.statusConferencia,
-            })),
+          alertasOrcamento: [],
         },
       });
     } catch (err) {
@@ -106,7 +102,7 @@ conhecimentoRouter.get(
 );
 
 const docSchema = z.object({
-  tipo: z.enum(["PPA", "LDO", "LOA", "DIAGNOSTICO", "OUTRO"]),
+  tipo: z.enum(KNOWLEDGE_DOCUMENT_TYPES),
   titulo: z.string().min(3),
   vigencia: z.string().optional(),
   versao: z.string().optional(),
@@ -118,6 +114,16 @@ const docSchema = z.object({
   arquivoUrl: z.string().url().optional().nullable(),
   observacao: z.string().optional(),
 });
+
+function assertKnowledgeDocumentFile(tipo: string, hasFile: boolean) {
+  if (isKnowledgeDocumentRequired(tipo) && !hasFile) {
+    throw new HttpError(
+      422,
+      "DOCUMENT_FILE_REQUIRED",
+      "O arquivo do Plano de Governo é obrigatório.",
+    );
+  }
+}
 
 conhecimentoRouter.post(
   "/documentos",
@@ -134,6 +140,7 @@ conhecimentoRouter.post(
         throw new HttpError(403, "FORBIDDEN", "Somente a consultoria pode conferir documentos.");
       }
       const file = req.file;
+      assertKnowledgeDocumentFile(body.tipo, Boolean(file));
       const conteudoExtraido = file
         ? await extractKnowledgeText(file.buffer, file.originalname, file.mimetype)
         : undefined;
@@ -243,6 +250,10 @@ conhecimentoRouter.patch(
         select: documentoPublicSelect,
       });
       if (!existing) throw new HttpError(404, "NOT_FOUND", "Documento não encontrado");
+      assertKnowledgeDocumentFile(
+        body.tipo ?? existing.tipo,
+        Boolean(existing.arquivoNome),
+      );
       const doc = await prisma.documentoConhecimento.update({
         where: { id: existing.id },
         data: body,

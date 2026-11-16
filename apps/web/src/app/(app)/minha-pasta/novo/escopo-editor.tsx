@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@cip/ui";
+import { RotuloComAjuda } from "@/components/ajuda-campo";
 
 /** Nó editável do escopo: Meta → Tarefa → Subtarefa, cada um com responsável. */
 export type EscopoNo = {
@@ -105,7 +106,7 @@ export function EscopoEditor({
           </div>
           <div className="form-grid form-grid--2">
             <div>
-              <label htmlFor={`${meta.codigo}-nome`}>O que precisa ser entregue</label>
+              <RotuloComAjuda htmlFor={`${meta.codigo}-nome`} campo="O que precisa ser entregue" ajuda="Descreva a meta de execução: a entrega concreta que o projeto precisa realizar." />
               <input
                 id={`${meta.codigo}-nome`}
                 value={meta.nome}
@@ -113,7 +114,7 @@ export function EscopoEditor({
               />
             </div>
             <div>
-              <label htmlFor={`${meta.codigo}-responsavel`}>Responsável pela meta</label>
+              <RotuloComAjuda htmlFor={`${meta.codigo}-responsavel`} campo="Responsável pela meta" ajuda="Informe a pessoa ou equipe que acompanha esta meta." />
               <input
                 id={`${meta.codigo}-responsavel`}
                 list={listId}
@@ -125,7 +126,7 @@ export function EscopoEditor({
           </div>
           <div className="form-grid form-grid--2" style={{ marginTop: 12 }}>
             <div>
-              <label htmlFor={`${meta.codigo}-indicador`}>Indicador da meta</label>
+              <RotuloComAjuda htmlFor={`${meta.codigo}-indicador`} campo="Indicador da meta" ajuda="Informe o que será medido para acompanhar a meta, por exemplo, unidades entregues. É opcional." />
               <input
                 id={`${meta.codigo}-indicador`}
                 value={meta.indicador ?? ""}
@@ -135,7 +136,7 @@ export function EscopoEditor({
               />
             </div>
             <div>
-              <label htmlFor={`${meta.codigo}-alvo`}>Resultado esperado</label>
+              <RotuloComAjuda htmlFor={`${meta.codigo}-alvo`} campo="Resultado esperado" ajuda="Informe o valor ou resultado que se deseja atingir para o indicador. É opcional." />
               <input
                 id={`${meta.codigo}-alvo`}
                 value={meta.alvo ?? ""}
@@ -151,7 +152,7 @@ export function EscopoEditor({
               <div key={tarefa.codigo} className="dashboard-list-item" style={{ display: "block" }}>
                 <div className="form-grid form-grid--2">
                   <div>
-                    <label htmlFor={`${tarefa.codigo}-nome`}>Tarefa</label>
+                    <RotuloComAjuda htmlFor={`${tarefa.codigo}-nome`} campo="Tarefa" ajuda="Descreva uma atividade necessária para realizar a meta." />
                     <input
                       id={`${tarefa.codigo}-nome`}
                       value={tarefa.nome}
@@ -164,7 +165,7 @@ export function EscopoEditor({
                     />
                   </div>
                   <div>
-                    <label htmlFor={`${tarefa.codigo}-responsavel`}>Quem faz?</label>
+                    <RotuloComAjuda htmlFor={`${tarefa.codigo}-responsavel`} campo="Quem faz?" ajuda="Informe a pessoa ou equipe que executa a tarefa." />
                     <input
                       id={`${tarefa.codigo}-responsavel`}
                       list={listId}
@@ -179,7 +180,7 @@ export function EscopoEditor({
                     />
                   </div>
                   <div>
-                    <label htmlFor={`${tarefa.codigo}-prazo`}>Prazo</label>
+                    <RotuloComAjuda htmlFor={`${tarefa.codigo}-prazo`} campo="Prazo" ajuda="Escolha a data prevista para concluir a tarefa. É opcional." />
                     <input
                       id={`${tarefa.codigo}-prazo`}
                       type="date"
@@ -207,7 +208,7 @@ export function EscopoEditor({
                   {tarefa.children.map((sub, si) => (
                     <li key={sub.codigo} className="form-grid form-grid--2">
                       <div>
-                        <label htmlFor={`${sub.codigo}-nome`}>Subtarefa</label>
+                        <RotuloComAjuda htmlFor={`${sub.codigo}-nome`} campo="Subtarefa" ajuda="Descreva um passo menor necessário para concluir a tarefa." />
                         <input
                           id={`${sub.codigo}-nome`}
                           value={sub.nome}
@@ -221,7 +222,7 @@ export function EscopoEditor({
                         />
                       </div>
                       <div>
-                        <label htmlFor={`${sub.codigo}-responsavel`}>Quem faz?</label>
+                        <RotuloComAjuda htmlFor={`${sub.codigo}-responsavel`} campo="Quem faz?" ajuda="Informe a pessoa ou equipe que executa a subtarefa." />
                         <div style={{ display: "flex", gap: 8 }}>
                           <input
                             id={`${sub.codigo}-responsavel`}

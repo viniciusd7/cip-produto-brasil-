@@ -1,6 +1,10 @@
 # Importação da base de conhecimento
 
-A aba **Base de conhecimento** está disponível a todos os perfis vinculados à prefeitura. Administradores, consultores, prefeitos e secretários podem cadastrar documentos PPA, LDO, LOA, diagnóstico e outros, com PDF, DOC ou DOCX de até 4 MB. O perfil somente leitura pode consultar e baixar documentos, sem anexar ou alterar a conferência. Consultores e administradores podem marcar documentos como conferidos.
+A aba **Base de conhecimento** está disponível a todos os perfis vinculados à prefeitura. Administradores, consultores, prefeitos e secretários podem cadastrar o **Plano de Governo** (obrigatório) e documentos complementares PPA, LDO, LOA, diagnóstico e outros (opcionais), com PDF, DOC ou DOCX de até 4 MB. O arquivo do Plano de Governo é obrigatório; os demais documentos podem ser cadastrados sem arquivo ou não ser cadastrados. O perfil somente leitura pode consultar e baixar documentos, sem anexar ou alterar a conferência. Consultores e administradores podem marcar documentos como conferidos.
+
+A interface informa se o Plano de Governo está ausente, cadastrado sem arquivo ou cadastrado com arquivo. A pendência é informativa e não impede o acesso ou uso dos demais recursos da plataforma.
+
+PPA, LDO, LOA e os demais documentos opcionais não geram alertas de pendência. Quando cadastrados, podem ter sua conferência acompanhada separadamente; o seed não cria mais registros demonstrativos desses documentos. Registros existentes são preservados.
 
 Os documentos são compartilhados entre os usuários da mesma prefeitura; não inclua arquivos que devam ser restritos a uma secretaria. O sistema valida o arquivo, extrai texto para consulta e mantém o original disponível para download autenticado. PDFs digitalizados continuam armazenados, mas não têm OCR; nesses casos o texto extraído ficará vazio. A extração não conecta, por si só, um modelo de IA generativa.
 

@@ -120,8 +120,7 @@ function Barra({ partes }: { partes: Array<{ rotulo: string; valor: number; cor:
   );
 }
 
-const SECOES = ["visao", "secretarias", "metas", "projetos", "tarefas", "evidencias"] as const;
-export type SecaoRelatorio = (typeof SECOES)[number];
+export type SecaoRelatorio = "visao" | "secretarias" | "metas" | "projetos" | "tarefas" | "evidencias";
 
 const TITULO: Record<SecaoRelatorio, string> = {
   visao: "Visão geral",

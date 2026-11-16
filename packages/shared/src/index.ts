@@ -1,6 +1,7 @@
 export * from "./roles";
 export * from "./status";
 export * from "./status-tones";
+export * from "./knowledge-documents";
 export * from "./azimov-indicators";
 export * from "./types";
 export * from "./wizard-engine";

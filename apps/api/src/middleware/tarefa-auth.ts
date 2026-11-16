@@ -13,6 +13,23 @@ const PERMISSION_BY_ACTION: Record<
   validar: "evidencia:validate",
 };
 
+export function assertMarcoExecutorAccess(
+  user: AuthUser,
+  responsavelUserId: string | null,
+) {
+  if (
+    user.role !== "admin" &&
+    responsavelUserId &&
+    responsavelUserId !== user.id
+  ) {
+    throw new HttpError(
+      403,
+      "EXECUTOR_REQUIRED",
+      "Você não é o executor desta tarefa. Apenas executores podem editar.",
+    );
+  }
+}
+
 export async function assertMarcoAccess(
   marcoId: string,
   user: AuthUser,
@@ -28,12 +45,15 @@ export async function assertMarcoAccess(
 
   const marco = await prisma.marcoEntrega.findUnique({
     where: { id: marcoId },
-    select: { id: true, iniciativaId: true },
+    select: { id: true, iniciativaId: true, responsavelUserId: true },
   });
   if (!marco) {
     throw new HttpError(404, "MARCO_NOT_FOUND", "Tarefa não encontrada");
   }
   await assertIniciativaAccess(user, marco.iniciativaId);
+  if (acao === "editar") {
+    assertMarcoExecutorAccess(user, marco.responsavelUserId);
+  }
 }
 
 export function requireMarcoAccess(

@@ -153,10 +153,9 @@ export function GovernoGlance({ data, secretarias: secretariasSlot }: { data: Da
           />
         </div>
         <ul className="gl-hero__numeros">
-          <li><strong>{governo.totalProjetos}</strong><span>projetos</span></li>
-          <li><strong>{governo.totalTarefas}</strong><span>tarefas</span></li>
-          <li><strong>{metasExec.total}</strong><span>metas de execução</span></li>
-          <li><strong>{metasEstrategicas.length}</strong><span>metas estratégicas</span></li>
+          <li><Link href="/carteira"><strong>{governo.totalProjetos}</strong><span>Total de projetos</span><small>Ver projetos →</small></Link></li>
+          <li><Link href="/relatorios/metas"><strong>{metasEstrategicas.length}</strong><span>Metas estratégicas</span><small>Ver metas →</small></Link></li>
+          <li><Link href="/relatorios/tarefas"><strong>{governo.totalTarefas}</strong><span>Tarefas de execução</span><small>Ver tarefas →</small></Link></li>
         </ul>
       </section>
 

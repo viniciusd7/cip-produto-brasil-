@@ -23,10 +23,19 @@ async function cachedFetch(key: string, url: string) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 12000);
   try {
-    const res = await fetch(url, {
-      signal: ctrl.signal,
-      headers: { Accept: "application/json" },
-    });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        signal: ctrl.signal,
+        headers: { Accept: "application/json" },
+      });
+    } catch {
+      throw new HttpError(
+        502,
+        "UPSTREAM_ERROR",
+        "Não foi possível consultar o serviço externo",
+      );
+    }
     if (!res.ok) {
       throw new HttpError(
         502,
@@ -108,19 +117,14 @@ integracoesRouter.get(
     try {
       const { cnpj } = await cnpjDoUsuario(req.user);
       const ano = Number(req.query.ano) || new Date().getFullYear();
-      // Consulta pública por CNPJ (endpoint de compra/contratação pode variar; fallback seguro)
+      // Consulta pública por CNPJ.
       const url = `${PNCP}/v1/orgaos/${cnpj}/compras?ano=${ano}&pagina=1&tamanhoPagina=15`;
-      let list: Array<Record<string, unknown>> = [];
-      try {
-        const raw = (await cachedFetch(`pncp:${cnpj}:${ano}`, url)) as
-          | Array<Record<string, unknown>>
-          | { data?: Array<Record<string, unknown>>; content?: Array<Record<string, unknown>> };
-        list = Array.isArray(raw)
-          ? raw
-          : raw.data || raw.content || [];
-      } catch {
-        list = [];
-      }
+      const raw = (await cachedFetch(`pncp:${cnpj}:${ano}`, url)) as
+        | Array<Record<string, unknown>>
+        | { data?: Array<Record<string, unknown>>; content?: Array<Record<string, unknown>> };
+      const list = Array.isArray(raw)
+        ? raw
+        : raw.data || raw.content || [];
       const itens = list.slice(0, 15).map((p) => ({
         id: p.numeroControlePNCP || p.id || p.numeroCompra,
         numero: p.numeroCompra || p.numeroControlePNCP || "—",

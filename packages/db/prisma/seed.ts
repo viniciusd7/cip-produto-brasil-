@@ -359,26 +359,6 @@ async function main() {
     });
   }
 
-  for (const doc of [
-    { id: "doc-ppa-cmd", tipo: "PPA", titulo: "PPA 2026–2029 CMD", vigencia: "2026-2029" },
-    { id: "doc-ldo-cmd", tipo: "LDO", titulo: "LDO 2026 CMD", vigencia: "2026" },
-    { id: "doc-loa-cmd", tipo: "LOA", titulo: "LOA 2026 CMD", vigencia: "2026" },
-  ] as const) {
-    await prisma.documentoConhecimento.upsert({
-      where: { id: doc.id },
-      update: { titulo: doc.titulo, vigencia: doc.vigencia },
-      create: {
-        id: doc.id,
-        municipioId: municipio.id,
-        tipo: doc.tipo,
-        titulo: doc.titulo,
-        vigencia: doc.vigencia,
-        fonte: "Prefeitura de Conceição do Mato Dentro",
-        statusConferencia: "PENDENTE",
-      },
-    });
-  }
-
   const compromisso = await prisma.compromisso.upsert({
     where: { id: "comp-edu-demo" },
     update: {},

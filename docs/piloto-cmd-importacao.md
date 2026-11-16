@@ -18,6 +18,8 @@ Base de referência citada no dossiê:
 `POST /import/amostral`
 
 Body exemplo em `/importacao` na UI (admin).
+`prazoOriginal`, `novoPrazo` e `conclusao`, quando informados, devem conter datas válidas.
+O lote e seu snapshot são gravados atomicamente: falhas durante o processamento não deixam iniciativas parciais.
 
 ## Mapeamento sugerido
 

@@ -36,20 +36,18 @@ export function requireMarcoAccess(
 **Regras de autorização:**
 - **Admin:** Acesso total (sem restrição)
 - **Gestor (Secretário):** Acesso apenas a projetos da sua unidade
-- **Analista (Consultor):** Bloqueado de editar tarefas (apenas pode ler)
+- **Analista (Consultor):** Pode editar tarefa atribuída a si; bloqueado para tarefa de outro responsável
 - **Prefeito:** Apenas leitura
 - **Leitura:** Apenas leitura
 
 ### 2. ✅ Testes de Segurança
 
-**Arquivo criado:** `apps/api/src/routes/__tests__/security.test.ts` (2.67KB)
+**Teste automatizado:** `apps/api/src/routes/security.test.ts`
 
-**Testes inclusos:**
-- Consultor bloqueado de alterar tarefa alheia (403 EXECUTOR_REQUIRED)
-- Executor consegue alterar sua tarefa (200 OK)
-- Admin consegue alterar qualquer tarefa (200 OK)
-- Usuário de outro municipio bloqueado (403 MUNICIPIO_MISMATCH)
-- POST /iniciativas valida municipioId (403 MUNICIPIO_DENIED)
+**Cobertura automatizada no runner da API:**
+- Analista bloqueado de editar tarefa atribuída a outra pessoa (403 EXECUTOR_REQUIRED)
+- Responsável atribuído consegue editar a própria tarefa (200 OK)
+- Admin consegue editar tarefa atribuída a outra pessoa (200 OK)
 
 ---
 
@@ -79,7 +77,7 @@ export function requireMarcoAccess(
 ### URGENTE (Esta semana)
 - [ ] Executar testes manuais com curl
 - [ ] Validar com operador real
-- [ ] Integrar middleware em iniciativas.ts
+- [x] Integrar checagem de executor aos fluxos de edição de tarefa
 
 ### Curto prazo (Próximas 2 semanas)
 - [ ] Implementar Priority #6 completo (Executor model)
@@ -87,5 +85,10 @@ export function requireMarcoAccess(
 
 ---
 
-**Status:** ✅ **PRONTO PARA COMMIT E DEPLOY**
+### Atualização — 16 de novembro de 2026
 
+O teste manual anterior foi substituído por testes executáveis no runner da API.
+A checagem de executor está integrada às rotas de edição, prazo inicial,
+subtarefas e conclusão/reabertura de marcos.
+
+**Status:** ✅ **PRONTO PARA COMMIT E DEPLOY**

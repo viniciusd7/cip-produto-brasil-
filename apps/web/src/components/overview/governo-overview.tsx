@@ -256,12 +256,6 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
           <div className={s.panel} style={{ padding: 20 }}>
             <p className={s.kicker}>Inteligência · Meta Estratégica / BSC / OKR</p>
             <h2 style={{ marginTop: 4, marginBottom: 12, fontSize: 22 }}>Realizado, esperado e desvio</h2>
-            {(estrategia.alertasOrcamento?.length ?? 0) > 0 && (
-              <p className="dashboard-muted" style={{ marginBottom: 12 }}>
-                Conferência orçamentária pendente:{" "}
-                {estrategia.alertasOrcamento.map((a) => `${a.tipo} (${a.titulo})`).join(" · ")}. O cadastro continua liberado.
-              </p>
-            )}
             <div className="dashboard-grid-3" style={{ gap: 12 }}>
               {(estrategia.metas || []).slice(0, 6).map((m) => (
                 <div key={m.id} style={{ border: "1px solid var(--cip-border)", borderRadius: 12, padding: 14 }}>

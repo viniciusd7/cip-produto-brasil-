@@ -6,6 +6,8 @@ A navegação principal de projetos segue secretaria → pasta do projeto → me
 
 Escolher o tipo, registrar a entrega e responsável, responder condições aplicáveis e organizar o escopo. Compromissos do plano podem selecionar uma meta estratégica existente ou criar meta e plano no próprio assistente. Esses registros só são gravados na confirmação, na mesma transação do projeto.
 
+O ícone de interrogação junto aos campos do assistente abre uma explicação sobre o preenchimento. Ele também pode ser acionado pelo teclado e fechado com Escape.
+
 A meta estratégica representa o compromisso do governo; as metas de execução organizam as entregas dentro da pasta do projeto. O cadastro inicial não pede previsão de atraso. O primeiro prazo é definido na tarefa; mudanças posteriores são reprogramações.
 
 Na etapa **Escopo** do assistente, cada meta do projeto pode receber um indicador textual e um resultado esperado. Depois da confirmação, a aba **Metas e indicadores** permite consultar as metas, cadastrar novas entregas e adicionar indicadores de acompanhamento com unidade, valor inicial e alvo. O cadastro é restrito aos perfis autorizados; os demais perfis podem consultar conforme seu acesso. Esses indicadores são vinculados à meta de execução do projeto, não criam um plano de governo nem uma meta estratégica. O indicador textual cadastrado no escopo permanece exibido separadamente dos indicadores de acompanhamento.

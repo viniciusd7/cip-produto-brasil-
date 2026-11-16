@@ -26,6 +26,7 @@ import {
 import { assertExecucaoPermitida } from "../services/wizard-persist";
 import { criariaCiclo } from "../services/dependencias";
 import { relacaoCriariaCiclo as criaCicloRelacao } from "../services/relacoes-iniciativa";
+import { assertMarcoExecutorAccess } from "../middleware/tarefa-auth";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -489,6 +490,7 @@ iniciativasRouter.post("/marcos/:marcoId/prazo-inicial", requirePermission("marc
     const marco = await prisma.marcoEntrega.findUnique({ where: { id: req.params.marcoId }, include: { iniciativa: true } });
     if (!marco) throw new HttpError(404, "NOT_FOUND", "Tarefa não encontrada");
     await assertMunicipioAccess(req.user!, marco.iniciativa.municipioId);
+    assertMarcoExecutorAccess(req.user!, marco.responsavelUserId);
     const prazo = new Date(body.dataNova);
     if (prazo.getTime() < Date.now() || marco.concluidoEm) throw new HttpError(422, "INVALID_DATA", "Defina uma data futura para uma tarefa aberta");
     await prisma.$transaction(async (tx) => {
@@ -1136,6 +1138,7 @@ iniciativasRouter.post(
         marco.iniciativa.municipioId,
         "MarcoEntrega",
       );
+      assertMarcoExecutorAccess(req.user!, marco.responsavelUserId);
       const body = subtarefaSchema.parse(req.body);
       const responsavelUser = await resolverResponsavel(marco.iniciativa.municipioId, body.responsavelUserId);
       const row = await prisma.subtarefa.create({
@@ -1188,6 +1191,7 @@ iniciativasRouter.patch(
         existing.marco.iniciativa.municipioId,
         "Subtarefa",
       );
+      assertMarcoExecutorAccess(req.user!, existing.responsavelUserId);
       if (
         bodyWouldConclude(req.body) &&
         !assertExecucaoPermitida(existing.marco.iniciativa.ciclo)
@@ -1445,6 +1449,7 @@ iniciativasRouter.patch(
         existing.iniciativa.municipioId,
         "MarcoEntrega",
       );
+      assertMarcoExecutorAccess(req.user!, existing.responsavelUserId);
       const body = marcoPatchSchema.parse(req.body);
       const responsavelUser = await resolverResponsavel(existing.iniciativa.municipioId, body.responsavelUserId);
       const row = await prisma.marcoEntrega.update({
@@ -1495,6 +1500,7 @@ iniciativasRouter.post(
       });
       if (!existing) throw new HttpError(404, "NOT_FOUND", "Tarefa não encontrada");
       await assertMunicipioAccess(req.user!, existing.iniciativa.municipioId, "MarcoEntrega");
+      assertMarcoExecutorAccess(req.user!, existing.responsavelUserId);
       if (!assertExecucaoPermitida(existing.iniciativa.ciclo)) {
         throw new HttpError(
           422,
@@ -1546,6 +1552,7 @@ iniciativasRouter.post(
       });
       if (!existing) throw new HttpError(404, "NOT_FOUND", "Tarefa não encontrada");
       await assertMunicipioAccess(req.user!, existing.iniciativa.municipioId, "MarcoEntrega");
+      assertMarcoExecutorAccess(req.user!, existing.responsavelUserId);
       const row = await prisma.marcoEntrega.update({
         where: { id: existing.id },
         data: {

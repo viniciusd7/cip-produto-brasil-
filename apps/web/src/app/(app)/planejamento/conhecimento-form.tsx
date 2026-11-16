@@ -3,7 +3,24 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card } from "@cip/ui";
+import {
+  getRequiredKnowledgeDocumentStatus,
+  isKnowledgeDocumentRequired,
+  isKnowledgeDocumentType,
+  KNOWLEDGE_DOCUMENT_TYPES,
+  type KnowledgeDocumentType,
+} from "@cip/shared";
 import { API_URL } from "@/lib/api";
+import { salvarMedicao } from "./medicao";
+
+const knowledgeDocumentLabels: Record<KnowledgeDocumentType, string> = {
+  PLANO_GOVERNO: "Plano de Governo",
+  PPA: "PPA",
+  LDO: "LDO",
+  LOA: "LOA",
+  DIAGNOSTICO: "Diagnóstico",
+  OUTRO: "Outro",
+};
 
 type Doc = {
   id: string;
@@ -31,12 +48,15 @@ export function ConhecimentoForm({
 }) {
   const router = useRouter();
   const [docs, setDocs] = useState<Doc[] | null>(null);
-  const [alertas, setAlertas] = useState<Array<{ tipo: string; titulo: string }>>([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [tipoDocumento, setTipoDocumento] =
+    useState<KnowledgeDocumentType>("PLANO_GOVERNO");
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [textoAbertoId, setTextoAbertoId] = useState<string | null>(null);
   const [textoExtraido, setTextoExtraido] = useState("");
+  const requiredPlanStatus =
+    docs === null ? null : getRequiredKnowledgeDocumentStatus(docs);
 
   async function load() {
     const res = await fetch(`${API_URL}/conhecimento/documentos`, {
@@ -47,7 +67,6 @@ export function ConhecimentoForm({
       throw new Error(json?.error?.message || "Falha ao carregar documentos");
     }
     setDocs(json.data);
-    setAlertas(json.meta.alertasOrcamento);
   }
 
   useEffect(() => {
@@ -78,6 +97,7 @@ export function ConhecimentoForm({
         return;
       }
       formElement.reset();
+      setTipoDocumento("PLANO_GOVERNO");
       await load();
       router.refresh();
     } catch (err) {
@@ -141,32 +161,18 @@ export function ConhecimentoForm({
 
   async function submitMedicao(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const formElement = e.currentTarget;
     setSaving(true);
     setError("");
-    const form = new FormData(e.currentTarget);
-    const dataCorte = String(form.get("dataCorte"));
-    const res = await fetch(`${API_URL}/planejamento/medicoes`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        metaEstrategicaId: String(form.get("metaEstrategicaId")),
-        dataCorte: new Date(dataCorte).toISOString(),
-        valorRealizado: String(form.get("valorRealizado")),
-        valorEsperado: String(form.get("valorEsperado") || "") || undefined,
-        fonte: String(form.get("fonte") || "") || undefined,
-      }),
-    });
-    const json = await res.json();
-    setSaving(false);
-    if (!res.ok) {
-      setError(json?.error?.message || "Falha ao salvar medição");
-      return;
+    try {
+      await salvarMedicao(new FormData(formElement), token);
+      formElement.reset();
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível salvar a medição.");
+    } finally {
+      setSaving(false);
     }
-    e.currentTarget.reset();
-    router.refresh();
   }
 
   async function conferir(id: string) {
@@ -192,25 +198,49 @@ export function ConhecimentoForm({
 
   return (
     <div className="stack">
-      {alertas.length > 0 && (
-        <Card title="Alerta de orçamento" subtitle="Pendências não bloqueiam o cadastro">
-          <ul>
-            {alertas.map((a, i) => (
-              <li key={`${a.tipo}-${i}`}>
-                {a.tipo}: {a.titulo}
-              </li>
-            ))}
-          </ul>
-        </Card>
-      )}
-
-      <Card title="Documentos da base de conhecimento" subtitle="Os documentos ficam disponíveis aos usuários desta prefeitura.">
+      <Card
+        title="Documentos da base de conhecimento"
+        subtitle="O Plano de Governo exige arquivo; os demais documentos são opcionais."
+      >
+        {requiredPlanStatus && (
+          <section
+            aria-label="Status do Plano de Governo obrigatório"
+            role="status"
+            style={{
+              borderLeft: `4px solid ${
+                requiredPlanStatus.status === "complete"
+                  ? "var(--cip-success)"
+                  : "var(--cip-warning, #b45309)"
+              }`,
+              marginBottom: 16,
+              padding: "8px 12px",
+            }}
+          >
+            <strong>
+              Plano de Governo obrigatório:{" "}
+              {requiredPlanStatus.status === "complete"
+                ? "cadastrado"
+                : "pendente"}
+            </strong>
+            <p className="dashboard-muted" style={{ margin: "4px 0 0" }}>
+              {requiredPlanStatus.status === "missing"
+                ? "O documento ainda não foi cadastrado."
+                : requiredPlanStatus.status === "file-missing"
+                  ? `“${requiredPlanStatus.titulo}” está cadastrado, mas falta anexar o arquivo obrigatório.`
+                  : `“${requiredPlanStatus.titulo}” está cadastrado com arquivo.`}{" "}
+              A pendência não bloqueia o uso dos demais recursos da plataforma.
+            </p>
+          </section>
+        )}
         <ul className="stack" style={{ gap: 8 }}>
           {docs?.map((d) => (
             <li key={d.id} className="chip-row" style={{ justifyContent: "space-between" }}>
               <span>
-                {d.tipo} · {d.titulo}
-                {d.vigencia ? ` (${d.vigencia})` : ""} · {d.statusConferencia}
+                {isKnowledgeDocumentType(d.tipo)
+                  ? knowledgeDocumentLabels[d.tipo]
+                  : d.tipo} · {d.titulo}
+                {d.vigencia ? ` (${d.vigencia})` : ""}
+                {" · "}{d.statusConferencia === "PENDENTE" ? "Aguardando conferência" : d.statusConferencia === "CONFERIDO" ? "Conferido" : d.statusConferencia === "DESATUALIZADO" ? "Desatualizado" : d.statusConferencia}
                 {d.arquivoNome ? <><br />Arquivo: {d.arquivoNome}</> : ""}
               </span>
               <span className="chip-row">
@@ -256,12 +286,21 @@ export function ConhecimentoForm({
           <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 1fr", gap: 12 }}>
             <div>
               <label htmlFor="tipo">Tipo</label>
-              <select id="tipo" name="tipo" required defaultValue="PPA">
-                <option value="PPA">PPA</option>
-                <option value="LDO">LDO</option>
-                <option value="LOA">LOA</option>
-                <option value="DIAGNOSTICO">Diagnóstico</option>
-                <option value="OUTRO">Outro</option>
+              <select
+                id="tipo"
+                name="tipo"
+                required
+                value={tipoDocumento}
+                onChange={(event) => {
+                  const tipo = event.currentTarget.value;
+                  if (isKnowledgeDocumentType(tipo)) setTipoDocumento(tipo);
+                }}
+              >
+                {KNOWLEDGE_DOCUMENT_TYPES.map((tipo) => (
+                  <option key={tipo} value={tipo}>
+                    {knowledgeDocumentLabels[tipo]}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
@@ -283,9 +322,9 @@ export function ConhecimentoForm({
               <input id="fonte" name="fonte" />
             </div>
             {podeConferir && <div>
-              <label htmlFor="statusConferencia">Status</label>
+              <label htmlFor="statusConferencia">Conferência</label>
               <select id="statusConferencia" name="statusConferencia" defaultValue="PENDENTE">
-                <option value="PENDENTE">Pendente</option>
+                <option value="PENDENTE">Aguardando conferência</option>
                 <option value="CONFERIDO">Conferido</option>
                 <option value="DESATUALIZADO">Desatualizado</option>
               </select>
@@ -293,13 +332,14 @@ export function ConhecimentoForm({
           </div>
           <div>
             <label htmlFor="arquivoConhecimento">
-              Arquivo PDF, DOC ou DOCX ({somenteDocumentos ? "obrigatório" : "opcional"}, até 4 MB)
+              Arquivo PDF, DOC ou DOCX (
+              {isKnowledgeDocumentRequired(tipoDocumento) ? "obrigatório" : "opcional"}, até 4 MB)
             </label>
             <input
               id="arquivoConhecimento"
               name="arquivo"
               type="file"
-              required={somenteDocumentos}
+              required={isKnowledgeDocumentRequired(tipoDocumento)}
               accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             />
             <p className="dashboard-muted">
@@ -387,54 +427,74 @@ function TramitacaoMini({
       headers: { Authorization: `Bearer ${token}` },
     });
     const json = await res.json();
+    if (!res.ok) {
+      throw new Error(json?.error?.message || "Falha ao carregar tramitações");
+    }
     setLista(json.data || []);
   }
 
   useEffect(() => {
-    const timer = setTimeout(() => void load(), 0);
+    const timer = setTimeout(() => {
+      void load().catch((err: unknown) =>
+        setMsg(err instanceof Error ? err.message : "Não foi possível carregar as tramitações."),
+      );
+    }, 0);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function abrir(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const formElement = e.currentTarget;
     setMsg("");
-    const form = new FormData(e.currentTarget);
-    const res = await fetch(`${API_URL}/conhecimento/validacoes`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        entidadeTipo: "META_ESTRATEGICA",
-        entidadeId: String(form.get("entidadeId")),
-        tipo: "REVISAO",
-        justificativa: String(form.get("justificativa")),
-      }),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      setMsg(json?.error?.message || "Falha ao abrir solicitação");
-      return;
+    const form = new FormData(formElement);
+    try {
+      const res = await fetch(`${API_URL}/conhecimento/validacoes`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          entidadeTipo: "META_ESTRATEGICA",
+          entidadeId: String(form.get("entidadeId")),
+          tipo: "REVISAO",
+          justificativa: String(form.get("justificativa")),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json?.error?.message || "Falha ao abrir solicitação");
+      }
+      formElement.reset();
+      await load();
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "Não foi possível abrir a solicitação.");
     }
-    e.currentTarget.reset();
-    await load();
   }
 
   async function decidir(id: string, resultado: "APROVADA" | "REJEITADA") {
-    await fetch(`${API_URL}/conhecimento/validacoes/${id}/decidir`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        resultado,
-        parecer: resultado === "APROVADA" ? "Aprovado na revisão municipal" : "Devolvido para ajuste",
-      }),
-    });
-    await load();
+    setMsg("");
+    try {
+      const res = await fetch(`${API_URL}/conhecimento/validacoes/${id}/decidir`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          resultado,
+          parecer: resultado === "APROVADA" ? "Aprovado na revisão municipal" : "Devolvido para ajuste",
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json?.error?.message || "Falha ao decidir a solicitação");
+      }
+      await load();
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "Não foi possível decidir a solicitação.");
+    }
   }
 
   return (
@@ -481,7 +541,7 @@ function TramitacaoMini({
           <Button type="submit">Abrir solicitação</Button>
         </form>
       )}
-      {msg && <p style={{ color: "var(--cip-danger)" }}>{msg}</p>}
+      {msg && <p role="alert" style={{ color: "var(--cip-danger)" }}>{msg}</p>}
     </div>
   );
 }

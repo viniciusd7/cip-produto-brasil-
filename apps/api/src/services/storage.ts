@@ -94,8 +94,16 @@ export const localStorage = {
     try {
       await fs.access(this.absolutePath(relativePath));
       return true;
-    } catch {
-      return false;
+    } catch (error) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
+        return false;
+      }
+      throw error;
     }
   },
 };

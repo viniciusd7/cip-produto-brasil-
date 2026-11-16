@@ -15,9 +15,15 @@
     "migrate:dev": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "seed": "tsx prisma/seed.ts",
+    "seed:modelos": "tsx prisma/seed-demo-modelos.ts",
+    "convert:modelos": "tsx prisma/run-convert-demo-local.ts",
+    "typecheck:demo": "tsc -p tsconfig.demo.json",
+    "test:demo": "tsx --test prisma/demo-modelos.test.ts",
+    "test:conversion": "tsx --test prisma/convert-demo-local.test.ts",
+    "test": "tsx --test prisma/*.test.ts",
     "studio": "prisma studio",
     "build": "prisma generate && tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && pnpm typecheck:demo",
     "lint": "echo \"no lint configured\""
   },
   "dependencies": {
