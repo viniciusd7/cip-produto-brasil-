@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { DesdobramentoForms } from "./desdobramento-forms";
+import { ArvoreCadastro } from "./arvore-cadastro";
 import { EvidenciaEnvio } from "./evidencia-envio";
 import { ItemTextoEditor } from "./item-texto-editor";
 import { ReprogramarTarefa } from "./reprogramar-tarefa";
@@ -9,7 +9,7 @@ import { ResponsavelEditor } from "./responsavel-editor";
 import { SugerirTarefas } from "./sugerir-tarefas";
 import { SubtarefaToggle, TarefaAcoes } from "./tarefa-acoes";
 import type { EvidenciaItem } from "./evidencia-actions";
-import type { ProjetoDocMarco, ProjetoDocMeta } from "./projeto-documento";
+import type { ProjetoDocData, ProjetoDocMarco, ProjetoDocMeta } from "./projeto-documento";
 
 export const STATUS_TAREFA: Record<string, { label: string; cor: string }> = {
   VENCIDO: { label: "Atrasada", cor: "#ff5982" },
@@ -100,7 +100,13 @@ function TarefaLinha({ m, ctx, aberta, alternar }: { m: ProjetoDocMarco; ctx: Ct
           <div className="pj-tarefa__colunas">
             <section>
               <h4>Subtarefas</h4>
-              {!m.subtarefas.length && <p className="pj-vazio-mini">Nenhuma subtarefa — a tarefa é entregue de uma vez.</p>}
+              {!m.subtarefas.length && (
+                <p className="pj-vazio-mini">
+                  {ctx.canWrite
+                    ? "Nenhuma subtarefa. Inclua o próximo passo na árvore de cadastro."
+                    : "Nenhuma subtarefa — a tarefa é entregue de uma vez."}
+                </p>
+              )}
               <ul className="pj-subs">
                 {m.subtarefas.map((s) => (
                   <li key={s.id} className={s.concluida ? "is-done" : ""}>
@@ -125,9 +131,6 @@ function TarefaLinha({ m, ctx, aberta, alternar }: { m: ProjetoDocMarco; ctx: Ct
                   </li>
                 ))}
               </ul>
-              {ctx.canWrite && (
-                <DesdobramentoForms equipe={ctx.equipe} mode="subtarefa" token={ctx.token} marcoId={m.id} />
-              )}
             </section>
 
             <section>
@@ -237,6 +240,9 @@ export function ProjetoPastas({
   token,
   equipe,
   iniciativaId,
+  secretariaId,
+  metaEstrategica,
+  permiteMetaPlano,
   onVerEvidencias,
 }: {
   metasExecucao: ProjetoDocMeta[];
@@ -248,6 +254,9 @@ export function ProjetoPastas({
   token: string;
   equipe: string[];
   iniciativaId: string;
+  secretariaId: string;
+  metaEstrategica?: ProjetoDocData["metaEstrategica"];
+  permiteMetaPlano: boolean;
   onVerEvidencias: (marcoId: string) => void;
 }) {
   const pastas: Pasta[] = useMemo(
@@ -318,6 +327,17 @@ export function ProjetoPastas({
 
   return (
     <div className="pj-pastas">
+      {canWrite && (
+        <ArvoreCadastro
+          token={token}
+          iniciativaId={iniciativaId}
+          secretariaId={secretariaId}
+          metaEstrategica={metaEstrategica}
+          permiteMetaPlano={permiteMetaPlano}
+          metasExecucao={metasExecucao}
+          equipe={equipe}
+        />
+      )}
       <div className="pj-toolbar">
         <div className="pj-filtros" role="group" aria-label="Filtrar tarefas">
           {FILTROS.map((f) => {
@@ -365,10 +385,9 @@ export function ProjetoPastas({
           <strong>Este projeto ainda não tem metas nem tarefas</strong>
           <p>
             {canWrite
-              ? "Comece criando a primeira meta de execução — ela vira uma pasta com as tarefas dentro."
+              ? "Use a árvore acima para cadastrar metas, indicadores, tarefas e subtarefas."
               : "A consultoria vai organizar as metas e tarefas deste projeto. Você será avisado quando houver algo atribuído a você."}
           </p>
-          {canWrite && <DesdobramentoForms equipe={equipe} mode="meta" token={token} iniciativaId={iniciativaId} />}
         </div>
       )}
 
@@ -437,13 +456,6 @@ export function ProjetoPastas({
                           canWrite
                         />
                       )}
-                      <DesdobramentoForms
-                        equipe={equipe}
-                        mode="tarefa"
-                        token={token}
-                        iniciativaId={iniciativaId}
-                        metaExecucaoId={me?.id}
-                      />
                       {me && <SugerirTarefas token={token} metaExecucaoId={me.id} />}
                     </div>
                   )}
@@ -457,11 +469,6 @@ export function ProjetoPastas({
         )}
       </div>
 
-      {canWrite && !!pastas.length && (
-        <div className="pj-nova-pasta">
-          <DesdobramentoForms equipe={equipe} mode="meta" token={token} iniciativaId={iniciativaId} />
-        </div>
-      )}
     </div>
   );
 }

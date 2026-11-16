@@ -8,6 +8,7 @@ import { writeAudit } from "../services/audit";
 import {
   deleteKnowledgeFile,
   DOCX_MIME,
+  DOC_MIME,
   extractKnowledgeText,
   isKnowledgeFileAllowed,
   PDF_MIME,
@@ -42,7 +43,7 @@ const uploadDocumento = multer({
   fileFilter: (_req, file, callback) => {
     if (!isKnowledgeFileAllowed(file.originalname, file.mimetype)) {
       callback(
-        new HttpError(422, "INVALID_FILE", "Envie um arquivo PDF ou DOCX válido."),
+        new HttpError(422, "INVALID_FILE", "Envie um arquivo PDF, DOC ou DOCX válido."),
       );
       return;
     }
@@ -120,11 +121,18 @@ const docSchema = z.object({
 
 conhecimentoRouter.post(
   "/documentos",
-  requirePermission("iniciativa:write"),
+  requirePermission("conhecimento:upload"),
   parseMultipartDocumento,
   async (req, res, next) => {
     try {
       const body = docSchema.parse(req.body);
+      if (
+        body.statusConferencia &&
+        body.statusConferencia !== "PENDENTE" &&
+        !req.user!.permissions.includes("iniciativa:write")
+      ) {
+        throw new HttpError(403, "FORBIDDEN", "Somente a consultoria pode conferir documentos.");
+      }
       const file = req.file;
       const conteudoExtraido = file
         ? await extractKnowledgeText(file.buffer, file.originalname, file.mimetype)
@@ -186,9 +194,10 @@ conhecimentoRouter.get(
       }
 
       const contents = await readKnowledgeFile(doc.storageKey);
-      const mimeType = doc.arquivoNome.toLowerCase().endsWith(".pdf")
+      const name = doc.arquivoNome.toLowerCase();
+      const mimeType = name.endsWith(".pdf")
         ? PDF_MIME
-        : DOCX_MIME;
+        : name.endsWith(".doc") ? DOC_MIME : DOCX_MIME;
       res.setHeader("Content-Type", mimeType);
       res.setHeader("X-Content-Type-Options", "nosniff");
       res.attachment(doc.arquivoNome);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 
 type Opcoes = {
@@ -41,6 +41,7 @@ function presets(mandato: Opcoes["mandato"]) {
 
 export function FiltrosPrestacao({ opcoes }: { opcoes: Opcoes }) {
   const router = useRouter();
+  const pathname = usePathname();
   const params = useSearchParams();
   const [pendente, startTransition] = useTransition();
   const [lista] = useState(() => presets(opcoes.mandato));
@@ -57,7 +58,8 @@ export function FiltrosPrestacao({ opcoes }: { opcoes: Opcoes }) {
       if (v) p.set(k, v);
       else p.delete(k);
     }
-    startTransition(() => router.replace(`/relatorios${p.size ? `?${p}` : ""}`, { scroll: false }));
+    const base = pathname.startsWith("/relatorios") ? pathname : "/relatorios";
+    startTransition(() => router.replace(`${base}${p.size ? `?${p}` : ""}`, { scroll: false }));
   }
 
   const presetAtivo = lista.find((p) => p.de === de && p.ate === ate)?.id ?? (de || ate ? "custom" : "tudo");

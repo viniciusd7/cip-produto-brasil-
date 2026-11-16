@@ -11,10 +11,27 @@ import { BrandLogo } from "@/components/brand-logo";
 import { TenantSwitcher } from "@/components/tenant-switcher";
 import { s as overview } from "@/components/overview/ov";
 import {
+  getHomeForRole,
   getNavForRole,
   getNextStepForRole,
   getRoleLabel,
+  type NavItem,
 } from "@/lib/roles";
+import { VoltarBar } from "@/components/voltar-bar";
+
+function navItemActive(pathname: string, item: NavItem, nav: NavItem[]) {
+  if (item.children?.length) {
+    return pathname === item.href || pathname.startsWith(`${item.href}/`);
+  }
+  if (pathname === item.href) return true;
+  if (!pathname.startsWith(`${item.href}/`)) return false;
+  return !nav.some(
+    (other) =>
+      other.href !== item.href &&
+      other.href.startsWith(`${item.href}/`) &&
+      (pathname === other.href || pathname.startsWith(`${other.href}/`)),
+  );
+}
 
 export function AppShell({
   children,
@@ -32,6 +49,7 @@ export function AppShell({
   const pathname = usePathname();
   const { data } = useSession();
   const [open, setOpen] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [tocActive, setTocActive] = useState("visao");
   const menuToggleRef = useRef<HTMLButtonElement>(null);
   const railRef = useRef<HTMLElement>(null);
@@ -226,8 +244,51 @@ export function AppShell({
 
         <nav className="app-nav" aria-label="Navegação principal">
           {visibleNav.map((item) => {
-            const active =
-              pathname === item.href || pathname.startsWith(`${item.href}/`);
+            if (item.children?.length) {
+              const branchActive = navItemActive(pathname, item, visibleNav);
+              const expanded = openGroups[item.href] ?? branchActive;
+              return (
+                <div key={item.href} className="app-nav__group">
+                  <button
+                    type="button"
+                    className={branchActive ? "app-nav__toggle active" : "app-nav__toggle"}
+                    aria-expanded={expanded}
+                    onClick={() =>
+                      setOpenGroups((current) => ({
+                        ...current,
+                        [item.href]: !expanded,
+                      }))
+                    }
+                  >
+                    <span className="nav-icon" aria-hidden="true">
+                      {item.icon}
+                    </span>
+                    <span>{item.label}</span>
+                    <span className="app-nav__chevron" aria-hidden="true">
+                      {expanded ? "▾" : "▸"}
+                    </span>
+                  </button>
+                  {expanded && (
+                    <div className="app-nav__children" role="group" aria-label={item.label}>
+                      {item.children.map((child) => {
+                        const childActive = pathname === child.href;
+                        return (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            className={childActive ? "active" : ""}
+                            aria-current={childActive ? "page" : undefined}
+                          >
+                            <span>{child.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            const active = navItemActive(pathname, item, visibleNav);
             return (
               <Link
                 key={item.href}
@@ -263,6 +324,7 @@ export function AppShell({
       </aside>
 
       <main className="app-main" aria-hidden={open ? true : undefined}>
+        <VoltarBar home={isCentralCip ? "/equipe" : getHomeForRole(role)} />
         {children}
         <footer className="app-cip-footer">
           <span>

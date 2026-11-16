@@ -34,11 +34,13 @@ export function SecretariaGlance({
   dados,
   titulo = "Situação da secretaria",
   mostrarProjetos = true,
+  mostrarMetas = true,
   extra,
 }: {
   dados: Dados;
   titulo?: string;
   mostrarProjetos?: boolean;
+  mostrarMetas?: boolean;
   extra?: ReactNode;
 }) {
   const { indicadores: ind, metasEstrategicas, metasExecucao } = dados;
@@ -170,7 +172,7 @@ export function SecretariaGlance({
         </section>
       )}
 
-      <div className="gl-duas">
+      {mostrarMetas && <div className="gl-duas">
         <section className="gl-bloco">
           <header className="gl-bloco__cab">
             <div>
@@ -262,7 +264,7 @@ export function SecretariaGlance({
             </p>
           </div>
         </section>
-      </div>
+      </div>}
     </div>
   );
 }

@@ -48,10 +48,9 @@ export default async function IniciativaPage({
   const canWrite = canWriteRole(session?.user?.role);
   const canSubmitEvidence = canSubmitEvidenceRole(session?.user?.role);
   const canValidate = canValidateRole(session?.user?.role);
-  const portfolioHref =
-    session?.user?.role === "gestor" ? "/minha-pasta" : "/carteira";
-  const portfolioLabel =
-    session?.user?.role === "gestor" ? "Minha secretaria" : "Projetos";
+  const focoSecretario = session?.user?.role === "gestor";
+  const portfolioHref = focoSecretario ? "/minha-pasta/projetos" : "/carteira";
+  const portfolioLabel = "Projetos";
 
   // Equipe das pastas envolvidas (sugestões de responsável) e lista de secretarias
   // para vincular correlacionadas.
@@ -109,6 +108,7 @@ export default async function IniciativaPage({
           token={token}
           equipe={equipe}
           todasSecretarias={todasSecretarias.data || []}
+          focoSecretario={focoSecretario}
         />
       </Suspense>
     </div>

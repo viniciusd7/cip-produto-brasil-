@@ -71,7 +71,7 @@ A plataforma usa dois endereços servidos pelo mesmo projeto web:
 
 | Endereço | Quem acessa | O que abre |
 |---|---|---|
-| `app.cipinteligenciapublica.com.br` | Consultores, prefeitos e secretários | Ambiente da prefeitura (implantação, cenário, pastas) |
+| `app.cipinteligenciapublica.com.br` | Consultores, prefeitos e secretários | Ambiente da prefeitura (cenário, secretarias e projetos) |
 | `gestao.cipinteligenciapublica.com.br` | Somente equipe CIP (admin da plataforma) | Console: prefeituras, prefeito e mandato, consultores |
 
 1. Aponte os dois domínios para o projeto web na Vercel.

@@ -13,10 +13,17 @@ export type CicloIniciativa = (typeof CICLO_INICIATIVA)[number];
 
 export const CLASSIFICACAO_PROJETO = [
   "ESTRUTURANTE",
+  "PRIORITARIO",
   "PLANO_GOVERNO",
   "ACAO_DIARIA",
 ] as const;
 export type ClassificacaoProjeto = (typeof CLASSIFICACAO_PROJETO)[number];
+
+export function usaFluxoEstruturante(
+  classificacao?: string | null,
+): boolean {
+  return classificacao === "ESTRUTURANTE" || classificacao === "PRIORITARIO";
+}
 
 export const IMPACTO_PERGUNTA = ["BLOQUEANTE", "CONDICIONAL", "INFORMATIVA"] as const;
 export type ImpactoPergunta = (typeof IMPACTO_PERGUNTA)[number];

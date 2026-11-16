@@ -3,7 +3,8 @@ import { Router } from "express";
 import multer from "multer";
 import path from "path";
 import { z } from "zod";
-import { prisma } from "@cip/db";
+import { Prisma, prisma } from "@cip/db";
+import { CLASSIFICACAO_PROJETO } from "@cip/shared";
 import {
   assertIniciativaAccess,
   assertMunicipioAccess,
@@ -13,6 +14,7 @@ import {
 } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
 import { writeAudit } from "../services/audit";
+import { criarIniciativa } from "../services/criacao-iniciativa";
 import { camposResponsavel, notificarAtribuicao, resolverResponsavel } from "../services/responsaveis";
 import { prazoStatus } from "../services/prazo";
 import {
@@ -23,6 +25,7 @@ import {
 } from "../services/storage";
 import { assertExecucaoPermitida } from "../services/wizard-persist";
 import { criariaCiclo } from "../services/dependencias";
+import { relacaoCriariaCiclo as criaCicloRelacao } from "../services/relacoes-iniciativa";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -61,6 +64,7 @@ iniciativasRouter.get(
         },
         include: {
           secretariaPrincipal: true,
+          classificacoes: true,
           impedimentos: {
             where: { status: { in: ["ABERTO", "EM_ENCAMINHAMENTO"] } },
           },
@@ -77,6 +81,7 @@ iniciativasRouter.get(
           ciclo: r.ciclo,
           secretariaPrincipal: r.secretariaPrincipal.nome,
           classificacaoPrincipal: r.classificacaoPrincipal,
+          classificacoes: r.classificacoes.map((item) => item.classificacao),
           bloqueioLabel: r.bloqueioLabel,
           responsavel: r.responsavel,
           origem: r.origem,
@@ -116,6 +121,7 @@ iniciativasRouter.get(
         where: { id: req.params.id },
         include: {
           secretariaPrincipal: true,
+          classificacoes: true,
           metaEstrategica: true,
           secretarias: { include: { secretaria: true } },
           compromissos: { include: { compromisso: true } },
@@ -163,7 +169,6 @@ iniciativasRouter.get(
         },
         select: { entidadeId: true },
       });
-
       res.json({
         data: {
           ...item,
@@ -171,6 +176,7 @@ iniciativasRouter.get(
           bloqueioLabel: item.bloqueioLabel,
           bloqueiosAtivos: item.bloqueiosAtivos,
           classificacaoPrincipal: item.classificacaoPrincipal,
+          classificacoes: item.classificacoes.map((item) => item.classificacao),
           vinculoPlanoGoverno: item.vinculoPlanoGoverno,
           marcos: item.marcos.map((m) => ({
             ...m,
@@ -196,7 +202,7 @@ iniciativasRouter.get(
 );
 
 const createSchema = z.object({
-  codigo: z.string().min(2),
+  codigo: z.string().min(2).optional(),
   nome: z.string().min(3),
   descricao: z.string().optional(),
   secretariaPrincipalId: z.string().min(1),
@@ -204,9 +210,29 @@ const createSchema = z.object({
   responsavel: z.string().optional(),
   tipo: z.string().optional(),
   estruturante: z.boolean().optional(),
+  classificacaoPrincipal: z.enum(CLASSIFICACAO_PROJETO).optional(),
+  classificacoes: z
+    .array(
+      z.enum(["ESTRUTURANTE", "PRIORITARIO", "PLANO_GOVERNO", "ACAO_DIARIA"]),
+    )
+    .max(1)
+    .optional(),
   metaEstrategicaId: z.string().optional(),
-  compromissoIds: z.array(z.string()).optional(),
-  secretariaIds: z.array(z.string()).optional(),
+  compromissoIds: z.array(z.string()).transform((ids) => [...new Set(ids)]).optional(),
+  secretariaIds: z.array(z.string()).transform((ids) => [...new Set(ids)]).optional(),
+}).superRefine((body, ctx) => {
+  if (
+    body.classificacaoPrincipal &&
+    body.classificacoes &&
+    (body.classificacoes.length !== 1 ||
+      body.classificacoes[0] !== body.classificacaoPrincipal)
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["classificacoes"],
+      message: "Selecione uma única categoria igual ao fluxo escolhido",
+    });
+  }
 });
 
 iniciativasRouter.post(
@@ -216,6 +242,12 @@ iniciativasRouter.post(
     try {
       const body = createSchema.parse(req.body);
       const municipioId = req.user!.municipioId;
+      const requestedClassifications =
+        body.classificacoes ??
+        (body.classificacaoPrincipal
+          ? [body.classificacaoPrincipal]
+          : body.estruturante ? ["ESTRUTURANTE"] : []);
+      const classificacoes = Array.from(new Set(requestedClassifications));
 
       // Todas as referências recebidas no cadastro precisam pertencer ao
       // mesmo município do usuário. Sem essa checagem, um operador poderia
@@ -265,6 +297,17 @@ iniciativasRouter.post(
           "A meta estratégica não pertence ao plano de governo deste município",
         );
       }
+      if (
+        classificacoes.includes("PLANO_GOVERNO") &&
+        !body.metaEstrategicaId &&
+        !(body.compromissoIds?.length)
+      ) {
+        throw new HttpError(
+          422,
+          "PLANO_GOVERNO_LINK_REQUIRED",
+          "Vincule um compromisso ou uma meta estratégica antes de classificar a iniciativa no Plano de Governo",
+        );
+      }
       if (secretarias.length !== new Set(body.secretariaIds || []).size) {
         throw new HttpError(
           422,
@@ -284,40 +327,51 @@ iniciativasRouter.post(
         (id) => id !== body.secretariaPrincipalId,
       );
 
-      const created = await prisma.iniciativa.create({
-        data: {
-          municipioId,
-          secretariaPrincipalId: body.secretariaPrincipalId,
-          metaEstrategicaId: body.metaEstrategicaId,
-          codigo: body.codigo,
-          nome: body.nome,
-          descricao: body.descricao,
-          origem: body.origem || "CADASTRO_MANUAL",
-          responsavel: body.responsavel || secretariaPrincipal.titularNome || undefined,
-          tipo: body.tipo,
-          estruturante: body.estruturante ?? false,
-          criadoPorId: req.user!.id,
-          fonte: "Cadastro manual CIP",
-          dataReferencia: new Date(),
-          secretarias: correlacionadas.length
-            ? {
-                create: correlacionadas.map((id) => ({
-                  secretariaId: id,
-                  papel: "CORRESPONSAVEL",
-                  responsavel: undefined,
-                })),
-              }
-            : undefined,
-          compromissos: body.compromissoIds?.length
-            ? {
-                create: body.compromissoIds.map((id) => ({
-                  compromissoId: id,
-                  tipoContribuicao: "DIRETA",
-                  origemVinculo: "CADASTRO_MANUAL",
-                })),
-              }
-            : undefined,
-        },
+      const created = await prisma.$transaction(async (tx) => {
+        const initiative = await criarIniciativa(tx, {
+            municipioId,
+            secretariaPrincipalId: body.secretariaPrincipalId,
+            metaEstrategicaId: body.metaEstrategicaId,
+            codigo: body.codigo,
+            nome: body.nome,
+            descricao: body.descricao,
+            origem: body.origem || "CADASTRO_MANUAL",
+            responsavel: body.responsavel || secretariaPrincipal.titularNome || undefined,
+            tipo: body.tipo,
+            estruturante: classificacoes.includes("ESTRUTURANTE"),
+            classificacaoPrincipal: classificacoes[0] ?? null,
+            vinculoPlanoGoverno: classificacoes.includes("PLANO_GOVERNO"),
+            criadoPorId: req.user!.id,
+            fonte: "Cadastro manual CIP",
+            dataReferencia: new Date(),
+            secretarias: correlacionadas.length
+              ? {
+                  create: correlacionadas.map((id) => ({
+                    secretariaId: id,
+                    papel: "CORRESPONSAVEL",
+                    responsavel: undefined,
+                  })),
+                }
+              : undefined,
+            compromissos: body.compromissoIds?.length
+              ? {
+                  create: body.compromissoIds.map((id) => ({
+                    compromissoId: id,
+                    tipoContribuicao: "DIRETA",
+                    origemVinculo: "CADASTRO_MANUAL",
+                  })),
+                }
+              : undefined,
+        });
+        if (classificacoes.length) {
+          await tx.iniciativaClassificacao.createMany({
+            data: classificacoes.map((classificacao) => ({
+              iniciativaId: initiative.id,
+              classificacao,
+            })),
+          });
+        }
+        return initiative;
       });
 
       await writeAudit({
@@ -1015,18 +1069,6 @@ iniciativasRouter.post(
       await assertMunicipioAccess(req.user!, ini.municipioId, "Iniciativa");
       const body = metaExecSchema.parse(req.body);
 
-      if (
-        ini.estruturante &&
-        ini.ciclo === "EM_ACOMPANHAMENTO" &&
-        !ini.metaEstrategicaId
-      ) {
-        throw new HttpError(
-          400,
-          "META_ESTRATEGICA_REQUIRED",
-          "Projeto estruturante em acompanhamento exige Meta Estratégica vinculada",
-        );
-      }
-
       const responsavelUser = await resolverResponsavel(ini.municipioId, body.responsavelUserId);
       const row = await prisma.metaExecucao.create({
         data: {
@@ -1199,6 +1241,7 @@ const vinculosSchema = z.object({
   responsavelPessoaId: z.string().nullable().optional(),
   responsavel: z.string().max(200).nullable().optional(),
   secretariaIds: z.array(z.string()).optional(),
+  metaEstrategicaId: z.string().nullable().optional(),
 });
 
 iniciativasRouter.patch(
@@ -1236,6 +1279,27 @@ iniciativasRouter.patch(
       }
 
       const data: Record<string, unknown> = {};
+      if (body.metaEstrategicaId !== undefined) {
+        if (body.metaEstrategicaId) {
+          const meta = await prisma.metaEstrategica.findFirst({
+            where: {
+              id: body.metaEstrategicaId,
+              plano: { municipioId: ini.municipioId },
+            },
+            select: { id: true },
+          });
+          if (!meta) {
+            throw new HttpError(
+              422,
+              "INVALID_META",
+              "A meta estruturante não pertence a este município",
+            );
+          }
+          data.metaEstrategicaId = meta.id;
+        } else {
+          data.metaEstrategicaId = null;
+        }
+      }
       if (body.responsavelPessoaId !== undefined) {
         if (body.responsavelPessoaId) {
           const pessoa = await prisma.secretariaPessoa.findFirst({
@@ -1594,6 +1658,268 @@ const dependenciaSchema = z.object({
   sentido: z.string().optional(),
   justificativa: z.string().min(5),
 });
+
+const classificacoesSchema = z.object({
+  classificacoes: z
+    .array(
+      z.enum(["ESTRUTURANTE", "PRIORITARIO", "PLANO_GOVERNO", "ACAO_DIARIA"]),
+    )
+    .min(1)
+    .max(1),
+});
+
+iniciativasRouter.patch(
+  "/:id/classificacoes",
+  requirePermission("iniciativa:write"),
+  async (req, res, next) => {
+    try {
+      const body = classificacoesSchema.parse(req.body);
+      const ini = await prisma.iniciativa.findUnique({
+        where: { id: req.params.id },
+        select: {
+          id: true,
+          municipioId: true,
+          estruturante: true,
+          vinculoPlanoGoverno: true,
+          classificacoes: { select: { classificacao: true } },
+          metaEstrategicaId: true,
+          compromissos: { select: { id: true }, take: 1 },
+        },
+      });
+      if (!ini) throw new HttpError(404, "NOT_FOUND", "Iniciativa não encontrada");
+      await assertIniciativaAccess(req.user!, ini.id);
+
+      const classificacoes = [...new Set(body.classificacoes)];
+      if (
+        classificacoes.includes("PLANO_GOVERNO") &&
+        !ini.metaEstrategicaId &&
+        ini.compromissos.length === 0
+      ) {
+        throw new HttpError(
+          422,
+          "PLANO_GOVERNO_LINK_REQUIRED",
+          "Vincule um compromisso ou uma meta estratégica antes de classificar a iniciativa no Plano de Governo",
+        );
+      }
+
+      const before = ini.classificacoes.map((item) => item.classificacao);
+      const updated = await prisma.$transaction(async (tx) => {
+        await tx.iniciativaClassificacao.deleteMany({
+          where: { iniciativaId: ini.id },
+        });
+        if (classificacoes.length) {
+          await tx.iniciativaClassificacao.createMany({
+            data: classificacoes.map((classificacao) => ({
+              iniciativaId: ini.id,
+              classificacao,
+            })),
+          });
+        }
+        return tx.iniciativa.update({
+          where: { id: ini.id },
+          data: {
+            estruturante: classificacoes.includes("ESTRUTURANTE"),
+            classificacaoPrincipal: classificacoes[0],
+            vinculoPlanoGoverno: classificacoes.includes("PLANO_GOVERNO"),
+          },
+          select: { id: true },
+        });
+      });
+
+      await writeAudit({
+        user: req.user,
+        action: "UPDATE",
+        entity: "IniciativaClassificacao",
+        entityId: updated.id,
+        before: { classificacoes: before },
+        after: { classificacoes },
+        ip: req.ip,
+      });
+      res.json({ data: { iniciativaId: updated.id, classificacoes } });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+const relacaoIniciativaSchema = z.object({
+  outraIniciativaId: z.string().min(1),
+  tipo: z.enum([
+    "DEPENDENCIA",
+    "DESDOBRAMENTO",
+    "CONTRIBUICAO",
+    "ACOMPANHAMENTO",
+  ]),
+  direcao: z.enum(["ATUAL_ORIGEM", "OUTRA_ORIGEM"]),
+  justificativa: z.string().trim().min(5).max(2000),
+});
+
+iniciativasRouter.get(
+  "/:id/relacoes",
+  requirePermission("iniciativa:read"),
+  async (req, res, next) => {
+    try {
+      const iniciativa = await prisma.iniciativa.findUnique({
+        where: { id: req.params.id },
+        select: { id: true, municipioId: true },
+      });
+      if (!iniciativa) throw new HttpError(404, "NOT_FOUND", "Iniciativa não encontrada");
+      await assertIniciativaAccess(req.user!, iniciativa.id);
+      const data = await prisma.relacaoIniciativa.findMany({
+        where: {
+          municipioId: iniciativa.municipioId,
+          OR: [
+            { origemIniciativaId: iniciativa.id },
+            { destinoIniciativaId: iniciativa.id },
+          ],
+        },
+        include: {
+          origem: { select: { id: true, codigo: true, nome: true } },
+          destino: { select: { id: true, codigo: true, nome: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      res.json({ data });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+iniciativasRouter.post(
+  "/:id/relacoes",
+  requirePermission("iniciativa:write"),
+  async (req, res, next) => {
+    try {
+      const body = relacaoIniciativaSchema.parse(req.body);
+      const atual = await prisma.iniciativa.findUnique({
+        where: { id: req.params.id },
+        select: { id: true, municipioId: true },
+      });
+      if (!atual) throw new HttpError(404, "NOT_FOUND", "Iniciativa não encontrada");
+      await assertIniciativaAccess(req.user!, atual.id);
+
+      const outra = await prisma.iniciativa.findFirst({
+        where: { id: body.outraIniciativaId, municipioId: atual.municipioId },
+        select: { id: true },
+      });
+      if (!outra) {
+        throw new HttpError(
+          404,
+          "RELATED_INITIATIVE_NOT_FOUND",
+          "A iniciativa relacionada não existe neste município",
+        );
+      }
+      await assertIniciativaAccess(req.user!, outra.id);
+
+      const origemId =
+        body.direcao === "ATUAL_ORIGEM" ? atual.id : outra.id;
+      const destinoId =
+        body.direcao === "ATUAL_ORIGEM" ? outra.id : atual.id;
+      const row = await prisma.$transaction(
+        async (tx) => {
+          if (body.tipo === "DEPENDENCIA") {
+            const dependencias = await tx.relacaoIniciativa.findMany({
+                where: {
+                  municipioId: atual.municipioId,
+                  tipo: "DEPENDENCIA",
+                  status: { in: ["PENDENTE", "VALIDADO"] },
+                },
+                select: {
+                  origemIniciativaId: true,
+                  destinoIniciativaId: true,
+                },
+              });
+            if (criaCicloRelacao(dependencias, origemId, destinoId)) {
+              throw new HttpError(
+                422,
+                "CICLO_RELACAO",
+                "A dependência criaria um ciclo entre iniciativas",
+              );
+            }
+          }
+          const duplicada = await tx.relacaoIniciativa.findFirst({
+            where: {
+              origemIniciativaId: origemId,
+              destinoIniciativaId: destinoId,
+              tipo: body.tipo,
+            },
+            select: { id: true },
+          });
+          if (duplicada) {
+            throw new HttpError(409, "RELATION_EXISTS", "Esta relação já está cadastrada");
+          }
+          return tx.relacaoIniciativa.create({
+            data: {
+              municipioId: atual.municipioId,
+              origemIniciativaId: origemId,
+              destinoIniciativaId: destinoId,
+              tipo: body.tipo,
+              justificativa: body.justificativa,
+              autorId: req.user!.id,
+            },
+            include: {
+              origem: { select: { id: true, codigo: true, nome: true } },
+              destino: { select: { id: true, codigo: true, nome: true } },
+            },
+          });
+        },
+        { isolationLevel: "Serializable" },
+      );
+      await writeAudit({
+        user: req.user,
+        action: "CREATE",
+        entity: "RelacaoIniciativa",
+        entityId: row.id,
+        after: row,
+        ip: req.ip,
+      });
+      res.status(201).json({ data: row });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+iniciativasRouter.patch(
+  "/relacoes/:relacaoId",
+  requirePermission("iniciativa:write"),
+  async (req, res, next) => {
+    try {
+      const body = z.object({ status: z.enum(["VALIDADO", "REJEITADO"]) }).parse(req.body);
+      const existing = await prisma.relacaoIniciativa.findFirst({
+        where: { id: req.params.relacaoId, municipioId: req.user!.municipioId },
+        include: {
+          origem: { select: { id: true } },
+          destino: { select: { id: true } },
+        },
+      });
+      if (!existing) throw new HttpError(404, "NOT_FOUND", "Relação não encontrada");
+      await assertIniciativaAccess(req.user!, existing.origem.id);
+      await assertIniciativaAccess(req.user!, existing.destino.id);
+      const row = await prisma.relacaoIniciativa.update({
+        where: { id: existing.id },
+        data: {
+          status: body.status,
+          validadorId: req.user!.id,
+          validadoEm: new Date(),
+        },
+      });
+      await writeAudit({
+        user: req.user,
+        action: "UPDATE",
+        entity: "RelacaoIniciativa",
+        entityId: row.id,
+        before: { status: existing.status },
+        after: { status: row.status },
+        ip: req.ip,
+      });
+      res.json({ data: row });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 iniciativasRouter.get(
   "/:id/dependencias",

@@ -20,6 +20,8 @@ export type ProjetoSecretariaItem = {
   pctConclusao: number;
   atualizadoEm: string;
   secretariaPrincipalNome: string;
+  classificacaoPrincipal?: string | null;
+  classificacoes?: string[];
 };
 
 type FiltroProjeto = "TODOS" | "PRINCIPAIS" | "CORRELACIONADOS" | "ATENCAO";
@@ -46,10 +48,18 @@ function projetoCorresponde(projeto: ProjetoSecretariaItem, filtro: FiltroProjet
 
 export function ProjetosSecretaria({
   projetos,
+  filtroFixo,
+  titulo = "Carteira da secretaria",
+  descricao = "Projetos sob responsabilidade direta e projetos em que a secretaria contribui com outras áreas.",
+  mensagemVazio,
 }: {
   projetos: ProjetoSecretariaItem[];
+  filtroFixo?: FiltroProjeto;
+  titulo?: string;
+  descricao?: string;
+  mensagemVazio?: string;
 }) {
-  const [filtro, setFiltro] = useState<FiltroProjeto>("TODOS");
+  const [filtro, setFiltro] = useState<FiltroProjeto>(filtroFixo ?? "TODOS");
   const [busca, setBusca] = useState("");
   const buscaNormalizada = busca.trim().toLocaleLowerCase("pt-BR");
 
@@ -72,11 +82,8 @@ export function ProjetosSecretaria({
     >
       <div className="pasta-section__head projetos-secretaria__heading">
         <div>
-          <h2 id="projetos-secretaria-title">Carteira da secretaria</h2>
-          <p>
-            Projetos sob responsabilidade direta e projetos em que a secretaria
-            contribui com outras áreas.
-          </p>
+          <h2 id="projetos-secretaria-title">{titulo}</h2>
+          <p>{descricao}</p>
         </div>
         <div className="projetos-secretaria__summary">
           <span><strong>{projetos.length}</strong> projetos no total</span>
@@ -96,96 +103,120 @@ export function ProjetosSecretaria({
             placeholder="Buscar projeto ou secretaria responsável"
           />
         </label>
-        <div
-          className="projetos-secretaria__filters"
-          aria-label="Filtrar carteira de projetos"
-        >
-          {filtros.map((item) => {
-            const count = projetos.filter((projeto) =>
-              projetoCorresponde(projeto, item.id),
-            ).length;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                aria-pressed={filtro === item.id}
-                onClick={() => setFiltro(item.id)}
-              >
-                {item.label} <span>{count}</span>
-              </button>
-            );
-          })}
-        </div>
+        {!filtroFixo && (
+          <div
+            className="projetos-secretaria__filters"
+            aria-label="Filtrar carteira de projetos"
+          >
+            {filtros.map((item) => {
+              const count = projetos.filter((projeto) =>
+                projetoCorresponde(projeto, item.id),
+              ).length;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  aria-pressed={filtro === item.id}
+                  onClick={() => setFiltro(item.id)}
+                >
+                  {item.label} <span>{count}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {filtrados.length ? (
         <div className="projetos-secretaria__grid">
-          {filtrados.map((projeto) => (
-            <article key={projeto.id} className="projeto-visao-card">
-              <div className="projeto-visao-card__top">
-                <Badge
-                  tone={projeto.participacao === "PRINCIPAL" ? "info" : "neutral"}
-                >
-                  {projeto.participacao === "PRINCIPAL"
-                    ? "Responsável"
-                    : `Compartilhado · ${projeto.secretariaPrincipalNome}`}
-                </Badge>
-                {projeto.estruturante && <Badge tone="rose">Prioritário</Badge>}
-              </div>
-
-              <div className="projeto-visao-card__title">
-                <span>{projeto.codigo}</span>
-                <h3>{projeto.nome}</h3>
-              </div>
-
-              {(projeto.bloqueioLabel || projeto.pendencias > 0) && (
-                <p className="projeto-visao-card__alert">
-                  {projeto.bloqueioLabel ||
-                    `${projeto.pendencias} impedimentos em acompanhamento`}
-                </p>
-              )}
-
-              <div
-                className="projeto-visao-card__progress"
-                role="progressbar"
-                aria-label={`Conclusão das tarefas do projeto ${projeto.nome}`}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={projeto.pctConclusao}
-              >
-                <div>
-                  <span>Conclusão das tarefas</span>
-                  <strong>{projeto.pctConclusao}%</strong>
+          {filtrados.map((projeto) => {
+            const classificacao =
+              projeto.classificacaoPrincipal ||
+              projeto.classificacoes?.[0] ||
+              (projeto.estruturante ? "ESTRUTURANTE" : null);
+            return (
+              <article key={projeto.id} className="projeto-visao-card">
+                <div className="projeto-visao-card__top">
+                  <Badge
+                    tone={projeto.participacao === "PRINCIPAL" ? "info" : "neutral"}
+                  >
+                    {projeto.participacao === "PRINCIPAL"
+                      ? "Responsável"
+                      : `Compartilhado · ${projeto.secretariaPrincipalNome}`}
+                  </Badge>
+                  {classificacao && (
+                    <Badge tone="neutral">
+                      {classificacao === "PLANO_GOVERNO"
+                        ? "Plano de Governo"
+                        : classificacao === "ACAO_DIARIA"
+                          ? "Ação diária"
+                          : classificacao === "PRIORITARIO"
+                            ? "Projeto prioritário"
+                            : "Estruturante"}
+                    </Badge>
+                  )}
                 </div>
-                <span className="projeto-visao-card__track">
-                  <span style={{ width: `${projeto.pctConclusao}%` }} />
-                </span>
-                <small>
-                  {projeto.concluidas} de {projeto.totalTarefas} concluídas
-                </small>
-              </div>
 
-              <div className="projeto-visao-card__metrics">
-                <span><strong>{projeto.atrasadas}</strong> atrasadas</span>
-                <span><strong>{projeto.semPrazo}</strong> sem prazo</span>
-                <span><strong>{projeto.pendencias}</strong> impedimentos</span>
-              </div>
+                <div className="projeto-visao-card__title">
+                  <span>{projeto.codigo}</span>
+                  <h3>{projeto.nome}</h3>
+                </div>
 
-              <Link
-                href={`/iniciativas/${projeto.id}?aba=andamento`}
-                className="projeto-visao-card__link"
-              >
-                Abrir acompanhamento
-              </Link>
-            </article>
-          ))}
+                {(projeto.bloqueioLabel || projeto.pendencias > 0) && (
+                  <p className="projeto-visao-card__alert">
+                    {projeto.bloqueioLabel ||
+                      `${projeto.pendencias} impedimentos em acompanhamento`}
+                  </p>
+                )}
+
+                <div
+                  className="projeto-visao-card__progress"
+                  role="progressbar"
+                  aria-label={`Conclusão das tarefas do projeto ${projeto.nome}`}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={projeto.pctConclusao}
+                >
+                  <div>
+                    <span>Conclusão das tarefas</span>
+                    <strong>{projeto.pctConclusao}%</strong>
+                  </div>
+                  <span className="projeto-visao-card__track">
+                    <span style={{ width: `${projeto.pctConclusao}%` }} />
+                  </span>
+                  <small>
+                    {projeto.concluidas} de {projeto.totalTarefas} concluídas
+                  </small>
+                </div>
+
+                <div className="projeto-visao-card__metrics">
+                  <span><strong>{projeto.atrasadas}</strong> atrasadas</span>
+                  <span><strong>{projeto.semPrazo}</strong> sem prazo</span>
+                  <span><strong>{projeto.pendencias}</strong> impedimentos</span>
+                </div>
+
+                <Link
+                  href={`/iniciativas/${projeto.id}?aba=andamento`}
+                  className="projeto-visao-card__link"
+                >
+                  Abrir acompanhamento
+                </Link>
+              </article>
+            );
+          })}
         </div>
       ) : (
         <div className="pasta-empty">
           <p>
-            {projetos.length
-              ? "Nenhum projeto corresponde a este filtro."
-              : "Ainda não há projetos principais ou compartilhados com esta secretaria."}
+            {mensagemVazio
+              ? mensagemVazio
+              : filtroFixo === "CORRELACIONADOS"
+                ? "Nenhum projeto correlacionado nesta secretaria."
+                : filtroFixo === "PRINCIPAIS"
+                  ? "Nenhum projeto sob responsabilidade desta secretaria."
+                  : projetos.length
+                    ? "Nenhum projeto corresponde a este filtro."
+                    : "Ainda não há projetos principais ou compartilhados com esta secretaria."}
           </p>
         </div>
       )}

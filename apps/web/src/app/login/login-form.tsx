@@ -15,7 +15,7 @@ const DEMO_ACCOUNTS = {
   prefeitura: [
     { email: "prefeito@cmd.local", label: "Prefeito — cenário" },
     { email: "gestor@cmd.local", label: "Secretário — pasta" },
-    { email: "analista@cmd.local", label: "Consultor — implantação" },
+    { email: "analista@cmd.local", label: "Consultor — secretarias" },
   ],
   gestao: [{ email: "admin@cip.local", label: "Equipe CIP — console" }],
 } as const;

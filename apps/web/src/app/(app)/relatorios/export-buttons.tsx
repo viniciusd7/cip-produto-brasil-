@@ -17,7 +17,7 @@ export function ExportButtons({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "cip-prestacao-de-contas.csv";
+    a.download = "cip-relatorios.csv";
     a.click();
     URL.revokeObjectURL(url);
   }

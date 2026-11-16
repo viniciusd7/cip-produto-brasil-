@@ -19,12 +19,18 @@ type MedicaoFormMeta = { id: string; nome: string };
 export function ConhecimentoForm({
   token,
   metas,
+  somenteDocumentos = false,
+  podeAnexar = true,
+  podeConferir = true,
 }: {
   token: string;
   metas: MedicaoFormMeta[];
+  somenteDocumentos?: boolean;
+  podeAnexar?: boolean;
+  podeConferir?: boolean;
 }) {
   const router = useRouter();
-  const [docs, setDocs] = useState<Doc[]>([]);
+  const [docs, setDocs] = useState<Doc[] | null>(null);
   const [alertas, setAlertas] = useState<Array<{ tipo: string; titulo: string }>>([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -37,12 +43,19 @@ export function ConhecimentoForm({
       headers: { Authorization: `Bearer ${token}` },
     });
     const json = await res.json();
-    setDocs(json.data || []);
-    setAlertas(json.meta?.alertasOrcamento || []);
+    if (!res.ok) {
+      throw new Error(json?.error?.message || "Falha ao carregar documentos");
+    }
+    setDocs(json.data);
+    setAlertas(json.meta.alertasOrcamento);
   }
 
   useEffect(() => {
-    const timer = setTimeout(() => void load(), 0);
+    const timer = setTimeout(() => {
+      void load().catch((err: unknown) =>
+        setError(err instanceof Error ? err.message : "Não foi possível carregar os documentos."),
+      );
+    }, 0);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -67,8 +80,8 @@ export function ConhecimentoForm({
       formElement.reset();
       await load();
       router.refresh();
-    } catch {
-      setError("Não foi possível enviar o documento. Tente novamente.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível enviar o documento. Tente novamente.");
     } finally {
       setSaving(false);
     }
@@ -157,15 +170,24 @@ export function ConhecimentoForm({
   }
 
   async function conferir(id: string) {
-    await fetch(`${API_URL}/conhecimento/documentos/${id}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ statusConferencia: "CONFERIDO" }),
-    });
-    await load();
+    setError("");
+    try {
+      const res = await fetch(`${API_URL}/conhecimento/documentos/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ statusConferencia: "CONFERIDO" }),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json?.error?.message || "Falha ao conferir documento");
+      }
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível conferir o documento.");
+    }
   }
 
   return (
@@ -182,9 +204,9 @@ export function ConhecimentoForm({
         </Card>
       )}
 
-      <Card title="Base de conhecimento (PPA / LDO / LOA)" subtitle="Documentos do município com status de conferência">
+      <Card title="Documentos da base de conhecimento" subtitle="Os documentos ficam disponíveis aos usuários desta prefeitura.">
         <ul className="stack" style={{ gap: 8 }}>
-          {docs.map((d) => (
+          {docs?.map((d) => (
             <li key={d.id} className="chip-row" style={{ justifyContent: "space-between" }}>
               <span>
                 {d.tipo} · {d.titulo}
@@ -212,7 +234,7 @@ export function ConhecimentoForm({
                     {textoAbertoId === d.id ? "Ocultar texto" : "Ver texto extraído"}
                   </Button>
                 )}
-                {d.statusConferencia !== "CONFERIDO" && (
+                {podeConferir && d.statusConferencia !== "CONFERIDO" && (
                   <Button type="button" variant="secondary" onClick={() => void conferir(d.id)}>
                     Marcar conferido
                   </Button>
@@ -220,8 +242,8 @@ export function ConhecimentoForm({
               </span>
             </li>
           ))}
-          {!docs.length && <p className="dashboard-muted">Nenhum documento cadastrado.</p>}
         </ul>
+        {docs && !docs.length && <p className="dashboard-muted">Nenhum documento cadastrado.</p>}
         {textoAbertoId && (
           <pre
             className="dashboard-muted"
@@ -230,7 +252,7 @@ export function ConhecimentoForm({
             {textoExtraido}
           </pre>
         )}
-        <form onSubmit={submitDoc} className="stack" style={{ marginTop: 16 }}>
+        {podeAnexar ? <form onSubmit={submitDoc} className="stack" style={{ marginTop: 16 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr 1fr", gap: 12 }}>
             <div>
               <label htmlFor="tipo">Tipo</label>
@@ -260,22 +282,25 @@ export function ConhecimentoForm({
               <label htmlFor="fonte">Fonte</label>
               <input id="fonte" name="fonte" />
             </div>
-            <div>
+            {podeConferir && <div>
               <label htmlFor="statusConferencia">Status</label>
               <select id="statusConferencia" name="statusConferencia" defaultValue="PENDENTE">
                 <option value="PENDENTE">Pendente</option>
                 <option value="CONFERIDO">Conferido</option>
                 <option value="DESATUALIZADO">Desatualizado</option>
               </select>
-            </div>
+            </div>}
           </div>
           <div>
-            <label htmlFor="arquivoConhecimento">Arquivo PDF ou DOCX (opcional, até 4 MB)</label>
+            <label htmlFor="arquivoConhecimento">
+              Arquivo PDF, DOC ou DOCX ({somenteDocumentos ? "obrigatório" : "opcional"}, até 4 MB)
+            </label>
             <input
               id="arquivoConhecimento"
               name="arquivo"
               type="file"
-              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              required={somenteDocumentos}
+              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             />
             <p className="dashboard-muted">
               O texto extraído ficará disponível para consulta; PDFs digitalizados sem texto podem ser baixados normalmente.
@@ -284,9 +309,10 @@ export function ConhecimentoForm({
           <Button type="submit" disabled={saving}>
             {saving ? "Salvando..." : "Incluir documento"}
           </Button>
-        </form>
+        </form> : <p className="dashboard-muted">Seu perfil permite consultar documentos, mas não anexá-los.</p>}
       </Card>
 
+      {!somenteDocumentos && <>
       <Card title="Medição de Meta Estratégica" subtitle="Registra realizado e esperado na data de corte">
         {!metas.length ? (
           <p className="dashboard-muted">Cadastre uma meta estratégica antes de medir.</p>
@@ -330,8 +356,9 @@ export function ConhecimentoForm({
       <Card title="Tramitação de validação" subtitle="Solicitação e decisão humanas (RN-V)">
         <TramitacaoMini token={token} metas={metas} />
       </Card>
+      </>}
 
-      {error && <p style={{ color: "var(--cip-danger)" }}>{error}</p>}
+      {error && <p role="alert" style={{ color: "var(--cip-danger)" }}>{error}</p>}
     </div>
   );
 }

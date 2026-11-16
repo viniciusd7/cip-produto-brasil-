@@ -1,12 +1,15 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma } from "@cip/db";
+import { Prisma, prisma } from "@cip/db";
 import {
   evaluateWizard,
   formatarDetalhes,
   MODELO_ACAO_DIARIA,
   MODELO_PLANO_GOVERNO,
+  adicionarImpedimentosComuns,
+  usaFluxoEstruturante,
   parseCondicaoResposta,
+  visibleQuestions,
   type ModeloSnapshot,
   type RespostaViabilidade,
   type TreeNode,
@@ -18,6 +21,7 @@ import {
 } from "../middleware/auth";
 import { HttpError } from "../middleware/error";
 import { writeAudit } from "../services/audit";
+import { criarIniciativa } from "../services/criacao-iniciativa";
 import { notifications } from "../services/notifications";
 import { promoteToTitular } from "../services/secretaria-pessoas";
 import {
@@ -32,13 +36,43 @@ function modeloVazio(): ModeloSnapshot {
   return { codigo: "VAZIO", nome: "Sem modelo", perguntas: [], estrutura: [] };
 }
 
+const jsonValueSchema: z.ZodType<Prisma.JsonValue> = z.lazy(() => z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.null(),
+  z.array(jsonValueSchema),
+  z.record(z.string(), jsonValueSchema),
+]));
+
 const valorRespostaSchema = z.union([
   z.string(),
   z.number(),
   z.boolean(),
   z.null(),
-  z.record(z.string(), z.unknown()),
+  z.record(z.string(), jsonValueSchema),
 ]);
+
+const respostasSchema = z.array(z.object({
+  perguntaCodigo: z.string(),
+  valor: valorRespostaSchema,
+})).superRefine((respostas, ctx) => {
+  const codigos = new Set<string>();
+  respostas.forEach((resposta, index) => {
+    if (codigos.has(resposta.perguntaCodigo)) {
+      ctx.addIssue({
+        code: "custom",
+        path: [index, "perguntaCodigo"],
+        message: "Envie uma única resposta por pergunta",
+      });
+    }
+    codigos.add(resposta.perguntaCodigo);
+  });
+});
+
+function valorParaJson(valor: Prisma.JsonValue) {
+  return valor === null ? Prisma.JsonNull : valor;
+}
 
 /** Escopo do projeto: Meta → Tarefa → Subtarefa, cada item com responsável. */
 const treeNodeSchema: z.ZodType<TreeNode> = z.lazy(() =>
@@ -60,23 +94,44 @@ const treeNodeSchema: z.ZodType<TreeNode> = z.lazy(() =>
   }),
 );
 
-const previewSchema = z.object({
+const previewBaseSchema = z.object({
   modeloProjetoId: z.string().optional(),
   classificacaoPrincipal: z.enum([
     "ESTRUTURANTE",
+    "PRIORITARIO",
     "PLANO_GOVERNO",
     "ACAO_DIARIA",
   ]),
-  respostas: z
+  classificacoes: z
     .array(
-      z.object({
-        perguntaCodigo: z.string(),
-        valor: valorRespostaSchema,
-      }),
+      z.enum(["ESTRUTURANTE", "PRIORITARIO", "PLANO_GOVERNO", "ACAO_DIARIA"]),
     )
-    .default([]),
+    .max(1)
+    .optional(),
+  respostas: respostasSchema.default([]),
   estruturaOverride: z.array(treeNodeSchema).optional(),
 });
+
+function validarClassificacaoUnica(
+  body: z.infer<typeof previewBaseSchema>,
+  ctx: z.RefinementCtx,
+) {
+  if (
+    body.classificacoes &&
+    (body.classificacoes.length !== 1 ||
+      body.classificacoes[0] !== body.classificacaoPrincipal)
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["classificacoes"],
+      message: "Selecione uma única categoria igual ao fluxo escolhido",
+    });
+  }
+}
+
+const previewSchema = previewBaseSchema.superRefine(
+  validarClassificacaoUnica,
+);
 
 function mapAplicabilidade(a: string) {
   if (a === "sim") return "SIM";
@@ -93,9 +148,7 @@ function mapSituacao(s: string) {
 }
 
 async function persistVerificacoesFromRespostas(
-  // Prisma interactive transaction client
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  tx: any,
+  tx: Prisma.TransactionClient,
   iniciativaId: string,
   modeloSnap: ModeloSnapshot,
   respostas: Array<{ perguntaCodigo: string; valor: unknown }>,
@@ -194,7 +247,10 @@ wizardRouter.post(
         modelo = MODELO_ACAO_DIARIA;
       } else if (body.classificacaoPrincipal === "PLANO_GOVERNO") {
         modelo = MODELO_PLANO_GOVERNO;
-      } else if (body.modeloProjetoId) {
+      } else if (
+        usaFluxoEstruturante(body.classificacaoPrincipal) &&
+        body.modeloProjetoId
+      ) {
         const row = await prisma.modeloProjeto.findUnique({
           where: { id: body.modeloProjetoId },
         });
@@ -202,6 +258,7 @@ wizardRouter.post(
         await assertMunicipioAccess(req.user!, row.municipioId, "Modelo");
         modelo = await loadModeloSnapshot(row.id);
       }
+      modelo = adicionarImpedimentosComuns(modelo);
 
       const result = evaluateWizard({
         modelo,
@@ -229,8 +286,8 @@ const novaPessoaSchema = z.object({
   papel: z.enum(["TITULAR", "EQUIPE"]).optional(),
 });
 
-const confirmSchema = previewSchema.extend({
-  codigo: z.string().min(2),
+const confirmSchema = previewBaseSchema.extend({
+  codigo: z.string().min(2).optional(),
   nome: z.string().min(3),
   descricao: z.string().optional(),
   secretariaPrincipalId: z.string(),
@@ -241,7 +298,7 @@ const confirmSchema = previewSchema.extend({
   responsavel: z.string().optional(),
   responsavelPessoaId: z.string().optional(),
   novaPessoa: novaPessoaSchema.optional(),
-});
+}).superRefine(validarClassificacaoUnica);
 
 wizardRouter.post(
   "/confirmar",
@@ -250,6 +307,7 @@ wizardRouter.post(
     try {
       const body = confirmSchema.parse(req.body);
       const municipioId = req.user!.municipioId;
+      const classificacoes = [...new Set(body.classificacoes ?? [body.classificacaoPrincipal])];
 
       const secretaria = await prisma.secretaria.findFirst({
         where: { id: body.secretariaPrincipalId, municipioId },
@@ -300,7 +358,7 @@ wizardRouter.post(
       }
 
       const vinculaPlano =
-        body.classificacaoPrincipal === "PLANO_GOVERNO" ||
+        classificacoes.includes("PLANO_GOVERNO") ||
         Boolean(body.vinculoPlanoGoverno || body.novaMeta || body.metaEstrategicaId);
 
       if (vinculaPlano && !body.metaEstrategicaId && !body.novaMeta) {
@@ -318,7 +376,10 @@ wizardRouter.post(
         modeloSnap = MODELO_ACAO_DIARIA;
       } else if (body.classificacaoPrincipal === "PLANO_GOVERNO") {
         modeloSnap = MODELO_PLANO_GOVERNO;
-      } else if (body.modeloProjetoId) {
+      } else if (
+        usaFluxoEstruturante(body.classificacaoPrincipal) &&
+        body.modeloProjetoId
+      ) {
         const row = await prisma.modeloProjeto.findUnique({
           where: { id: body.modeloProjetoId },
         });
@@ -326,6 +387,31 @@ wizardRouter.post(
         await assertMunicipioAccess(req.user!, row.municipioId, "Modelo");
         modeloId = row.id;
         modeloSnap = await loadModeloSnapshot(row.id);
+      }
+      modeloSnap = adicionarImpedimentosComuns(modeloSnap);
+
+      const respostasPorCodigo = new Map(
+        body.respostas.map((resposta) => [resposta.perguntaCodigo, resposta.valor]),
+      );
+      const impedimentoSemDecisao = visibleQuestions(
+        modeloSnap.perguntas,
+        body.respostas,
+      ).find((pergunta) => {
+        if (!pergunta.obrigatoria || pergunta.metadados?.impedimento !== true) {
+          return false;
+        }
+        const { aplicabilidade } = parseCondicaoResposta(
+          pergunta.codigo,
+          respostasPorCodigo.get(pergunta.codigo),
+        );
+        return aplicabilidade !== "sim" && aplicabilidade !== "nao";
+      });
+      if (impedimentoSemDecisao) {
+        throw new HttpError(
+          422,
+          "IMPEDIMENTO_NAO_RESPONDIDO",
+          `Defina se o impedimento se aplica: ${impedimentoSemDecisao.rotulo || impedimentoSemDecisao.texto} (${impedimentoSemDecisao.codigo})`,
+        );
       }
 
       const evaluated = evaluateWizard({
@@ -395,8 +481,7 @@ wizardRouter.post(
           responsavelNome = pessoa.nome;
         }
 
-        const ini = await tx.iniciativa.create({
-          data: {
+        const ini = await criarIniciativa(tx, {
             municipioId,
             secretariaPrincipalId: body.secretariaPrincipalId,
             metaEstrategicaId: metaEstrategicaId || null,
@@ -405,6 +490,7 @@ wizardRouter.post(
             descricao: body.descricao,
             responsavel: responsavelNome,
             responsavelPessoaId,
+            fluxoWizard: body.classificacaoPrincipal,
             ciclo: evaluated.cicloInicial,
             estruturante: body.classificacaoPrincipal === "ESTRUTURANTE",
             classificacaoPrincipal: body.classificacaoPrincipal,
@@ -419,8 +505,16 @@ wizardRouter.post(
             criadoPorId: req.user!.id,
             fonte: "wizard",
             dataReferencia: new Date(),
-          },
         });
+
+        if (classificacoes.length) {
+          await tx.iniciativaClassificacao.createMany({
+            data: [...new Set(classificacoes)].map((classificacao) => ({
+              iniciativaId: ini.id,
+              classificacao,
+            })),
+          });
+        }
 
         for (const sid of correlatasIds) {
           await tx.iniciativaSecretaria.create({
@@ -442,7 +536,7 @@ wizardRouter.post(
               iniciativaId: ini.id,
               perguntaCodigo: r.perguntaCodigo,
               perguntaTexto: pergunta.texto,
-              valor: r.valor as unknown as object,
+              valor: valorParaJson(r.valor),
               impacto: pergunta.impacto,
               autorId: req.user!.id,
             },
@@ -491,6 +585,7 @@ wizardRouter.post(
       res.status(201).json({
         data: {
           id: created.id,
+          codigo: created.codigo,
           ciclo: created.ciclo,
           bloqueioLabel: created.bloqueioLabel,
           bloqueios: evaluated.bloqueios,
@@ -508,12 +603,7 @@ wizardRouter.post(
 );
 
 const reavaliarSchema = z.object({
-  respostas: z.array(
-    z.object({
-      perguntaCodigo: z.string(),
-      valor: valorRespostaSchema,
-    }),
-  ),
+  respostas: respostasSchema,
 });
 
 wizardRouter.patch(
@@ -551,8 +641,9 @@ wizardRouter.patch(
       const evaluated = evaluateWizard({
         modelo: modeloSnap,
         classificacaoPrincipal:
-          (ini.classificacaoPrincipal as
+          ((ini.fluxoWizard || ini.classificacaoPrincipal) as
             | "ESTRUTURANTE"
+            | "PRIORITARIO"
             | "PLANO_GOVERNO"
             | "ACAO_DIARIA") ||
           (ini.estruturante ? "ESTRUTURANTE" : "ACAO_DIARIA"),
@@ -574,14 +665,14 @@ wizardRouter.patch(
             await tx.iniciativaRespostaHistorico.create({
               data: {
                 respostaId: existing.id,
-                valorAnterior: existing.valor as object,
-                valorNovo: r.valor as unknown as object,
+                valorAnterior: valorParaJson(existing.valor),
+                valorNovo: valorParaJson(r.valor),
                 autorId: req.user!.id,
               },
             });
             await tx.iniciativaRespostaViabilidade.update({
               where: { id: existing.id },
-              data: { valor: r.valor as unknown as object, autorId: req.user!.id },
+              data: { valor: valorParaJson(r.valor), autorId: req.user!.id },
             });
           } else {
             await tx.iniciativaRespostaViabilidade.create({
@@ -589,7 +680,7 @@ wizardRouter.patch(
                 iniciativaId: ini.id,
                 perguntaCodigo: r.perguntaCodigo,
                 perguntaTexto: pergunta.texto,
-                valor: r.valor as unknown as object,
+                valor: valorParaJson(r.valor),
                 impacto: pergunta.impacto,
                 autorId: req.user!.id,
               },

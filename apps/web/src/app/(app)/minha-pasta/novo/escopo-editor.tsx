@@ -105,19 +105,43 @@ export function EscopoEditor({
           </div>
           <div className="form-grid form-grid--2">
             <div>
-              <label>O que precisa ser entregue</label>
+              <label htmlFor={`${meta.codigo}-nome`}>O que precisa ser entregue</label>
               <input
+                id={`${meta.codigo}-nome`}
                 value={meta.nome}
                 onChange={(e) => atualizarMeta(mi, { nome: e.target.value })}
               />
             </div>
             <div>
-              <label>Responsável pela meta</label>
+              <label htmlFor={`${meta.codigo}-responsavel`}>Responsável pela meta</label>
               <input
+                id={`${meta.codigo}-responsavel`}
                 list={listId}
                 value={meta.responsavel ?? ""}
                 placeholder="Nome ou equipe"
                 onChange={(e) => atualizarMeta(mi, { responsavel: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="form-grid form-grid--2" style={{ marginTop: 12 }}>
+            <div>
+              <label htmlFor={`${meta.codigo}-indicador`}>Indicador da meta</label>
+              <input
+                id={`${meta.codigo}-indicador`}
+                value={meta.indicador ?? ""}
+                onChange={(e) => atualizarMeta(mi, { indicador: e.target.value })}
+                placeholder="Ex.: unidades entregues"
+                maxLength={300}
+              />
+            </div>
+            <div>
+              <label htmlFor={`${meta.codigo}-alvo`}>Resultado esperado</label>
+              <input
+                id={`${meta.codigo}-alvo`}
+                value={meta.alvo ?? ""}
+                onChange={(e) => atualizarMeta(mi, { alvo: e.target.value })}
+                placeholder="Ex.: 10 unidades"
+                maxLength={300}
               />
             </div>
           </div>
@@ -127,8 +151,9 @@ export function EscopoEditor({
               <div key={tarefa.codigo} className="dashboard-list-item" style={{ display: "block" }}>
                 <div className="form-grid form-grid--2">
                   <div>
-                    <label>Tarefa</label>
+                    <label htmlFor={`${tarefa.codigo}-nome`}>Tarefa</label>
                     <input
+                      id={`${tarefa.codigo}-nome`}
                       value={tarefa.nome}
                       onChange={(e) =>
                         atualizarTarefas(
@@ -139,8 +164,9 @@ export function EscopoEditor({
                     />
                   </div>
                   <div>
-                    <label>Quem faz?</label>
+                    <label htmlFor={`${tarefa.codigo}-responsavel`}>Quem faz?</label>
                     <input
+                      id={`${tarefa.codigo}-responsavel`}
                       list={listId}
                       value={tarefa.responsavel ?? ""}
                       placeholder="Nome ou equipe"
@@ -153,8 +179,9 @@ export function EscopoEditor({
                     />
                   </div>
                   <div>
-                    <label>Prazo</label>
+                    <label htmlFor={`${tarefa.codigo}-prazo`}>Prazo</label>
                     <input
+                      id={`${tarefa.codigo}-prazo`}
                       type="date"
                       value={isoParaData(tarefa.prazo)}
                       onChange={(e) =>
@@ -180,8 +207,9 @@ export function EscopoEditor({
                   {tarefa.children.map((sub, si) => (
                     <li key={sub.codigo} className="form-grid form-grid--2">
                       <div>
-                        <label>Subtarefa</label>
+                        <label htmlFor={`${sub.codigo}-nome`}>Subtarefa</label>
                         <input
+                          id={`${sub.codigo}-nome`}
                           value={sub.nome}
                           onChange={(e) =>
                             atualizarSubtarefas(
@@ -193,9 +221,10 @@ export function EscopoEditor({
                         />
                       </div>
                       <div>
-                        <label>Quem faz?</label>
+                        <label htmlFor={`${sub.codigo}-responsavel`}>Quem faz?</label>
                         <div style={{ display: "flex", gap: 8 }}>
                           <input
+                            id={`${sub.codigo}-responsavel`}
                             list={listId}
                             value={sub.responsavel ?? ""}
                             placeholder="Nome ou equipe"

@@ -11,6 +11,7 @@ import {
   formatarDetalhes,
   quizItem,
   textoPorQueParado,
+  usaFluxoEstruturante,
 } from "@cip/shared";
 import { useState } from "react";
 import { Badge, Card } from "@cip/ui";
@@ -18,10 +19,19 @@ import { EVIDENCIA_STATUS, EvidenciaCard, type EvidenciaItem } from "./evidencia
 import { EvidenciaEnvio } from "./evidencia-envio";
 import { HistoricoProjeto } from "./historico-projeto";
 import { ProjetoPastas, STATUS_TAREFA } from "./projeto-pastas";
+import { MetasIndicadores } from "./metas-indicadores";
+import { RelacoesIniciativas } from "./relacoes-iniciativas";
 import { VinculosEditor } from "./vinculos-editor";
 import "./projeto.css";
 
 export type SecretariaRef = { id: string; nome: string; sigla?: string | null };
+
+const CLASSIFICACAO_LABEL: Record<string, string> = {
+  ESTRUTURANTE: "Estruturante",
+  PRIORITARIO: "Projeto prioritário",
+  PLANO_GOVERNO: "Plano de Governo",
+  ACAO_DIARIA: "Ação diária",
+};
 
 export type ProjetoDocMeta = {
   id: string;
@@ -64,6 +74,8 @@ export type ProjetoDocData = {
   responsavel?: string | null;
   responsavelPessoaId?: string | null;
   estruturante?: boolean;
+  classificacaoPrincipal?: string | null;
+  classificacoes?: string[];
   bloqueioLabel?: string | null;
   bloqueiosAtivos?: Array<{ perguntaCodigo: string; rotulo: string }> | null;
   secretariaPrincipal: { id: string; nome: string; sigla?: string | null };
@@ -117,7 +129,7 @@ const GRUPOS_DOCUMENTO = [
   ...GRUPOS_CONDICOES,
 ];
 
-type Aba = "visao" | "andamento" | "evidencias";
+type Aba = "visao" | "andamento" | "metas" | "evidencias" | "relacoes";
 
 function respostaLegivel(codigo: string, valor: unknown): string {
   if (valor === null || valor === undefined) return "A confirmar";
@@ -134,7 +146,9 @@ function respostaLegivel(codigo: string, valor: unknown): string {
 
 const ABAS: Array<{ id: Aba; label: string; icone: string }> = [
   { id: "andamento", label: "Tarefas", icone: "🗂️" },
+  { id: "metas", label: "Metas e indicadores", icone: "🎯" },
   { id: "evidencias", label: "Evidências", icone: "📎" },
+  { id: "relacoes", label: "Classificações e relações", icone: "↔" },
   { id: "visao", label: "Sobre o projeto", icone: "ℹ️" },
 ];
 
@@ -279,6 +293,7 @@ export function ProjetoDocumento({
   token,
   equipe,
   todasSecretarias,
+  focoSecretario = false,
 }: {
   item: ProjetoDocData;
   canWrite: boolean;
@@ -288,13 +303,19 @@ export function ProjetoDocumento({
   /** Nomes da equipe das pastas envolvidas (sugestões de responsável). */
   equipe: string[];
   todasSecretarias: SecretariaRef[];
+  /** Secretário opera tarefas e evidências, sem o diagnóstico de cadastro. */
+  focoSecretario?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const raw = searchParams.get("aba");
   const requestedMarcoId = searchParams.get("marcoId");
   const aba: Aba =
-    raw === "visao" || raw === "evidencias" || raw === "andamento" ? raw : "andamento";
+    focoSecretario && raw === "visao"
+      ? "andamento"
+      : raw === "visao" || raw === "evidencias" || raw === "andamento" || raw === "metas" || raw === "relacoes"
+        ? raw
+        : "andamento";
 
   const marcosSemMeta = item.marcos.filter((m) => !m.metaExecucaoId);
   const conta = (st: string) => item.marcos.filter((m) => m.prazoStatus === st).length;
@@ -314,6 +335,10 @@ export function ProjetoDocumento({
   const correlacionadas = item.secretarias
     .map((s) => s.secretaria)
     .filter((s) => s.id !== item.secretariaPrincipal.id);
+  const classificacao =
+    item.classificacaoPrincipal ||
+    item.classificacoes?.[0] ||
+    (item.estruturante ? "ESTRUTURANTE" : null);
 
   function navegar(next: Aba, marcoId?: string | null) {
     const params = new URLSearchParams(searchParams.toString());
@@ -364,7 +389,11 @@ export function ProjetoDocumento({
             {correlacionadas.map((s) => (
               <span key={s.id} className="pj-tag pj-tag--soft">🤝 {s.sigla || s.nome}</span>
             ))}
-            {item.estruturante && <span className="pj-tag pj-tag--rose">Estruturante</span>}
+            {classificacao && (
+              <span className="pj-tag pj-tag--rose">
+                {CLASSIFICACAO_LABEL[classificacao] || classificacao}
+              </span>
+            )}
           </div>
           <p className="pj-hero__meta">
             <span>🎯</span>
@@ -452,7 +481,9 @@ export function ProjetoDocumento({
       )}
 
       <nav className="pj-abas" aria-label="Seções do projeto">
-        {ABAS.map((t) => (
+        {ABAS.filter((t) =>
+          !focoSecretario || t.id !== "visao",
+        ).map((t) => (
           <button
             key={t.id}
             type="button"
@@ -479,6 +510,9 @@ export function ProjetoDocumento({
             token={token}
             equipe={equipe}
             iniciativaId={item.id}
+            secretariaId={item.secretariaPrincipal.id}
+            metaEstrategica={item.metaEstrategica}
+            permiteMetaPlano={classificacao === "PLANO_GOVERNO" || Boolean(item.metaEstrategica)}
             onVerEvidencias={(marcoId) => navegar("evidencias", marcoId)}
           />
           <details className="pj-secao">
@@ -500,7 +534,31 @@ export function ProjetoDocumento({
         />
       )}
 
-      {aba === "visao" && (
+      {aba === "metas" && (
+        <MetasIndicadores
+          iniciativaId={item.id}
+          metas={item.metasExecucao}
+          token={token}
+          canWrite={canWrite}
+          equipe={equipe}
+        />
+      )}
+
+      {aba === "relacoes" && (
+        <RelacoesIniciativas
+          key={item.id}
+          iniciativaId={item.id}
+          classificacoesIniciais={
+            item.classificacaoPrincipal
+              ? [item.classificacaoPrincipal]
+              : item.classificacoes ?? []
+          }
+          token={token}
+          canWrite={canWrite}
+        />
+      )}
+
+      {aba === "visao" && !focoSecretario && (
         <div className="stack">
           <div className="dashboard-grid-2">
             <Card title="🎯 Meta estratégica">
@@ -524,8 +582,11 @@ export function ProjetoDocumento({
                 </div>
               ) : (
                 <p className="dashboard-muted" style={{ margin: 0 }}>
-                  {item.estruturante
-                    ? "Projeto estruturante precisa de meta estratégica — a consultoria faz o vínculo."
+                  {usaFluxoEstruturante(
+                    item.classificacaoPrincipal || item.classificacoes?.[0] ||
+                      (item.estruturante ? "ESTRUTURANTE" : null),
+                  )
+                    ? "Este fluxo exige meta estratégica — a consultoria faz o vínculo."
                     : "Nenhuma meta estratégica vinculada."}
                 </p>
               )}

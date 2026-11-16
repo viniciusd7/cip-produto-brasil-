@@ -30,6 +30,7 @@ export function CondicaoCard({
   const isNumero = pergunta.tipoResposta === "NUMERO";
   const isTexto = pergunta.tipoResposta === "TEXTO";
   const isFechada = pergunta.tipoResposta === "CONDICAO_FECHADA";
+  const isImpedimento = pergunta.metadados?.impedimento === true;
 
   const followUps = pergunta.camposFollowUp || [];
   const selecaoAtual =
@@ -57,6 +58,33 @@ export function CondicaoCard({
 
   function patchMeta(partial: Partial<CondicaoResposta>) {
     onChange({ ...parsed, ...partial });
+  }
+
+  function selecionarAplicabilidade(value: string) {
+    if (value === "SIM") {
+      patchMeta({
+        aplicabilidade: "sim",
+        situacao:
+          parsed.aplicabilidade === "sim" &&
+          (parsed.situacao === "atendida" || parsed.situacao === "pendente")
+            ? parsed.situacao
+            : "pendente",
+      });
+      return;
+    }
+
+    if (value === "") {
+      patchMeta({ aplicabilidade: "a_avaliar", situacao: "em_analise" });
+      return;
+    }
+
+    patchMeta({
+      aplicabilidade: "nao",
+      situacao:
+        value === "NAO_SE_APLICA"
+          ? "dispensada_com_fundamento"
+          : "em_analise",
+    });
   }
 
   function patchDetalhe(chave: string, v: string) {
@@ -147,38 +175,85 @@ export function CondicaoCard({
       !isNumero &&
       !isTexto ? (
         <>
-          <label className="condicao-card__field">
-            <span>Situação: {rotulo}</span>
-            <select
-              value={
-                isFechada
-                  ? fechada
-                  : typeof valor === "string"
-                    ? valor === "SIM"
-                      ? "atendida"
-                      : valor === "NAO"
-                        ? "pendente"
-                        : valor === "EM_ANDAMENTO"
-                          ? "a_avaliar"
-                          : "a_avaliar"
-                    : "a_avaliar"
-              }
-              onChange={(e) => {
-                const v = e.target.value as RespostaFechada;
-                if (isFechada) setFechada(v);
-                else if (v === "atendida") onChange("SIM");
-                else if (v === "pendente") onChange("NAO");
-                else if (v === "nao_se_aplica") onChange("NAO");
-                else onChange("EM_ANDAMENTO");
-              }}
-            >
-              {RESPOSTA_FECHADA_OPCOES.map((o) => (
-                <option key={o} value={o}>
-                  {RESPOSTA_FECHADA_LABEL[o]}
-                </option>
-              ))}
-            </select>
-          </label>
+          {isImpedimento ? (
+            <label className="condicao-card__field">
+              <span>Este item é necessário?</span>
+              <select
+                required={pergunta.obrigatoria}
+                value={
+                  parsed.aplicabilidade === "sim"
+                    ? "SIM"
+                    : parsed.aplicabilidade === "nao" &&
+                        parsed.situacao === "dispensada_com_fundamento"
+                      ? "NAO_SE_APLICA"
+                      : parsed.aplicabilidade === "nao"
+                        ? "NAO"
+                        : ""
+                }
+                onChange={(event) =>
+                  selecionarAplicabilidade(event.target.value)
+                }
+              >
+                <option value="">Selecione</option>
+                <option value="SIM">Sim</option>
+                <option value="NAO">Não</option>
+                <option value="NAO_SE_APLICA">Não se aplica</option>
+              </select>
+            </label>
+          ) : (
+            <label className="condicao-card__field">
+              <span>Situação: {rotulo}</span>
+              <select
+                value={
+                  isFechada
+                    ? fechada
+                    : typeof valor === "string"
+                      ? valor === "SIM"
+                        ? "atendida"
+                        : valor === "NAO"
+                          ? "pendente"
+                          : valor === "EM_ANDAMENTO"
+                            ? "a_avaliar"
+                            : "a_avaliar"
+                      : "a_avaliar"
+                }
+                onChange={(e) => {
+                  const v = e.target.value as RespostaFechada;
+                  if (isFechada) setFechada(v);
+                  else if (v === "atendida") onChange("SIM");
+                  else if (v === "pendente") onChange("NAO");
+                  else if (v === "nao_se_aplica") onChange("NAO");
+                  else onChange("EM_ANDAMENTO");
+                }}
+              >
+                {RESPOSTA_FECHADA_OPCOES.map((o) => (
+                  <option key={o} value={o}>
+                    {RESPOSTA_FECHADA_LABEL[o]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {isImpedimento && parsed.aplicabilidade === "sim" ? (
+            <label className="condicao-card__field">
+              <span>Situação do item</span>
+              <select
+                value={
+                  parsed.situacao === "atendida" ? "atendida" : "pendente"
+                }
+                onChange={(event) =>
+                  patchMeta({
+                    aplicabilidade: "sim",
+                    situacao: event.target.value as "atendida" | "pendente",
+                  })
+                }
+              >
+                <option value="pendente">Pendente</option>
+                <option value="atendida">Atendido</option>
+              </select>
+            </label>
+          ) : null}
 
           {isFechada ? (
             <>

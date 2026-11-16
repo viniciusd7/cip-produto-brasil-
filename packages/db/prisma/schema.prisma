@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ========== Auth / RBAC ==========
@@ -268,6 +269,7 @@ model Iniciativa {
   origem                 String?
   responsavel            String?
   responsavelPessoaId    String?
+  fluxoWizard            String?
   ciclo                  String    @default("EM_ACOMPANHAMENTO")
   publicacao             String    @default("INTERNA")
   dataReferencia         DateTime?
@@ -295,6 +297,9 @@ model Iniciativa {
   responsavelPessoa    SecretariaPessoa?               @relation("ResponsavelPessoa", fields: [responsavelPessoaId], references: [id])
   secretarias          IniciativaSecretaria[]
   compromissos         IniciativaCompromisso[]
+  classificacoes      IniciativaClassificacao[]
+  relacoesComoOrigem  RelacaoIniciativa[]            @relation("RelacaoIniciativaOrigem")
+  relacoesComoDestino RelacaoIniciativa[]            @relation("RelacaoIniciativaDestino")
   metasExecucao        MetaExecucao[]
   marcos               MarcoEntrega[]
   verificacoes         Verificacao[]
@@ -308,11 +313,45 @@ model Iniciativa {
   documentos           IniciativaDocumento[]
 
   @@unique([municipioId, codigo])
+  @@unique([municipioId, id])
   @@index([municipioId])
   @@index([secretariaPrincipalId])
   @@index([ciclo])
   @@index([modeloProjetoId])
   @@index([responsavelPessoaId])
+}
+
+model IniciativaClassificacao {
+  id            String     @id @default(cuid())
+  iniciativaId  String
+  classificacao String
+  createdAt     DateTime   @default(now())
+  iniciativa    Iniciativa @relation(fields: [iniciativaId], references: [id], onDelete: Cascade)
+
+  @@unique([iniciativaId, classificacao])
+  @@index([classificacao, iniciativaId])
+}
+
+model RelacaoIniciativa {
+  id                   String     @id @default(cuid())
+  municipioId          String
+  origemIniciativaId   String
+  destinoIniciativaId  String
+  tipo                 String
+  justificativa        String     @db.Text
+  status               String     @default("PENDENTE")
+  autorId              String?
+  validadorId          String?
+  validadoEm           DateTime?
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  origem               Iniciativa @relation("RelacaoIniciativaOrigem", fields: [municipioId, origemIniciativaId], references: [municipioId, id], onDelete: Cascade)
+  destino              Iniciativa @relation("RelacaoIniciativaDestino", fields: [municipioId, destinoIniciativaId], references: [municipioId, id], onDelete: Cascade)
+
+  @@unique([origemIniciativaId, destinoIniciativaId, tipo])
+  @@index([municipioId, tipo, status])
+  @@index([origemIniciativaId])
+  @@index([destinoIniciativaId])
 }
 
 model MetaExecucao {
@@ -646,7 +685,7 @@ model ImportacaoSnapshot {
   conflitos      Int                  @default(0)
   resultado      String               @default("PENDENTE")
   mapaCampos     Json?
-  log            String?              @db.LongText
+  log            String?              @db.Text
   createdAt      DateTime             @default(now())
   municipio      Municipio            @relation(fields: [municipioId], references: [id], onDelete: Cascade)
   autor          User?                @relation(fields: [autorId], references: [id])

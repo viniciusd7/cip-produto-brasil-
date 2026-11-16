@@ -645,6 +645,10 @@ const secretariaCreateSchema = z.object({
     .optional()
     .or(z.literal(""))
     .nullable(),
+  titularNome: z.string().trim().min(2).nullable().optional().or(z.literal("")),
+  titularCargo: z.string().nullable().optional().or(z.literal("")),
+  titularTelefone: z.string().nullable().optional().or(z.literal("")),
+  titularEmail: z.string().email().nullable().optional().or(z.literal("")),
 });
 
 adminRouter.post(
@@ -680,13 +684,33 @@ adminRouter.post(
         }
       }
 
-      const created = await prisma.secretaria.create({
-        data: {
-          municipioId,
-          nome,
-          sigla,
-          active: true,
-        },
+      const titularNome = body.titularNome?.trim() || null;
+      const titularCargo = body.titularCargo?.trim() || null;
+      const titularTelefone = body.titularTelefone?.trim() || null;
+      const titularEmail = body.titularEmail?.trim() || null;
+
+      const created = await prisma.$transaction(async (tx) => {
+        const row = await tx.secretaria.create({
+          data: {
+            municipioId,
+            nome,
+            sigla,
+            active: true,
+            titularNome,
+            titularCargo,
+            titularTelefone,
+            titularEmail,
+          },
+        });
+        if (titularNome) {
+          await upsertTitularFromSecretariaFields(tx, row.id, {
+            titularNome,
+            titularCargo,
+            titularTelefone,
+            titularEmail,
+          });
+        }
+        return row;
       });
 
       await writeAudit({

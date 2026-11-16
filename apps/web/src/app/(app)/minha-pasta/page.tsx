@@ -8,7 +8,6 @@ import { ApiError, apiFetch } from "@/lib/api";
 import { PastaSaudeResumo } from "@/components/charts/pasta-saude-resumo";
 import { SecretariaGlance } from "@/components/overview/secretaria-glance";
 import type { CenarioSecretariaResponse } from "@/components/overview/cenario-secretaria";
-import { DadosExternos } from "@/components/dados-externos";
 import { canWriteRole } from "@/lib/roles";
 import {
   TarefasGestao,
@@ -130,6 +129,7 @@ export default async function MinhaPastaPage({
   const principais = projetosPrincipais ?? projetos;
   const correlacionados = projetosCorrelacionados ?? [];
   const novoHref = `/minha-pasta/novo?secretariaId=${secretaria.id}`;
+  const isSecretario = session?.user?.role === "gestor";
   const canCreateProject = canWriteRole(session?.user?.role);
   const titulo = secretaria.sigla
     ? `${secretaria.nome} (${secretaria.sigla})`
@@ -171,6 +171,7 @@ export default async function MinhaPastaPage({
           dados={cenario.data}
           titulo="Visão geral da sua secretaria"
           mostrarProjetos={false}
+          mostrarMetas={!isSecretario}
         />
       ) : (
         <section className="pasta-section" aria-labelledby="pasta-saude-title">
@@ -186,20 +187,20 @@ export default async function MinhaPastaPage({
         </section>
       )}
 
-      <ProjetosSecretaria projetos={[...principais, ...correlacionados]} />
+      {!isSecretario && (
+        <ProjetosSecretaria projetos={[...principais, ...correlacionados]} />
+      )}
 
-      {session?.user?.role === "gestor" && (
+      {isSecretario && (
         <TarefasGestao tarefas={tarefas} token={session?.accessToken || ""} />
       )}
 
-      {!cenario?.data?.selected && (
+      {!isSecretario && !cenario?.data?.selected && (
         <MetasSecretaria
           estrategicas={metasEstrategicas ?? []}
           execucao={metasExecucao ?? []}
         />
       )}
-
-      <DadosExternos token={session?.accessToken || ""} />
     </div>
   );
 }

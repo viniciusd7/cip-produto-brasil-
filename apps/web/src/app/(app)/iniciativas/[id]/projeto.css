@@ -540,4 +540,88 @@
   .ev-tipos, .ev-resumo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pj-busca { min-width: 0; width: 100%; }
   .pj-meta-est dl { grid-template-columns: 1fr; }
+  .cadastro-arvore__corpo { grid-template-columns: 1fr; }
+}
+
+.cadastro-arvore {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid var(--cip-border);
+  border-radius: 16px;
+  background: var(--cip-surface);
+}
+.cadastro-arvore__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: end;
+}
+.cadastro-arvore__head p {
+  margin: 0;
+  color: var(--cip-muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.cadastro-arvore__head h2 { margin: 2px 0 0; font-size: 1.15rem; }
+.cadastro-arvore__head small { color: var(--cip-muted); }
+.cadastro-arvore__corpo {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1.1fr);
+  gap: 16px;
+  align-items: start;
+}
+.cadastro-arvore__nos,
+.cadastro-arvore__nos ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cadastro-arvore__nos ul {
+  margin-left: 14px;
+  padding-left: 10px;
+  border-left: 1px solid var(--cip-border);
+}
+.cadastro-arvore__nos button,
+.cadastro-arvore__folha,
+.cadastro-arvore__grupo {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  text-align: left;
+}
+.cadastro-arvore__nos button {
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.cadastro-arvore__nos button[aria-current="true"] {
+  border-color: var(--cip-border);
+  background: color-mix(in srgb, var(--cip-blue) 12%, transparent);
+}
+.cadastro-arvore__nos button span,
+.cadastro-arvore__grupo {
+  color: var(--cip-muted);
+  font-size: 12px;
+}
+.cadastro-arvore__folha {
+  color: var(--cip-ink);
+  font-size: 13px;
+}
+.cadastro-arvore__form select,
+.cadastro-arvore__form input {
+  width: 100%;
+}
+.cadastro-arvore__erro {
+  margin: 0;
+  color: var(--cip-rose, #d94362);
+  font-size: 13px;
 }

@@ -6,7 +6,8 @@
 - Fluxo único: **Cenário → Minha secretaria (quem) → Projeto (o quê) → Cobrança**.
 - Identidade visual Azimov / CIP executive (dark: rose `#ff5982`, violet `#7c9cff`, green `#b4e4a0`).
 - Mobile-first: 1 coluna, CTAs únicos, progressive disclosure no desktop.
-- Projeto nasce pelo **wizard** (`/minha-pasta/novo`) com classificação, modelo e viabilidade.
+- Projeto nasce pelo **wizard** (`/minha-pasta/novo`): a entrada geral oferece quatro categorias exclusivas; o assistente começa pelos impedimentos comuns e segue com o modelo e as perguntas do fluxo escolhido.
+- Projeto prioritário é uma categoria própria, com o fluxo de viabilidade estruturante e contagem separada.
 - Documento do projeto: alerta de bloqueio rotulado + árvore pasta/seta Meta → Tarefa → Subtarefa.
 - Indicadores do board vêm de `Iniciativa` + `MarcoEntrega` + `MetaExecucao` + `Impedimento` via `/dashboard/resumo`.
 
@@ -44,7 +45,7 @@ Senha demo: ver [`docs/DEMO.md`](DEMO.md) (somente ambiente local).
 ## 3) Consultor (analista)
 
 1. Secretarias → acompanhar prioridades e abrir a pasta municipal
-2. Projetos → abrir metas, tarefas, subtarefas e evidências
+2. Projetos → abrir metas, tarefas, subtarefas e evidências; em **Aprovações**, decidir pedidos de conclusão com justificativa e evidência
 3. Agenda → consultar a carteira de projetos com progresso, tarefas por estado, secretarias correlacionadas e providências abertas; no perfil secretário, os dados são limitados à própria secretaria
 
 ## 4) Admin

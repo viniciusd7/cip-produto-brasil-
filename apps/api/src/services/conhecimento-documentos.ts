@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import mammoth from "mammoth";
+import WordExtractor from "word-extractor";
 import { PDFParse } from "pdf-parse";
 import { HttpError } from "../middleware/error";
 import { localStorage } from "./storage";
@@ -8,9 +9,10 @@ import { localStorage } from "./storage";
 export const DOCX_MIME =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 export const PDF_MIME = "application/pdf";
+export const DOC_MIME = "application/msword";
 const MAX_EXTRACTED_TEXT_CHARS = 5_000_000;
 
-type KnowledgeFileFormat = "pdf" | "docx";
+type KnowledgeFileFormat = "pdf" | "doc" | "docx";
 
 function getKnowledgeFileFormat(
   originalName: string,
@@ -18,6 +20,7 @@ function getKnowledgeFileFormat(
 ): KnowledgeFileFormat | undefined {
   const extension = path.extname(originalName).toLowerCase();
   if (extension === ".pdf" && mimeType === PDF_MIME) return "pdf";
+  if (extension === ".doc" && mimeType === DOC_MIME) return "doc";
   if (extension === ".docx" && mimeType === DOCX_MIME) return "docx";
   return undefined;
 }
@@ -36,7 +39,7 @@ export async function extractKnowledgeText(
     throw new HttpError(
       422,
       "INVALID_FILE",
-      "Envie um arquivo PDF ou DOCX válido.",
+      "Envie um arquivo PDF, DOC ou DOCX válido.",
     );
   }
 
@@ -53,6 +56,15 @@ export async function extractKnowledgeText(
       throw new HttpError(422, "INVALID_FILE", "Não foi possível ler o conteúdo deste PDF.");
     } finally {
       await parser.destroy();
+    }
+  } else if (format === "doc") {
+    if (buffer.subarray(0, 8).toString("hex") !== "d0cf11e0a1b11ae1") {
+      throw new HttpError(422, "INVALID_FILE", "O arquivo não contém um DOC válido.");
+    }
+    try {
+      text = (await new WordExtractor().extract(buffer)).getBody();
+    } catch {
+      throw new HttpError(422, "INVALID_FILE", "Não foi possível ler o conteúdo deste DOC.");
     }
   } else {
     if (buffer.subarray(0, 4).toString("hex") !== "504b0304") {

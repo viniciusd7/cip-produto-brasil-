@@ -340,7 +340,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
                 <p className={s.kicker}>Inteligência de execução</p>
                 <h2>O governo, projeto a projeto.</h2>
               </div>
-              <Link href="/relatorios" className={s.iconLink} aria-label="Abrir prestação">↓ PDF</Link>
+              <Link href="/relatorios" className={s.iconLink} aria-label="Abrir relatórios">↓ PDF</Link>
             </div>
             <div className={s.chartToolbar}>
               <div className={s.tabs} role="tablist" aria-label="Visualização do panorama">
@@ -538,7 +538,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
               <small>Pedido sugerido</small>
               <p>Atualizar valor atual das metas e a carteira antes da próxima reunião.</p>
             </div>
-            <a href="#prestacao" className={s.button}>Ver prestação ↗</a>
+            <Link href="/relatorios/metas" className={s.button}>Ver relatórios ↗</Link>
           </article>
         </div>
         <div className={`${s.panel} ${s.actionList}`}>

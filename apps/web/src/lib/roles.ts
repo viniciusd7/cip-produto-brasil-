@@ -11,6 +11,10 @@ export function canWriteRole(role?: string | null) {
   return ["admin", "analista"].includes(normalizeRole(role));
 }
 
+export function canUploadKnowledgeRole(role?: string | null) {
+  return ["admin", "prefeito", "gestor", "analista"].includes(normalizeRole(role));
+}
+
 export function canSubmitEvidenceRole(role?: string | null) {
   return ["admin", "gestor", "analista"].includes(normalizeRole(role));
 }
@@ -35,7 +39,7 @@ export function getHomeForRole(role?: string | null) {
     case "gestor":
       return "/minha-pasta";
     case "analista":
-      return "/implantacao";
+      return "/secretarias";
     case "prefeito":
     case "leitura":
     default:
@@ -74,9 +78,9 @@ export function getNextStepForRole(role?: string | null): {
       };
     case "analista":
       return {
-        href: "/implantacao",
-        label: "Continuar implantação",
-        hint: "Secretarias, plano, metas, indicadores e tarefas",
+        href: "/secretarias",
+        label: "Abrir secretarias",
+        hint: "Acompanhe as pastas e seus projetos",
       };
     case "admin":
       return {
@@ -93,20 +97,40 @@ export function getNextStepForRole(role?: string | null): {
   }
 }
 
-export type NavItem = { href: string; label: string; icon?: string };
+export const RELATORIOS_NAV = [
+  { href: "/relatorios", label: "Visão geral" },
+  { href: "/relatorios/secretarias", label: "Secretarias" },
+  { href: "/relatorios/metas", label: "Metas" },
+  { href: "/relatorios/projetos", label: "Projetos" },
+  { href: "/relatorios/tarefas", label: "Tarefas" },
+  { href: "/relatorios/evidencias", label: "Evidências" },
+] as const;
 
-/** Ordem da jornada: Cenário → Minha secretaria → Projeto → Cobrança. */
+export type NavItem = {
+  href: string;
+  label: string;
+  icon?: string;
+  children?: Array<{ href: string; label: string }>;
+};
+
+const PROJETOS_CARTEIRA: NavItem["children"] = [
+  { href: "/carteira/estruturante", label: "Projeto estruturante" },
+  { href: "/carteira/prioritario", label: "Projeto prioritário" },
+  { href: "/carteira/plano-governo", label: "Plano de governo" },
+  { href: "/carteira/acao-diaria", label: "Ação diária" },
+];
+
+/** Ordem da jornada: Cenário → Secretarias → Projetos → Cobrança. */
 const ALL_NAV: NavItem[] = [
   { href: "/painel", label: "Cenário" },
-  { href: "/implantacao", label: "Implantação" },
   { href: "/minha-pasta", label: "Minha secretaria" },
   { href: "/secretarias", label: "Secretarias" },
-  { href: "/planejamento", label: "Plano de governo" },
-  { href: "/carteira", label: "Projetos" },
+  { href: "/carteira", label: "Projetos", children: PROJETOS_CARTEIRA },
   { href: "/acoes", label: "Tarefas" },
   { href: "/validacoes", label: "Aprovações" },
+  { href: "/base-conhecimento", label: "Base de conhecimento" },
   { href: "/pendencias", label: "Agenda" },
-  { href: "/relatorios", label: "Prestação" },
+  { href: "/relatorios", label: "Relatórios" },
   { href: "/notificacoes", label: "Notificações", icon: "🔔" },
   { href: "/comunicados", label: "Avisos e conversas", icon: "✉" },
   { href: "/importacao", label: "Importação" },
@@ -129,9 +153,7 @@ export function getNavForRole(role?: string | null): NavItem[] {
     );
   } else if (r === "analista") {
     [
-      "/implantacao",
       "/secretarias",
-      "/planejamento",
       "/carteira",
       "/acoes",
       "/validacoes",
@@ -146,10 +168,30 @@ export function getNavForRole(role?: string | null): NavItem[] {
   }
 
   if (["gestor", "analista", "admin"].includes(r)) allow.add("/comunicados");
+  allow.add("/base-conhecimento");
   if (r !== "leitura") allow.add("/notificacoes");
 
+  const items = ALL_NAV.filter((n) => allow.has(n.href)).map((n) =>
+    n.href === "/relatorios" ? { ...n, children: [...RELATORIOS_NAV] } : n,
+  );
+  if (r === "gestor") {
+    const pasta = items.findIndex((n) => n.href === "/minha-pasta");
+    items.splice(pasta + 1, 0, {
+      href: "/minha-pasta/projetos",
+      label: "Projetos",
+      children: [
+        { href: "/minha-pasta/projetos", label: "Todos os projetos" },
+        { href: "/minha-pasta/projetos/estruturante", label: "Projeto estruturante" },
+        { href: "/minha-pasta/projetos/prioritario", label: "Projeto prioritário" },
+        { href: "/minha-pasta/projetos/plano-governo", label: "Plano de governo" },
+        { href: "/minha-pasta/projetos/acao-diaria", label: "Ação diária" },
+        { href: "/minha-pasta/projetos/correlacionados", label: "Correlacionados" },
+      ],
+    });
+  }
+
   let seq = 0;
-  return ALL_NAV.filter((n) => allow.has(n.href)).map((n) => {
+  return items.map((n) => {
     if (n.icon) return n;
     seq += 1;
     return { ...n, icon: String(seq).padStart(2, "0") };

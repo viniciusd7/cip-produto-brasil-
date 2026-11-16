@@ -4,6 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import {
   DOCX_MIME,
+  DOC_MIME,
   extractKnowledgeText,
   isKnowledgeFileAllowed,
   PDF_MIME,
@@ -37,6 +38,7 @@ function createPdf(text: string) {
 test("validates the file extension and MIME pair", () => {
   assert.equal(isKnowledgeFileAllowed("plano.pdf", PDF_MIME), true);
   assert.equal(isKnowledgeFileAllowed("plano.docx", DOCX_MIME), true);
+  assert.equal(isKnowledgeFileAllowed("plano.doc", DOC_MIME), true);
   assert.equal(isKnowledgeFileAllowed("plano.pdf", DOCX_MIME), false);
   assert.equal(isKnowledgeFileAllowed("plano.exe", "application/pdf"), false);
 });
@@ -67,6 +69,10 @@ test("rejects files whose signature does not match the declared format", async (
   );
   await assert.rejects(
     extractKnowledgeText(Buffer.from("not a DOCX"), "teste.docx", DOCX_MIME),
+    { code: "INVALID_FILE" },
+  );
+  await assert.rejects(
+    extractKnowledgeText(Buffer.from("not a DOC"), "teste.doc", DOC_MIME),
     { code: "INVALID_FILE" },
   );
 });

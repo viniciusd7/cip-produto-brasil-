@@ -78,7 +78,7 @@ export default async function SecretariasPage({
       {canManage && (
         <Card
           title="Cadastro de pastas"
-          subtitle="Crie secretarias, defina a sigla e depois abra a pasta para incluir responsáveis"
+          subtitle="Nome, sigla e titular entram aqui. A pauta abre com esses dados já preenchidos"
         >
           <NovaSecretariaForm token={session?.accessToken || ""} />
         </Card>

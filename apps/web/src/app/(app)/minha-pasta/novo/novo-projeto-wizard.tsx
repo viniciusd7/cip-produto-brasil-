@@ -10,7 +10,10 @@ import {
   buildCatalogoPerguntas,
   MODELO_ACAO_DIARIA,
   MODELO_PLANO_GOVERNO,
+  adicionarImpedimentosComuns,
+  GRUPO_IMPEDIMENTOS,
   quizItem,
+  parseCondicaoResposta,
   tonePrioridade,
   toneEtapa,
   visibleQuestions,
@@ -23,6 +26,7 @@ import { secretariaChipLabel, secretariaLabel } from "@/lib/secretaria-label";
 import { CondicaoCard, type CondicaoValorState } from "@/components/condicao-card";
 import { FluxoArvore, type FluxoNode } from "@/components/fluxo-arvore";
 import { EscopoEditor, temResponsavel, type EscopoNo } from "./escopo-editor";
+import { mesclarEscopo } from "./mesclar-escopo";
 
 type Secretaria = {
   id: string;
@@ -81,32 +85,45 @@ type NoApi = {
   children?: NoApi[];
 };
 
-type Classificacao = "ESTRUTURANTE" | "PLANO_GOVERNO" | "ACAO_DIARIA";
+type Classificacao =
+  | "ESTRUTURANTE"
+  | "PRIORITARIO"
+  | "PLANO_GOVERNO"
+  | "ACAO_DIARIA";
 
 const STEPS_ESTRUT = [
-  "Tipo",
   "Identidade",
+  GRUPO_IMPEDIMENTOS.nome,
   ...(GRUPOS_CONDICOES ?? []).map((g) => g.nome),
   "Urgência",
   "Escopo",
   "Prévia",
 ];
 const STEPS_PLANO = [
-  "Tipo",
   "Identidade",
+  GRUPO_IMPEDIMENTOS.nome,
   ...(GRUPOS_PLANO ?? []).map((g) => g.nome),
   "Escopo",
   "Prévia",
 ];
 const STEPS_ACAO = [
-  "Tipo",
   "Identidade",
+  GRUPO_IMPEDIMENTOS.nome,
   ...(GRUPOS_ACAO ?? []).map((g) => g.nome),
   "Escopo",
   "Prévia",
 ];
 const NOVO_VALOR = "__novo__";
 const PERGUNTAS_ESTRUTURANTE = buildCatalogoPerguntas();
+
+function perguntasComImpedimentos(perguntas: ModeloPerguntaDef[]) {
+  return adicionarImpedimentosComuns({
+    codigo: "WIZARD",
+    nome: "Assistente",
+    perguntas,
+    estrutura: [],
+  }).perguntas;
+}
 
 const PRIORIDADE_LABEL: Record<string, string> = {
   CRITICA: "Crítica",
@@ -154,29 +171,6 @@ function paraTreeNode(n: EscopoNo): TreeNode {
   };
 }
 
-/**
- * Ao reavaliar (voltar e mudar uma resposta), o modelo pode incluir ou tirar
- * tarefas. Mantém o que a equipe já editou (responsável, prazo, nome) e os
- * itens criados à mão; só remove itens do modelo que deixaram de valer.
- */
-function mesclarEscopo(anterior: EscopoNo[], novo: EscopoNo[]): EscopoNo[] {
-  const antigos = new Map(anterior.map((n) => [n.codigo, n]));
-  const doModelo = novo.map((n) => {
-    const antigo = antigos.get(n.codigo);
-    if (!antigo) return n;
-    return {
-      ...n,
-      nome: antigo.nome,
-      responsavel: antigo.responsavel,
-      prazo: antigo.prazo,
-      children: mesclarEscopo(antigo.children, n.children),
-    };
-  });
-  const codigosNovos = new Set(novo.map((n) => n.codigo));
-  const manuais = anterior.filter((n) => n.manual && !codigosNovos.has(n.codigo));
-  return [...doModelo, ...manuais];
-}
-
 function contarSemResponsavel(nos: EscopoNo[]): number {
   return nos.reduce(
     (acc, n) => acc + (temResponsavel(n) ? 0 : 1) + contarSemResponsavel(n.children),
@@ -190,6 +184,7 @@ function contarItens(nos: EscopoNo[]): number {
 
 export function NovoProjetoWizard({
   token,
+  initialClassification,
   defaultSecretariaId,
   secretarias,
   modelos,
@@ -197,6 +192,7 @@ export function NovoProjetoWizard({
   planos,
 }: {
   token: string;
+  initialClassification: Classificacao;
   defaultSecretariaId?: string;
   secretarias: Secretaria[];
   modelos: Modelo[];
@@ -205,19 +201,26 @@ export function NovoProjetoWizard({
 }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
-  const [classificacao, setClassificacao] = useState<Classificacao>("ESTRUTURANTE");
-  const [vinculoPlanoExtra, setVinculoPlanoExtra] = useState(false);
-  const [perguntas, setPerguntas] = useState<ModeloPerguntaDef[]>([]);
+  const classificacao = initialClassification;
+  const classificacoes: Classificacao[] = [classificacao];
+  const [modeloCarregado, setModeloCarregado] = useState<{
+    id: string;
+    perguntas: ModeloPerguntaDef[];
+    erro?: string;
+  } | null>(null);
+  const [tentativaModelo, setTentativaModelo] = useState(0);
   const [respostas, setRespostas] = useState<Record<string, CondicaoValorState>>({});
   const [secretariaId, setSecretariaId] = useState(
-    defaultSecretariaId || secretarias[0]?.id || "",
+    secretarias.find((s) => s.id === defaultSecretariaId)?.id || secretarias[0]?.id || "",
   );
   const [secretariasCorrelatas, setSecretariasCorrelatas] = useState<string[]>([]);
   // Equipe carregada para um conjunto de secretarias envolvidas (chave = ids).
   const [equipeCarregada, setEquipeCarregada] = useState<{
     key: string;
     mapa: Record<string, PessoaPasta[]>;
+    erro?: string;
   } | null>(null);
+  const [tentativaEquipe, setTentativaEquipe] = useState(0);
   const [responsavelPessoaId, setResponsavelPessoaId] = useState("");
   const [novoNome, setNovoNome] = useState("");
   const [novoCargo, setNovoCargo] = useState("");
@@ -239,25 +242,22 @@ export function NovoProjetoWizard({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const estruturante = classificacao === "ESTRUTURANTE";
-  const steps =
-    classificacao === "ESTRUTURANTE"
-      ? STEPS_ESTRUT
-      : classificacao === "PLANO_GOVERNO"
-        ? STEPS_PLANO
-        : STEPS_ACAO;
+  const estruturante =
+    classificacao === "ESTRUTURANTE" || classificacao === "PRIORITARIO";
+  const steps = estruturante
+    ? STEPS_ESTRUT
+    : classificacao === "PLANO_GOVERNO"
+      ? STEPS_PLANO
+      : STEPS_ACAO;
   // Grupos do catálogo ativo, buscados dentro do próprio fluxo. Um mapa global
   // nome→id colidia ("Recursos" existe no estruturante e no Plano de Governo).
-  const gruposAtivos =
-    classificacao === "ESTRUTURANTE"
-      ? GRUPOS_CONDICOES
-      : classificacao === "PLANO_GOVERNO"
-        ? GRUPOS_PLANO
-        : GRUPOS_ACAO;
+  const gruposAtivos = estruturante
+    ? [GRUPO_IMPEDIMENTOS, ...GRUPOS_CONDICOES]
+    : classificacao === "PLANO_GOVERNO"
+      ? [GRUPO_IMPEDIMENTOS, ...GRUPOS_PLANO]
+      : [GRUPO_IMPEDIMENTOS, ...GRUPOS_ACAO];
   const grupoAtualMeta = gruposAtivos.find((g) => g.nome === steps[step]);
-  const exigeMeta =
-    classificacao === "PLANO_GOVERNO" ||
-    (classificacao === "ESTRUTURANTE" && vinculoPlanoExtra);
+  const exigeMeta = classificacoes.includes("PLANO_GOVERNO");
   const modeloPadrao = useMemo(
     () =>
       modelos.find((m) => m.codigo === "PROJETO_ESTRUTURANTE_PADRAO") ||
@@ -265,6 +265,11 @@ export function NovoProjetoWizard({
       modelos[0],
     [modelos],
   );
+  const modeloPersonalizado = estruturante && modeloPadrao?.codigo !== "PROJETO_ESTRUTURANTE_PADRAO"
+    ? modeloPadrao
+    : undefined;
+  const modeloLoading = Boolean(modeloPersonalizado && modeloCarregado?.id !== modeloPersonalizado.id);
+  const erroModelo = modeloPersonalizado && !modeloLoading ? modeloCarregado?.erro : undefined;
   const sec = useMemo(
     () => secretarias.find((s) => s.id === secretariaId),
     [secretarias, secretariaId],
@@ -280,40 +285,51 @@ export function NovoProjetoWizard({
   const equipePorSecretaria =
     equipeCarregada && equipeCarregada.key === envolvidasKey ? equipeCarregada.mapa : {};
   const pessoasLoading = !equipeCarregada || equipeCarregada.key !== envolvidasKey;
+  const erroEquipe = !pessoasLoading ? equipeCarregada?.erro : undefined;
   const registrandoNovo = responsavelPessoaId === NOVO_VALOR;
   const equipeNomes = Array.from(
     new Set(Object.values(equipePorSecretaria).flat().map((p) => p.nome)),
   ).sort();
 
-  const perguntasAtivas: ModeloPerguntaDef[] =
-    classificacao === "ESTRUTURANTE"
-      ? modeloPadrao?.codigo === "PROJETO_ESTRUTURANTE_PADRAO"
-        ? PERGUNTAS_ESTRUTURANTE
-        : perguntas
-      : classificacao === "PLANO_GOVERNO"
-        ? MODELO_PLANO_GOVERNO.perguntas
-        : MODELO_ACAO_DIARIA.perguntas;
+  const perguntasBase: ModeloPerguntaDef[] = estruturante
+    ? modeloPadrao?.codigo === "PROJETO_ESTRUTURANTE_PADRAO"
+      ? PERGUNTAS_ESTRUTURANTE
+      : modeloCarregado?.id === modeloPadrao?.id ? modeloCarregado.perguntas : []
+    : classificacao === "PLANO_GOVERNO"
+      ? MODELO_PLANO_GOVERNO.perguntas
+      : MODELO_ACAO_DIARIA.perguntas;
+  const perguntasAtivas = perguntasComImpedimentos(perguntasBase);
 
   // Checklist do modelo estruturante (Plano e Ação usam catálogo fixo no código).
   useEffect(() => {
-    if (classificacao !== "ESTRUTURANTE" || !modeloPadrao?.id) return;
+    if (!modeloPersonalizado) return;
     let cancelled = false;
-    fetch(`${API_URL}/modelos-projeto/${modeloPadrao.id}`, {
+    fetch(`${API_URL}/modelos-projeto/${modeloPersonalizado.id}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((res) => res.json())
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error?.message || "Não foi possível carregar o modelo.");
+        return json;
+      })
       .then((json) => {
         if (cancelled) return;
         const snap = json?.data?.snapshot;
-        setPerguntas(snap?.perguntas || json?.data?.perguntas || []);
+        const perguntas = snap?.perguntas || json?.data?.perguntas;
+        if (!Array.isArray(perguntas)) throw new Error("O modelo não contém perguntas válidas.");
+        setModeloCarregado({ id: modeloPersonalizado.id, perguntas });
       })
-      .catch(() => {
-        if (!cancelled) setPerguntas([]);
+      .catch((err: unknown) => {
+        if (!cancelled) setModeloCarregado({
+          id: modeloPersonalizado.id,
+          perguntas: [],
+          erro: err instanceof Error ? err.message : "Não foi possível carregar o modelo.",
+        });
       });
     return () => {
       cancelled = true;
     };
-  }, [classificacao, modeloPadrao?.id, token]);
+  }, [modeloPersonalizado, token, tentativaModelo]);
 
   const respostaList: RespostaViabilidade[] = useMemo(
     () =>
@@ -333,11 +349,11 @@ export function NovoProjetoWizard({
     const parts = [
       descricao.trim() && `${prefixo}: ${descricao.trim()}`,
       classificacao !== "ACAO_DIARIA" && entrega.trim() && `Entrega: ${entrega.trim()}`,
-      classificacao === "ESTRUTURANTE" && beneficiariosTxt.trim() && `Beneficiários: ${beneficiariosTxt.trim()}`,
-      classificacao === "ESTRUTURANTE" && foraEscopo.trim() && `Fora de escopo: ${foraEscopo.trim()}`,
+      estruturante && beneficiariosTxt.trim() && `Beneficiários: ${beneficiariosTxt.trim()}`,
+      estruturante && foraEscopo.trim() && `Fora de escopo: ${foraEscopo.trim()}`,
     ].filter(Boolean);
     return parts.join("\n\n") || undefined;
-  }, [classificacao, descricao, entrega, beneficiariosTxt, foraEscopo]);
+  }, [classificacao, descricao, entrega, beneficiariosTxt, foraEscopo, estruturante]);
 
   // Mesma regra do servidor: uma única fonte de verdade para mostrar/ocultar perguntas.
   const visiblePerguntas = useMemo(
@@ -356,7 +372,9 @@ export function NovoProjetoWizard({
           headers: { Authorization: `Bearer ${token}` },
         });
         const json = await res.json();
-        return [id, (json?.data || []) as PessoaPasta[]] as const;
+        if (!res.ok) throw new Error(json?.error?.message || "Não foi possível carregar as equipes.");
+        if (!Array.isArray(json?.data)) throw new Error("Resposta inválida ao carregar as equipes.");
+        return [id, json.data as PessoaPasta[]] as const;
       }),
     )
       .then((entradas) => {
@@ -373,14 +391,18 @@ export function NovoProjetoWizard({
           return titular?.id || principal[0]?.id || NOVO_VALOR;
         });
       })
-      .catch(() => {
-        if (!cancelled) setEquipeCarregada({ key: envolvidasKey, mapa: {} });
+      .catch((err: unknown) => {
+        if (!cancelled) setEquipeCarregada({
+          key: envolvidasKey,
+          mapa: {},
+          erro: err instanceof Error ? err.message : "Não foi possível carregar as equipes.",
+        });
       });
     return () => {
       cancelled = true;
     };
     // secretariaId já está representado em envolvidasKey.
-  }, [envolvidasKey, secretariaId, token]);
+  }, [envolvidasKey, secretariaId, token, tentativaEquipe]);
 
   async function runPreview() {
     const res = await fetch(`${API_URL}/iniciativas/wizard/preview`, {
@@ -392,6 +414,7 @@ export function NovoProjetoWizard({
       body: JSON.stringify({
         modeloProjetoId: estruturante ? modeloPadrao?.id || undefined : undefined,
         classificacaoPrincipal: classificacao,
+        classificacoes,
         respostas: respostaList,
       }),
     });
@@ -473,6 +496,8 @@ export function NovoProjetoWizard({
   }
 
   function validateResponsavel(): string | null {
+    if (pessoasLoading) return "Aguarde o carregamento das equipes.";
+    if (erroEquipe) return "Não foi possível carregar as equipes. Tente novamente antes de continuar.";
     if (registrandoNovo) {
       if (!novoNome.trim() || !novoCargo.trim()) {
         return "Informe nome e cargo do novo responsável";
@@ -489,15 +514,15 @@ export function NovoProjetoWizard({
     setError("");
     try {
       const label = steps[step];
-      if (label === "Tipo") {
+      if (label === "Identidade") {
         if (estruturante && !modeloPadrao?.id) {
           setError("Modelo padrão estruturante não encontrado. Peça ao admin para ativar o modelo CIP.");
           return;
         }
-        setStep(1);
-        return;
-      }
-      if (label === "Identidade") {
+        if (modeloLoading || erroModelo) {
+          setError(modeloLoading ? "Aguarde o carregamento do modelo." : "Não foi possível carregar o modelo. Tente novamente.");
+          return;
+        }
         if (!nome.trim() || !secretariaId) {
           setError("Informe nome e secretaria");
           return;
@@ -517,9 +542,6 @@ export function NovoProjetoWizard({
           setError(metaId === "__nova__" ? "Preencha o nome da meta e escolha ou nomeie o plano de governo" : "Selecione uma meta ou escolha Criar meta neste cadastro");
           return;
         }
-        if (!codigo.trim() && sec?.sigla) {
-          setCodigo(`${sec.sigla}-${String(Date.now()).slice(-4)}`);
-        }
         setStep((s) => s + 1);
         return;
       }
@@ -529,7 +551,9 @@ export function NovoProjetoWizard({
         const pendente = visiblePerguntas.find((p) => {
           const valor = respostas[p.codigo];
           return p.grupo === grupoAtualMeta.id && p.obrigatoria &&
-            (valor === undefined || (typeof valor === "string" && !valor.trim()));
+            (valor === undefined || (typeof valor === "string" && !valor.trim()) ||
+              (p.metadados?.impedimento === true &&
+                parseCondicaoResposta(p.codigo, valor).aplicabilidade === "a_avaliar"));
         });
         if (pendente) {
           setError(`Responda: ${pendente.pergunta || pendente.texto}`);
@@ -573,12 +597,13 @@ export function NovoProjetoWizard({
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          codigo: codigo || `${sec?.sigla || "P"}-NEW`,
+          codigo: codigo.trim() || undefined,
           nome,
           descricao: descricaoCompleta,
           secretariaPrincipalId: secretariaId,
           secretariaIds: secretariasCorrelatas.filter((id) => id !== secretariaId),
           classificacaoPrincipal: classificacao,
+          classificacoes,
           vinculoPlanoGoverno: exigeMeta,
           metaEstrategicaId: exigeMeta && metaId !== "__nova__" ? metaId || undefined : undefined,
           novaMeta: exigeMeta && metaId === "__nova__" ? { nome: novaMetaNome.trim(), planoId: planoId !== "__novo__" ? planoId : undefined, novoPlanoNome: planoId === "__novo__" ? novoPlanoNome.trim() : undefined } : undefined,
@@ -610,15 +635,6 @@ export function NovoProjetoWizard({
 
   function setResposta(codigoPergunta: string, valor: CondicaoValorState) {
     setRespostas((r) => ({ ...r, [codigoPergunta]: valor }));
-  }
-
-  function escolherClassificacao(valor: Classificacao) {
-    setClassificacao(valor);
-    setRespostas({});
-    setUltimoPassoGerado("");
-    setEscopo([]);
-    setPreview(null);
-    setStep(0);
   }
 
   function renderPerguntas(lista: ModeloPerguntaDef[]) {
@@ -661,77 +677,82 @@ export function NovoProjetoWizard({
   const semResponsavel = contarSemResponsavel(escopo);
   const totalItens = contarItens(escopo);
 
+  function irPara(indice: number) {
+    if (saving || indice < 0 || indice > step) return;
+    setError("");
+    setStep(indice);
+  }
+
   return (
     <div className="wizard stack">
       <header className="wizard-head">
-        <p className="section-kicker">Novo projeto</p>
+        <p className="section-kicker">
+          {classificacao === "PLANO_GOVERNO"
+            ? "Plano de governo"
+            : classificacao === "ACAO_DIARIA"
+              ? "Ação diária"
+              : classificacao === "PRIORITARIO"
+                ? "Projeto prioritário"
+                : "Projeto estruturante"}
+        </p>
         <h1>Assistente de criação</h1>
-        <ol className="wizard-steps">
-          {steps.map((s, i) => (
-            <li key={s} className={i === step ? "is-active" : i < step ? "is-done" : ""}>
-              <span>{i + 1}</span>
-              {s}
-            </li>
-          ))}
-        </ol>
+        <div className="wizard-stepper">
+          <button
+            type="button"
+            className="wizard-step-back"
+            aria-label="Etapa anterior"
+            disabled={step === 0 || saving}
+            onClick={() => irPara(step - 1)}
+          >
+            <span aria-hidden="true">←</span>
+          </button>
+          <ol className="wizard-steps wizard-steps--nav">
+            {steps.map((s, i) => {
+              const atual = i === step;
+              const alcancada = i <= step;
+              return (
+                <li key={s} className={atual ? "is-active" : i < step ? "is-done" : ""}>
+                  {alcancada ? (
+                    <button
+                      type="button"
+                      aria-current={atual ? "step" : undefined}
+                      disabled={saving}
+                      onClick={() => irPara(i)}
+                    >
+                      <span>{i + 1}</span>
+                      {s}
+                    </button>
+                  ) : (
+                    <>
+                      <span>{i + 1}</span>
+                      {s}
+                    </>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        </div>
       </header>
-
-      {steps[step] === "Tipo" && (
-        <Card title="Como classificar este projeto?">
-          <div className="wizard-choice">
-            <button
-              type="button"
-              className={classificacao === "ESTRUTURANTE" ? "is-on" : ""}
-              onClick={() => escolherClassificacao("ESTRUTURANTE")}
-            >
-              <strong>Projeto estruturante</strong>
-              <p>
-                Obra ou entrega de grande porte. Passa pela sequência legal (recursos, terreno,
-                projeto, licitação, execução) e recebe prioridade.
-              </p>
-            </button>
-            <button
-              type="button"
-              className={classificacao === "PLANO_GOVERNO" ? "is-on" : ""}
-              onClick={() => {
-                setVinculoPlanoExtra(false);
-                escolherClassificacao("PLANO_GOVERNO");
-              }}
-            >
-              <strong>Plano de Governo</strong>
-              <p>Compromisso do plano. Exige vínculo com a meta estratégica.</p>
-            </button>
-            <button
-              type="button"
-              className={classificacao === "ACAO_DIARIA" ? "is-on" : ""}
-              onClick={() => {
-                setVinculoPlanoExtra(false);
-                escolherClassificacao("ACAO_DIARIA");
-              }}
-            >
-              <strong>Ação diária</strong>
-              <p>Rotina operacional de curto prazo. Triagem rápida de urgência, sem checklist.</p>
-            </button>
-          </div>
-          {classificacao === "ESTRUTURANTE" && (
-            <label className="wizard-check">
-              <input
-                type="checkbox"
-                checked={vinculoPlanoExtra}
-                onChange={(e) => setVinculoPlanoExtra(e.target.checked)}
-              />
-              Também está no Plano de Governo
-            </label>
-          )}
-        </Card>
-      )}
 
       {steps[step] === "Identidade" && (
         <Card title="Identidade do projeto">
           <div className="stack">
+            {erroModelo && (
+              <div role="alert">
+                <p>Não foi possível carregar o modelo: {erroModelo}</p>
+                <Button type="button" variant="ghost" onClick={() => {
+                  setModeloCarregado(null);
+                  setTentativaModelo((n) => n + 1);
+                }}>
+                  Tentar carregar modelo novamente
+                </Button>
+              </div>
+            )}
             <div>
-              <label>Secretaria principal</label>
+              <label htmlFor="projeto-secretaria">Secretaria principal</label>
               <select
+                id="projeto-secretaria"
                 value={secretariaId}
                 onChange={(e) => {
                   setSecretariaId(e.target.value);
@@ -749,8 +770,8 @@ export function NovoProjetoWizard({
               </select>
             </div>
             <div>
-              <label>Nome</label>
-              <input value={nome} onChange={(e) => setNome(e.target.value)} required />
+              <label htmlFor="projeto-nome">Nome</label>
+              <input id="projeto-nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
             </div>
             <div>
               <label>Secretarias correlacionadas</label>
@@ -786,19 +807,21 @@ export function NovoProjetoWizard({
             </div>
             <div className="form-grid form-grid--2">
               <div>
-                <label>Código</label>
+                <label htmlFor="projeto-codigo">Código</label>
                 <input
+                  id="projeto-codigo"
                   value={codigo}
                   onChange={(e) => setCodigo(e.target.value)}
-                  placeholder="Sugestão automática na próxima etapa"
+                  placeholder="Gerado automaticamente ao confirmar"
                 />
               </div>
               <div>
-                <label>Responsável do projeto</label>
+                <label htmlFor="projeto-responsavel">Responsável do projeto</label>
                 <select
+                  id="projeto-responsavel"
                   value={responsavelPessoaId}
                   onChange={(e) => setResponsavelPessoaId(e.target.value)}
-                  disabled={pessoasLoading}
+                  disabled={pessoasLoading || Boolean(erroEquipe)}
                 >
                   <option value="">
                     {pessoasLoading ? "Carregando equipes..." : "Selecione o responsável"}
@@ -822,7 +845,18 @@ export function NovoProjetoWizard({
                 </select>
               </div>
             </div>
-            {!pessoasLoading && equipeNomes.length === 0 && (
+            {erroEquipe && (
+              <div role="alert">
+                <p>Não foi possível carregar as equipes: {erroEquipe}</p>
+                <Button type="button" variant="ghost" onClick={() => {
+                  setEquipeCarregada(null);
+                  setTentativaEquipe((n) => n + 1);
+                }}>
+                  Tentar carregar equipes novamente
+                </Button>
+              </div>
+            )}
+            {!pessoasLoading && !erroEquipe && equipeNomes.length === 0 && (
               <p className="dashboard-muted">
                 Nenhuma equipe cadastrada nas pastas envolvidas. Registre o responsável abaixo.
               </p>
@@ -830,8 +864,9 @@ export function NovoProjetoWizard({
             {registrandoNovo && (
               <div className="form-grid form-grid--2">
                 <div>
-                  <label>Nome do responsável</label>
+                  <label htmlFor="projeto-novo-responsavel">Nome do responsável</label>
                   <input
+                    id="projeto-novo-responsavel"
                     value={novoNome}
                     onChange={(e) => setNovoNome(e.target.value)}
                     placeholder="Nome completo"
@@ -839,8 +874,9 @@ export function NovoProjetoWizard({
                   />
                 </div>
                 <div>
-                  <label>Cargo</label>
+                  <label htmlFor="projeto-novo-cargo">Cargo</label>
                   <input
+                    id="projeto-novo-cargo"
                     value={novoCargo}
                     onChange={(e) => setNovoCargo(e.target.value)}
                     placeholder="Ex.: Coordenador de obras"
@@ -848,16 +884,18 @@ export function NovoProjetoWizard({
                   />
                 </div>
                 <div>
-                  <label>Telefone</label>
+                  <label htmlFor="projeto-novo-telefone">Telefone</label>
                   <input
+                    id="projeto-novo-telefone"
                     value={novoTelefone}
                     onChange={(e) => setNovoTelefone(e.target.value)}
                     placeholder="(31) 90000-0000"
                   />
                 </div>
                 <div>
-                  <label>E-mail</label>
+                  <label htmlFor="projeto-novo-email">E-mail</label>
                   <input
+                    id="projeto-novo-email"
                     type="email"
                     value={novoEmail}
                     onChange={(e) => setNovoEmail(e.target.value)}
@@ -867,7 +905,7 @@ export function NovoProjetoWizard({
               </div>
             )}
             <div>
-              <label>
+              <label htmlFor="projeto-descricao">
                 {estruturante
                   ? "Problema público *"
                   : classificacao === "PLANO_GOVERNO"
@@ -875,6 +913,7 @@ export function NovoProjetoWizard({
                     : "O que precisa ser feito e onde? *"}
               </label>
               <textarea
+                id="projeto-descricao"
                 rows={3}
                 value={descricao}
                 onChange={(e) => setDescricao(e.target.value)}
@@ -888,8 +927,9 @@ export function NovoProjetoWizard({
             {classificacao !== "ACAO_DIARIA" && (
               <>
                 <div>
-                  <label>{estruturante ? "O que será entregue e para quem *" : "Entrega concreta deste ciclo *"}</label>
+                  <label htmlFor="projeto-entrega">{estruturante ? "O que será entregue e para quem *" : "Entrega concreta deste ciclo *"}</label>
                   <textarea
+                    id="projeto-entrega"
                     rows={3}
                     value={entrega}
                     onChange={(e) => setEntrega(e.target.value)}
@@ -897,16 +937,18 @@ export function NovoProjetoWizard({
                   />
                 </div>
                 {estruturante && <div>
-                  <label>Público beneficiado</label>
+                  <label htmlFor="projeto-beneficiarios">Público beneficiado</label>
                   <input
+                    id="projeto-beneficiarios"
                     value={beneficiariosTxt}
                     onChange={(e) => setBeneficiariosTxt(e.target.value)}
                     placeholder="Ex.: ~400 crianças da região norte"
                   />
                 </div>}
                 {estruturante && <div>
-                  <label>O que fica fora deste projeto</label>
+                  <label htmlFor="projeto-fora-escopo">O que fica fora deste projeto</label>
                   <textarea
+                    id="projeto-fora-escopo"
                     rows={2}
                     value={foraEscopo}
                     onChange={(e) => setForaEscopo(e.target.value)}
@@ -917,8 +959,9 @@ export function NovoProjetoWizard({
             )}
             {exigeMeta && (
               <div>
-                <label>Meta estratégica do Plano de Governo</label>
+                <label htmlFor="projeto-meta">Meta estratégica do Plano de Governo</label>
                 <select
+                  id="projeto-meta"
                   value={metaId}
                   onChange={(e) => setMetaId(e.target.value)}
                   required
@@ -1114,14 +1157,14 @@ export function NovoProjetoWizard({
         </Card>
       )}
 
-      {error && <p style={{ color: "var(--cip-danger)" }}>{error}</p>}
+      {error && <p role="alert" style={{ color: "var(--cip-danger)" }}>{error}</p>}
 
       <footer className="wizard-foot">
         <Button
           type="button"
           variant="ghost"
           disabled={step === 0 || saving}
-          onClick={() => setStep((s) => Math.max(0, s - 1))}
+          onClick={() => irPara(step - 1)}
         >
           Voltar
         </Button>

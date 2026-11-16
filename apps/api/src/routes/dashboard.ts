@@ -1147,6 +1147,7 @@ dashboardRouter.get("/pasta-resumo", async (req, res, next) => {
       where: { municipioId, AND: [iniciativaScopeFilter(req.user!)] },
       include: {
         secretariaPrincipal: true,
+        classificacoes: true,
         secretarias: { select: { secretariaId: true, papel: true } },
         marcos: { include: { reprogramacoes: true } },
         impedimentos: {
@@ -1175,6 +1176,8 @@ dashboardRouter.get("/pasta-resumo", async (req, res, next) => {
         nome: i.nome,
         ciclo: i.ciclo,
         estruturante: i.estruturante,
+        classificacaoPrincipal: i.classificacaoPrincipal,
+        classificacoes: i.classificacoes.map((item) => item.classificacao),
         bloqueioLabel: i.bloqueioLabel,
         participacao,
         pendencias: i.impedimentos.length,

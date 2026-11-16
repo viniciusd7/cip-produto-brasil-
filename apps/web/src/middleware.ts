@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
-import { gestaoUrl, isGestaoHost } from "@/lib/hosts";
+import { gestaoUrl, isGestaoHost, isLocalSameOriginHost } from "@/lib/hosts";
 
 const PUBLIC = ["/login"];
 
@@ -8,6 +8,7 @@ export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const host = req.headers.get("host") || "";
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+  const localSameOrigin = isLocalSameOriginHost(host);
 
   if (isGestaoHost(host)) {
     if (PUBLIC.includes(pathname)) return NextResponse.next();
@@ -21,8 +22,15 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/", req.url));
   }
 
-  // Ambiente das prefeituras: o console da CIP nunca é servido aqui.
+  // Em localhost, o console CIP fica em /gestao no mesmo host (sessão compartilhada).
   if (pathname.startsWith("/gestao")) {
+    if (localSameOrigin) {
+      if (!token) return NextResponse.redirect(new URL("/login", req.url));
+      if (!token.isPlatformAdmin) {
+        return NextResponse.redirect(new URL("/login?negado=1", req.url));
+      }
+      return NextResponse.next();
+    }
     return NextResponse.redirect(new URL(`${gestaoUrl(host)}/`));
   }
   if (PUBLIC.includes(pathname) || pathname === "/") return NextResponse.next();
@@ -32,7 +40,10 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(login);
   }
   if (token.isPlatformAdmin && !token.municipioId) {
-    return NextResponse.redirect(new URL(`${gestaoUrl(host)}/`));
+    const dest = localSameOrigin
+      ? new URL("/gestao", req.url)
+      : new URL(`${gestaoUrl(host)}/`);
+    return NextResponse.redirect(dest);
   }
   return NextResponse.next();
 }

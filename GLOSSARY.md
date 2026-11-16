@@ -36,6 +36,30 @@ _Avoid_: gestor global
 
 ## Plano de governo e execução
 
+**Iniciativa**:
+Registro único de uma ação municipal acompanhada pela plataforma, que pode ter diferentes classificações e vínculos sem ser duplicado.
+_Avoid_: projeto (quando usado como nome guarda-chuva para todo tipo de ação)
+
+**Classificação da iniciativa**:
+Categoria exclusiva que descreve a natureza da iniciativa: plano de governo, projeto estruturante, projeto prioritário ou ação diária.
+_Avoid_: vínculo entre iniciativas
+
+**Projeto prioritário**:
+Categoria própria de projeto que reutiliza as perguntas e validações do fluxo estruturante, sem ser contado nem rotulado como estruturante.
+_Avoid_: nível de urgência
+
+**Prioridade**:
+Nível de urgência calculado separadamente da categoria do projeto; um impedimento aplicável estabelece o mínimo Alta, sem rebaixar uma prioridade Crítica.
+_Avoid_: classificação da iniciativa
+
+**Impedimento / pré-requisito**:
+Condição necessária ao projeto, como licitação, orçamento, imóvel ou autorização, cuja aplicabilidade e situação são registradas separadamente.
+_Avoid_: prioridade, bloqueio automático quando já atendido
+
+**Relação entre iniciativas**:
+Vínculo explícito entre dois registros distintos, com um tipo e uma justificativa, como dependência, desdobramento ou contribuição.
+_Avoid_: classificação, cópia de projeto
+
 **Plano de governo**:
 Compromissos do prefeito para o mandato, estruturados pela consultoria na implantação da prefeitura.
 _Avoid_: planejamento (quando se refere ao documento do prefeito)
@@ -49,8 +73,8 @@ Medida de uma meta estratégica com linha de base, alvo, unidade, periodicidade 
 _Avoid_: KPI, métrica solta na meta
 
 **Projeto**:
-Iniciativa que realiza uma meta estratégica; tem uma secretaria principal e pode ter secretarias correlacionadas.
-_Avoid_: ação, programa
+Iniciativa organizada para realizar uma entrega ou um conjunto de entregas e acompanhada por escopo, metas e responsáveis.
+_Avoid_: uso de “projeto” como sinônimo de toda iniciativa municipal
 
 **Meta de execução**:
 Entrega mensurável de um projeto, decomposta em tarefas.

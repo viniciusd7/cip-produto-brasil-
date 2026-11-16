@@ -18,7 +18,7 @@ type Usuario = {
   secretariaId: string | null;
 };
 
-/** Equipe da prefeitura: o consultor cadastra prefeito e secretários do ambiente que implanta. */
+/** Equipe da prefeitura: o consultor cadastra prefeito e secretários. */
 export default async function EquipePage() {
   const session = await getServerSession(authOptions);
   const token = session?.accessToken;
@@ -38,10 +38,9 @@ export default async function EquipePage() {
   return (
     <div className="stack">
       <PageHeader
-        eyebrow="Implantação · equipe"
+        eyebrow="Equipe da prefeitura"
         title={`Equipe de ${session?.user?.municipioNome || "prefeitura"}`}
         description="Cadastre o prefeito e os secretários responsáveis por cada pasta. Cada secretário recebe acesso apenas à sua secretaria."
-        actions={<Link href="/implantacao" style={{ color: "var(--cip-blue)", fontWeight: 600 }}>← Implantação</Link>}
       />
 
       <div className="equipe-kpis">

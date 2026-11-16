@@ -59,7 +59,7 @@ export default async function PlanejamentoPage() {
       />
       {!payload.data.length && (
         <Card title="Nenhum plano cadastrado">
-          <p className="dashboard-muted">O primeiro passo da implantação é registrar o plano de governo vigente.</p>
+          <p className="dashboard-muted">Registre o plano de governo vigente para começar.</p>
         </Card>
       )}
       {podeEditar && <ConhecimentoForm token={token} metas={metasFlat} />}

@@ -5,6 +5,12 @@ import { ESTRUTURANTE_PADRAO_MODELO_SNAPSHOT } from "./estruturante-modelo-snaps
 const prisma = new PrismaClient();
 
 async function main() {
+  if (process.env.NODE_ENV === "production" && process.env.CIP_ALLOW_DEMO_SEED !== "true") {
+    throw new Error(
+      "Seed demo bloqueado em produção. Use CIP_ALLOW_DEMO_SEED=true somente em banco isolado de demonstração.",
+    );
+  }
+
   const permissions = [
     { code: "municipio:manage", name: "Gerenciar município" },
     { code: "users:manage", name: "Gerenciar usuários" },
@@ -936,12 +942,6 @@ async function main() {
         prazoVigente: null,
       },
     });
-  }
-
-  if (process.env.NODE_ENV === "production" && process.env.CIP_ALLOW_DEMO_SEED !== "true") {
-    throw new Error(
-      "Seed demo bloqueado em produção. Use NODE_ENV≠production ou CIP_ALLOW_DEMO_SEED=true apenas em ambiente isolado.",
-    );
   }
 
   const passwordHash = await bcrypt.hash("Cip@2026", 10);

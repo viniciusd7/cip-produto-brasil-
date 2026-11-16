@@ -38,6 +38,25 @@
   color: var(--pc-rosa) !important;
 }
 
+.pc-ramos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pc-ramos a {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--pc-linha);
+  color: var(--pc-suave);
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+.pc-ramos a[aria-current="page"] {
+  color: var(--pc-ink, #f4f6fb);
+  border-color: var(--pc-rosa);
+  background: color-mix(in srgb, var(--pc-rosa) 16%, transparent);
+}
+
 /* Filtros */
 .pc-filtros {
   display: grid;

@@ -1,4 +1,5 @@
 import {
+  parseCondicaoResposta,
   valorFechadoDeResposta,
   type CondicaoResposta,
 } from "./condicao-resposta";
@@ -21,6 +22,7 @@ export type CondicaoValor =
 
 export type EfeitoPergunta = {
   quando: CondicaoValor;
+  quandoAplicabilidade?: "sim" | "nao" | "a_avaliar";
   /**
    * Quando presente, exige também que o detalhe numérico do follow-up
    * satisfaça lte/gte (ex.: dias_restantes ≤ 2).
@@ -61,7 +63,11 @@ export type ModeloPerguntaDef = {
   favoraveis?: string[] | null;
   /** Orientação e fundamento legal exibidos ao responsável. */
   ajuda?: string | null;
-  metadados?: { seNao?: string; sePendente?: string } | null;
+  metadados?: {
+    seNao?: string;
+    sePendente?: string;
+    impedimento?: boolean;
+  } | null;
   /** Campos abertos exibidos quando a condição se aplica. */
   camposFollowUp?: Array<{
     chave: string;
@@ -201,6 +207,13 @@ function detalheNumero(valor: Valor | undefined, chave: string): number | null {
 }
 
 function matchEfeito(valor: Valor | undefined, efeito: EfeitoPergunta) {
+  if (
+    efeito.quandoAplicabilidade &&
+    parseCondicaoResposta("", valor).aplicabilidade !==
+      efeito.quandoAplicabilidade
+  ) {
+    return false;
+  }
   if (!matchCondicao(valor, efeito.quando)) return false;
   if (!efeito.detalhe) return true;
   const n = detalheNumero(valor, efeito.detalhe.chave);

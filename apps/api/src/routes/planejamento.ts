@@ -21,6 +21,10 @@ planejamentoRouter.get(
   async (req, res, next) => {
     try {
       const municipioId = req.user!.municipioId;
+      const gestorSecretariaId =
+        req.user!.role === "gestor"
+          ? req.user!.secretariaId || "__no_secretaria__"
+          : null;
       const planos = await prisma.planoGoverno.findMany({
         where: { municipioId },
         include: {
@@ -61,6 +65,63 @@ planejamentoRouter.get(
         orderBy: { updatedAt: "desc" },
       });
 
+      const projetosPlano = await prisma.iniciativa.findMany({
+        where: {
+          municipioId,
+          ...(gestorSecretariaId
+            ? { secretariaPrincipalId: gestorSecretariaId }
+            : {}),
+          OR: [
+            { metaEstrategicaId: { not: null } },
+            { classificacaoPrincipal: "PLANO_GOVERNO" },
+            { classificacoes: { some: { classificacao: "PLANO_GOVERNO" } } },
+            { vinculoPlanoGoverno: true },
+          ],
+        },
+        select: {
+          id: true,
+          codigo: true,
+          nome: true,
+          metaEstrategicaId: true,
+          secretariaPrincipal: { select: { nome: true, sigla: true } },
+          metaEstrategica: { select: { id: true, nome: true, codigo: true } },
+        },
+        orderBy: { nome: "asc" },
+      });
+
+      const formatoProjeto = (p: (typeof projetosPlano)[number]) => ({
+        id: p.id,
+        codigo: p.codigo,
+        nome: p.nome,
+        secretaria: p.secretariaPrincipal.sigla || p.secretariaPrincipal.nome,
+      });
+      const idsMetas = new Set(planos.flatMap((plano) => plano.metas.map((meta) => meta.id)));
+      const porMeta = new Map<string, ReturnType<typeof formatoProjeto>[]>();
+      const projetosSemMeta: ReturnType<typeof formatoProjeto>[] = [];
+      const metasExternas = new Map<
+        string,
+        { id: string; nome: string; codigo: string | null; projetos: ReturnType<typeof formatoProjeto>[] }
+      >();
+      for (const projeto of projetosPlano) {
+        const item = formatoProjeto(projeto);
+        if (projeto.metaEstrategicaId && idsMetas.has(projeto.metaEstrategicaId)) {
+          const lista = porMeta.get(projeto.metaEstrategicaId) ?? [];
+          lista.push(item);
+          porMeta.set(projeto.metaEstrategicaId, lista);
+        } else if (projeto.metaEstrategica) {
+          const grupo = metasExternas.get(projeto.metaEstrategica.id) ?? {
+            id: projeto.metaEstrategica.id,
+            nome: projeto.metaEstrategica.nome,
+            codigo: projeto.metaEstrategica.codigo,
+            projetos: [],
+          };
+          grupo.projetos.push(item);
+          metasExternas.set(projeto.metaEstrategica.id, grupo);
+        } else {
+          projetosSemMeta.push(item);
+        }
+      }
+
       res.json({
         data: planos.map((plano) => ({
           ...plano,
@@ -71,6 +132,7 @@ planejamentoRouter.get(
             createdAt: meta.createdAt.toISOString(),
             updatedAt: meta.updatedAt.toISOString(),
             iniciativas: meta._count.iniciativas,
+            projetos: porMeta.get(meta.id) ?? [],
             indicadores: meta.indicadores.map((ind) => ({
               ...ind,
               progresso: progressoIndicador(ind),
@@ -79,7 +141,12 @@ planejamentoRouter.get(
             })),
           })),
         })),
-        meta: { municipioId, fonte: "Base de planejamento CIP" },
+        meta: {
+          municipioId,
+          fonte: "Base de planejamento CIP",
+          projetosSemMeta,
+          metasExternas: [...metasExternas.values()],
+        },
       });
     } catch (err) {
       next(err);
