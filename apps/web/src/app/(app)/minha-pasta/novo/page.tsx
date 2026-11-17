@@ -5,6 +5,7 @@ import { Card, PageHeader } from "@cip/ui";
 import { authOptions } from "@/lib/auth";
 import { ApiError, apiFetch } from "@/lib/api";
 import { canWriteRole, getHomeForRole } from "@/lib/roles";
+import { ContinuarRascunho } from "./continuar-rascunho";
 import { NovoProjetoWizard } from "./novo-projeto-wizard";
 
 const TIPOS = {
@@ -89,7 +90,7 @@ export default async function NovoProjetoPage({
               >
                 <strong>{item.nome}</strong>
                 <p>{item.descricao}</p>
-                <span>Iniciar criação</span>
+                <ContinuarRascunho usuarioId={session.user.id} municipioId={session.user.municipioId} classificacao={item.classificacao} />
               </Link>
             ))}
           </div>

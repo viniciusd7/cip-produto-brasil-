@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Card } from "@cip/ui";
 import {
@@ -272,7 +272,7 @@ export function NovoProjetoWizard({
     return () => window.clearTimeout(timer);
   }, [rascunhoKey, totalPassos]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!rascunhoPronto || concluido.current || rascunhoBloqueado.current) return;
     let ativo = true;
     try {
