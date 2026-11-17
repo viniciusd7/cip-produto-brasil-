@@ -20,7 +20,9 @@ export function AcaoForm({
     event.preventDefault();
     setSaving(true);
     setError("");
-    const form = new FormData(event.currentTarget);
+    const formulario = event.currentTarget;
+    const form = new FormData(formulario);
+    try {
     const iniciativaId = String(form.get("iniciativaId"));
     const res = await fetch(`${API_URL}/iniciativas/${iniciativaId}/marcos`, {
       method: "POST",
@@ -42,9 +44,13 @@ export function AcaoForm({
       setSaving(false);
       return;
     }
-    event.currentTarget.reset();
-    setSaving(false);
+    formulario.reset();
     router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível salvar a tarefa. Tente novamente.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (

@@ -48,7 +48,6 @@ export function AppShell({
   const pathname = usePathname();
   const { data } = useSession();
   const [open, setOpen] = useState(false);
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const menuToggleRef = useRef<HTMLButtonElement>(null);
   const railRef = useRef<HTMLElement>(null);
   const role = data?.user?.role || initialRole;
@@ -59,6 +58,12 @@ export function AppShell({
   const visibleNav = isCentralCip
     ? getNavForRole(role).filter((item) => item.href === "/equipe")
     : getNavForRole(role);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(
+      getNavForRole(initialRole).filter((item) => item.children?.length)
+        .map((item) => [item.href, navItemActive(pathname, item, getNavForRole(initialRole))]),
+    ),
+  );
   const nextStep = getNextStepForRole(role);
   const flowSteps = isCentralCip
     ? ["Prefeituras", "Consultores", "Equipes", "Acessos"]
@@ -204,7 +209,7 @@ export function AppShell({
           {visibleNav.map((item) => {
             if (item.children?.length) {
               const branchActive = navItemActive(pathname, item, visibleNav);
-              const expanded = openGroups[item.href] ?? branchActive;
+              const expanded = openGroups[item.href] ?? false;
               return (
                 <div key={item.href} className="app-nav__group">
                   <div className="app-nav__group-head">

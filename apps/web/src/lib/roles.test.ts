@@ -45,6 +45,6 @@ describe("navegação sem a área de implantação", () => {
       assert.deepEqual(numeric.map((item) => item.icon), numeric.map((_, i) => String(i + 1).padStart(2, "0")), role);
     }
     assert.deepEqual(getNavForRole("analista").slice(0, 5).map((item) => item.label),
-      ["Visão geral", "Secretarias", "Projetos", "Tarefas", "Aprovações"]);
+      ["Visão geral", "Secretarias", "Metas estratégicas", "Projetos", "Tarefas"]);
   });
 });

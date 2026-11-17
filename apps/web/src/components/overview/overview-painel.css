@@ -24,7 +24,6 @@
   color: #e8eaf6;
 }
 .shell .app-topbar { background: #151722; color: #e8eaf6; }
-.shell-painel .journey-strip { display: none; }
 .shell .app-nav a { color: #c5cbe0; }
 .shell .app-nav a.active { background: #25273f; border-color: #42445d; box-shadow: none; color: #fff; }
 .shell .nav-icon { color: #bab0dd; }

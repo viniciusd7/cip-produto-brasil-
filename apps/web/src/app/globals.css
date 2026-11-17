@@ -4582,3 +4582,21 @@ a.ag-resumo__card:focus-visible {
 
 .wizard-draft-choice { display: grid; gap: 6px; }
 .wizard-draft-choice small { color: var(--cip-ink); font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+
+/* Keep navigation geometry stable when page content changes. */
+html { scrollbar-gutter: stable; }
+.app-rail { overflow-anchor: none; }
+.app-rail > * { flex-shrink: 0; }
+.app-rail .app-nav { overflow: visible; }
+.app-nav a, .app-nav__toggle { transition-property: color, background-color, border-color, box-shadow; }
+
+.tarefas-recorte { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px; margin-bottom: 18px; }
+.tarefas-recorte label { display: grid; gap: 6px; min-width: 0; }
+.tarefas-recorte select { width: 100%; min-width: 0; }
+.tarefas-projetos .gestao-tarefas__board { grid-auto-flow: row; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); overflow: visible; }
+.tarefas-projetos .gestao-tarefas__column { min-width: 0; }
+.tarefas-projetos .gestao-tarefas__column-list .gestao-tarefa { overflow-wrap: anywhere; }
+
+.gestao-tarefa__progresso { display: grid; gap: 6px; grid-column: 1 / -1; }
+.gestao-tarefa__progresso > span { display: flex; justify-content: space-between; gap: 10px; color: var(--cip-muted); font-size: 12px; }
+.gestao-tarefa__progresso progress { width: 100%; height: 8px; accent-color: #b4e4a0; }

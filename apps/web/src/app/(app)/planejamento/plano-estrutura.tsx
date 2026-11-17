@@ -1,5 +1,9 @@
 "use client";
 
+import Link from "next/link";
+import { VincularProjeto } from "./vincular-projeto";
+import { NovaMetaForm } from "./nova-meta-form";
+
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Card } from "@cip/ui";
@@ -90,12 +94,13 @@ function PlanoCard({ plano, ...ctx }: Ctx & { plano: Plano }) {
         .join(" · ")}
     >
       {plano.descricao && <p className="dashboard-muted" style={{ marginTop: 0 }}>{plano.descricao}</p>}
-      {ctx.podeEditar && <p className="dashboard-muted">Crie metas estratégicas dentro de um projeto ou no assistente de novo projeto, selecionando este plano.</p>}
+      {ctx.podeEditar && <p className="dashboard-muted">Cadastre as metas deste plano e seus indicadores. Depois, vincule os projetos às metas.</p>}
+      {ctx.podeEditar && <NovaMetaForm planoId={plano.id} token={ctx.token} secretarias={ctx.secretarias} />}
       <div className="gp-metas">
         {plano.metas.map((meta) => (
           <MetaCard key={meta.id} meta={meta} {...ctx} />
         ))}
-        {!plano.metas.length && <p className="dashboard-muted">Este plano ainda não possui metas estratégicas vinculadas a projetos.</p>}
+        {!plano.metas.length && <p className="dashboard-muted">Este plano ainda não possui metas estratégicas.</p>}
       </div>
     </Card>
   );
@@ -136,6 +141,10 @@ function MetaCard({ meta, token, secretarias, responsaveis, sugestoes, podeEdita
         </Badge>
       </header>
       <h3 className="gp-meta__title">{meta.nome}</h3>
+      {podeEditar && <div className="chip-row">
+        <Link className="cip-btn cip-btn--secondary" href={`/minha-pasta/novo?metaId=${encodeURIComponent(meta.id)}${meta.secretariaId ? `&secretariaId=${encodeURIComponent(meta.secretariaId)}` : ""}`}>Criar projeto nesta meta</Link>
+        <VincularProjeto metaId={meta.id} token={token} />
+      </div>}
       {meta.descricao && <p className="dashboard-muted" style={{ margin: 0 }}>{meta.descricao}</p>}
 
       <div className="gp-meta__fields">
@@ -174,7 +183,7 @@ function MetaCard({ meta, token, secretarias, responsaveis, sugestoes, podeEdita
       <section className="gp-meta__section" aria-label={`Indicadores da meta ${meta.nome}`}>
         <div className="gp-meta__section-head">
           <strong>Indicadores ({meta.indicadores.length})</strong>
-          {podeEditar && meta.iniciativas > 0 && (
+          {podeEditar && (
             <div className="chip-row">
               <Button
                 variant="ghost"
@@ -228,7 +237,7 @@ function MetaCard({ meta, token, secretarias, responsaveis, sugestoes, podeEdita
         )}
 
         {podeEditar && meta.iniciativas === 0 && <p className="dashboard-muted">Vincule esta meta a um projeto antes de adicionar indicadores ou aceitar sugestões.</p>}
-        {novoIndicador && meta.iniciativas > 0 && (
+        {novoIndicador && (
           <NovoIndicadorForm
             metaId={meta.id}
             token={token}

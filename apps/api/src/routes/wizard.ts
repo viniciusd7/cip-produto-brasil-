@@ -366,11 +366,11 @@ wizardRouter.post(
         classificacoes.includes("PLANO_GOVERNO") ||
         Boolean(body.vinculoPlanoGoverno || body.novaMeta || body.metaEstrategicaId);
 
-      if (vinculaPlano && !body.metaEstrategicaId && !body.novaMeta) {
+      if (!body.metaEstrategicaId && !body.novaMeta) {
         throw new HttpError(
           422,
           "META_REQUIRED",
-          "Plano de Governo exige meta estratégica",
+          "Selecione ou crie uma meta estratégica para o projeto",
         );
       }
 

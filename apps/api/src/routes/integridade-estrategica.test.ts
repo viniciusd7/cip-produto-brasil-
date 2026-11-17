@@ -80,8 +80,11 @@ async function setup(t: TestContext, options: {
     return ["meta", "orfa", "outra-meta"].includes(String(where?.id))
       ? { id: where?.id, nome: "Meta antiga" } : null;
   });
-  stub(t, prisma.metaEstrategica, "create", async () => {
-    throw new Error("Cadastro legado nao deve criar metas");
+  stub(t, prisma.planoGoverno, "findFirst", async ({ where }: PrismaTypes.PlanoGovernoFindFirstArgs) => where?.id === "plano" ? { id: "plano" } : null);
+  stub(t, prisma.secretaria, "findFirst", async ({ where }: PrismaTypes.SecretariaFindFirstArgs) => where?.id === "secretaria" ? { id: "secretaria" } : null);
+  stub(t, prisma.metaEstrategica, "create", async ({ data }: PrismaTypes.MetaEstrategicaCreateArgs) => {
+    escrita();
+    return { ...data, id: "nova-meta" };
   });
   stub(t, prisma.metaEstrategica, "update", async ({ data }: PrismaTypes.MetaEstrategicaUpdateArgs) => {
     escritas++;
@@ -151,12 +154,13 @@ async function setup(t: TestContext, options: {
   return { request, projeto, indicador, criados, isolamentos, escritas: () => escritas, decisoes: () => decisoes };
 }
 
-test("cadastro legado de meta avulsa retorna erro explicito sem gravar", async (t) => {
+test("permite criar meta antes dos projetos e valida prefeitura e secretaria", async (t) => {
   const ctx = await setup(t);
-  const response = await ctx.request("/planejamento/metas", { nome: "Nova meta", planoId: "plano" });
-  assert.equal(response.status, 409);
-  assert.equal(response.json.error.code, "PROJETO_REQUIRED");
-  assert.equal(ctx.escritas(), 0);
+  assert.equal((await ctx.request("/planejamento/metas", { nome: "Nova meta", planoId: "externo", secretariaId: "secretaria" })).status, 422);
+  assert.equal((await ctx.request("/planejamento/metas", { nome: "Nova meta", planoId: "plano", secretariaId: "externa" })).status, 422);
+  const response = await ctx.request("/planejamento/metas", { nome: "Nova meta", planoId: "plano", secretariaId: "secretaria" });
+  assert.equal(response.status, 201, JSON.stringify(response.json));
+  assert.equal(ctx.escritas(), 1);
 });
 
 for (const compartilhada of [false, true]) {
@@ -170,11 +174,11 @@ for (const compartilhada of [false, true]) {
 }
 
 for (const metaEstrategicaId of ["orfa", "externa"]) {
-  test(`novo indicador rejeita meta sem projeto municipal: ${metaEstrategicaId}`, async (t) => {
+  test(`indicador aceita meta municipal sem projeto e rejeita meta externa: ${metaEstrategicaId}`, async (t) => {
     const ctx = await setup(t);
     const response = await ctx.request("/planejamento/indicadores", { nome: "Novo indicador", metaEstrategicaId });
-    assert.equal(response.status, metaEstrategicaId === "orfa" ? 409 : 422);
-    assert.equal(ctx.escritas(), 0);
+    assert.equal(response.status, metaEstrategicaId === "orfa" ? 201 : 422);
+    assert.equal(ctx.escritas(), metaEstrategicaId === "orfa" ? 1 : 0);
   });
 }
 
@@ -193,7 +197,6 @@ test("patch valida alvos efetivos e nao permite retirar o ultimo alvo", async (t
   for (const body of [
     { metaEstrategicaId: null },
     { metaEstrategicaId: null, metaExecucaoId: null },
-    { metaEstrategicaId: "orfa" },
   ]) {
     const response = await ctx.request("/planejamento/indicadores/indicador", body, "PATCH");
     assert.ok([409, 422].includes(response.status), JSON.stringify(response.json));
@@ -219,9 +222,9 @@ for (const aceitar of [false, true]) {
   test(`sugestao de indicador orfao: aceitar=${aceitar}`, async (t) => {
     const ctx = await setup(t, { indicadorOrfao: true });
     const response = await ctx.request("/planejamento/sugestoes/sugestao/decidir", { aceitar });
-    assert.equal(response.status, aceitar ? 409 : 200);
-    assert.equal(ctx.criados.length, 0);
-    assert.equal(ctx.decisoes(), aceitar ? 0 : 1);
+    assert.equal(response.status, 200);
+    assert.equal(ctx.criados.length, aceitar ? 1 : 0);
+    assert.equal(ctx.decisoes(), 1);
   });
 }
 

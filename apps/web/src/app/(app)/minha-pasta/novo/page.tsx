@@ -59,7 +59,7 @@ type Metas = {
 export default async function NovoProjetoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ secretariaId?: string; tipo?: string }>;
+  searchParams: Promise<{ secretariaId?: string; tipo?: string; metaId?: string }>;
 }) {
   const sp = await searchParams;
   const session = await getServerSession(authOptions);
@@ -85,7 +85,7 @@ export default async function NovoProjetoPage({
                   sp.secretariaId
                     ? `&secretariaId=${encodeURIComponent(sp.secretariaId)}`
                     : ""
-                }`}
+                }${sp.metaId ? `&metaId=${encodeURIComponent(sp.metaId)}` : ""}`}
                 className="wizard-choice__link"
               >
                 <strong>{item.nome}</strong>
@@ -117,9 +117,7 @@ export default async function NovoProjetoPage({
       tipo.classificacao === "ESTRUTURANTE" || tipo.classificacao === "PRIORITARIO"
         ? apiFetch<Modelos>("/modelos-projeto", { token })
         : Promise.resolve({ data: [] }),
-      tipo.classificacao === "PLANO_GOVERNO"
-        ? apiFetch<Metas>("/planejamento/resumo", { token })
-        : Promise.resolve({ data: [] }),
+      apiFetch<Metas>("/planejamento/resumo", { token }),
     ]);
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) redirect("/login");
@@ -146,6 +144,7 @@ export default async function NovoProjetoPage({
       usuarioId={session.user.id}
       municipioId={session.user.municipioId}
       initialClassification={tipo.classificacao}
+      defaultMetaId={metas.some((meta) => meta.id === sp.metaId) ? sp.metaId : undefined}
       defaultSecretariaId={sp.secretariaId}
       secretarias={secs.data || []}
       modelos={modelosEstruturante}

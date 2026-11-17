@@ -175,7 +175,7 @@ async function setup(t: TestContext, options: { falharEscopo?: boolean } = {}) {
 }
 
 const cadastro = {
-  codigo: "QA-01", nome: "Projeto QA", secretariaPrincipalId: "secretaria",
+  codigo: "QA-01", nome: "Projeto QA", secretariaPrincipalId: "secretaria", metaEstrategicaId: "meta",
 };
 const impedimentosRespondidos = CODIGOS_IMPEDIMENTOS_COMUNS.map((perguntaCodigo) => ({
   perguntaCodigo,
@@ -258,6 +258,7 @@ for (const novoPlano of [false, true]) {
     const ctx = await setup(t);
     const response = await ctx.request("/iniciativas/wizard/confirmar", {
       ...wizard,
+      metaEstrategicaId: undefined,
       novaMeta: { nome: "Meta estrategica", ...(novoPlano ? { novoPlanoNome: "Plano novo" } : { planoId: "plano" }) },
     });
     assert.equal(response.status, 201, JSON.stringify(response.json));
@@ -272,6 +273,7 @@ for (const novoPlano of [false, true]) {
     const ctx = await setup(t, { falharEscopo: true });
     const response = await ctx.request("/iniciativas/wizard/confirmar", {
       ...wizard,
+      metaEstrategicaId: undefined,
       novaMeta: { nome: "Meta estrategica", ...(novoPlano ? { novoPlanoNome: "Plano novo" } : { planoId: "plano" }) },
     });
     assert.equal(response.status, 422, JSON.stringify(response.json));
@@ -427,7 +429,7 @@ test("IDs repetidos não impedem cadastro nem duplicam vínculos", async (t) => 
 
 test("categoria Plano de Governo no cadastro direto exige vínculo", async (t) => {
   const ctx = await setup(t);
-  const response = await ctx.request("/iniciativas", { ...cadastro, classificacaoPrincipal: "PLANO_GOVERNO" });
+  const response = await ctx.request("/iniciativas", { ...cadastro, metaEstrategicaId: undefined, classificacaoPrincipal: "PLANO_GOVERNO" });
   assert.equal(response.status, 422);
   assert.equal(response.json.error.code, "PLANO_GOVERNO_LINK_REQUIRED");
   assert.equal(ctx.iniciativas.length, 0);
@@ -565,5 +567,15 @@ for (const [anterior, novo] of [[null, false], [0, null], [null, null], ["", 0]]
     assert.equal(ctx.atualizacoes[0].valor, novo === null ? Prisma.JsonNull : novo);
     assert.equal(ctx.historico[0].valorAnterior, anterior === null ? Prisma.JsonNull : anterior);
     assert.equal(ctx.historico[0].valorNovo, novo === null ? Prisma.JsonNull : novo);
+  });
+}
+
+for (const classificacaoPrincipal of ["ESTRUTURANTE", "PRIORITARIO", "PLANO_GOVERNO", "ACAO_DIARIA"]) {
+  test(`todo projeto exige meta estrategica: ${classificacaoPrincipal}`, async (t) => {
+    const ctx = await setup(t);
+    const response = await ctx.request("/iniciativas/wizard/confirmar", { ...wizard, metaEstrategicaId: undefined, classificacaoPrincipal });
+    assert.equal(response.status, 422);
+    assert.equal(response.json.error.code, "META_REQUIRED");
+    assert.equal(ctx.iniciativas.length, 0);
   });
 }

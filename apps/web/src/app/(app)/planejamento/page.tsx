@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth";
 import { Card, PageHeader, SourceMeta } from "@cip/ui";
 import { authOptions } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
-import { canValidateRole } from "@/lib/roles";
+import { canWriteRole } from "@/lib/roles";
+import { NovaMetaForm } from "./nova-meta-form";
 import { PlanejamentoForm } from "./planejamento-form";
 import { ConhecimentoForm } from "./conhecimento-form";
 import { PlanoEstrutura, type Plano, type Responsavel, type Secretaria, type Sugestao } from "./plano-estrutura";
@@ -21,7 +22,7 @@ async function opcional<T>(p: Promise<{ data: T }>, vazio: T): Promise<T> {
 export default async function PlanejamentoPage() {
   const session = await getServerSession(authOptions);
   const token = session?.accessToken || "";
-  const podeEditar = canValidateRole(session?.user?.role);
+  const podeEditar = canWriteRole(session?.user?.role);
   const [payload, secretarias, responsaveis, sugestoes] = await Promise.all([
     apiFetch<PlanningResponse>("/planejamento/resumo", { token }),
     podeEditar ? opcional(apiFetch<{ data: Secretaria[] }>("/admin/secretarias", { token }), []) : Promise.resolve([] as Secretaria[]),
@@ -34,8 +35,8 @@ export default async function PlanejamentoPage() {
     <div className="stack">
       <PageHeader
         eyebrow="Plano de governo"
-        title="Plano → metas estratégicas → indicadores"
-        description="O consultor estrutura o plano do prefeito: cada meta estratégica tem secretaria e responsável, indicadores mensuráveis e se conecta aos projetos e tarefas."
+        title="Metas estratégicas e indicadores"
+        description="Cadastre metas estratégicas, defina seus indicadores e vincule os projetos responsáveis por alcançar cada resultado."
       />
       <SourceMeta fonte={payload.meta?.fonte} confiabilidade="Estrutura configurável por prefeitura" />
       <div className="gp-flow" aria-label="Hierarquia da gestão">
@@ -45,6 +46,7 @@ export default async function PlanejamentoPage() {
       </div>
       {podeEditar && (
         <div className="chip-row">
+          {payload.data.length > 0 && <NovaMetaForm planos={payload.data} token={token} secretarias={secretarias} />}
           <PlanejamentoForm token={token} />
           <Link href="/minha-pasta/novo" className="cip-btn cip-btn--secondary">+ Projeto a partir de uma meta</Link>
         </div>

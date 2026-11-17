@@ -116,6 +116,7 @@ const ALL_NAV: NavItem[] = [
   { href: "/painel", label: "Visão geral" },
   { href: "/minha-pasta", label: "Minha secretaria" },
   { href: "/secretarias", label: "Secretarias" },
+  { href: "/planejamento", label: "Metas estratégicas" },
   { href: "/carteira", label: "Projetos", children: PROJETOS_CARTEIRA },
   { href: "/acoes", label: "Tarefas" },
   { href: "/validacoes", label: "Aprovações" },
@@ -159,6 +160,7 @@ export function getNavForRole(role?: string | null): NavItem[] {
     ["/painel", "/relatorios"].forEach((h) => allow.add(h));
   }
 
+  if (["gestor", "analista", "admin", "prefeito"].includes(r)) allow.add("/planejamento");
   if (["gestor", "analista", "admin"].includes(r)) allow.add("/comunicados");
   allow.add("/base-conhecimento");
   if (r !== "leitura") allow.add("/notificacoes");

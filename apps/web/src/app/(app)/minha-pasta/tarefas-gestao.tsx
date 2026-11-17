@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { TarefaAcoes } from "../iniciativas/[id]/tarefa-acoes";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button } from "@cip/ui";
@@ -203,7 +204,7 @@ function tarefasParaFiltro(tarefa: TarefaGestaoItem, filtro: Filtro) {
   return tarefa.status === "CONCLUIDO";
 }
 
-function TarefaCard({ tarefa, token }: { tarefa: TarefaGestaoItem; token: string }) {
+function TarefaCard({ tarefa, token, gerenciar = false, podeEditar = false }: { tarefa: TarefaGestaoItem; token: string; gerenciar?: boolean; podeEditar?: boolean }) {
   const [painel, setPainel] = useState<Painel>(null);
   const tone =
     tarefa.status === "VENCIDO"
@@ -233,11 +234,16 @@ function TarefaCard({ tarefa, token }: { tarefa: TarefaGestaoItem; token: string
           {tarefa.iniciativaCodigo} · {tarefa.iniciativaNome}
         </Link>
         <div className="gestao-tarefa__meta">
+          <span>{tarefa.secretaria}</span>
           <span>
-            {tarefa.subtarefas.concluidas}/{tarefa.subtarefas.total} subtarefas
+            {tarefa.subtarefas.concluidas}/{tarefa.subtarefas.total} subtarefas concluídas
           </span>
         </div>
       </div>
+      {gerenciar && tarefa.subtarefas.total > 0 && <div className="gestao-tarefa__progresso">
+        <span>Progresso das subtarefas <strong>{Math.round(tarefa.subtarefas.concluidas / tarefa.subtarefas.total * 100)}%</strong></span>
+        <progress aria-label={`Progresso das subtarefas de ${tarefa.descricao}`} value={tarefa.subtarefas.concluidas} max={tarefa.subtarefas.total} />
+      </div>}
       <div className="gestao-tarefa__details">
         <span className="gestao-tarefa__detail-label">Responsável</span>
         <strong>{tarefa.responsavel || "A definir"}</strong>
@@ -246,7 +252,8 @@ function TarefaCard({ tarefa, token }: { tarefa: TarefaGestaoItem; token: string
         <span className="gestao-tarefa__detail-label">Prazo</span>
         <strong>{dataCurta(tarefa.prazo)}</strong>
       </div>
-      {aberta && (
+      {gerenciar && tarefa.status !== "ENCERRADO_SEM_SOLUCAO" && <TarefaAcoes token={token} marcoId={tarefa.id} concluidoEm={tarefa.status === "CONCLUIDO" ? "concluida" : null} canWrite={podeEditar} />}
+      {aberta && !gerenciar && (
         <div className="gestao-tarefa__acoes">
           {!tarefa.aguardandoValidacao && (
             <button type="button" className="gestao-tarefa__action" aria-expanded={painel === "CONCLUIR"} onClick={() => setPainel(painel === "CONCLUIR" ? null : "CONCLUIR")}>
@@ -269,16 +276,29 @@ function TarefaCard({ tarefa, token }: { tarefa: TarefaGestaoItem; token: string
 export function TarefasGestao({
   tarefas,
   token,
+  modo = "SECRETARIA",
+  podeEditar = false,
 }: {
   tarefas: TarefaGestaoItem[];
   token: string;
+  modo?: "SECRETARIA" | "PROJETOS";
+  podeEditar?: boolean;
 }) {
   const [filtro, setFiltro] = useState<Filtro>("ABERTAS");
-  const [visualizacao, setVisualizacao] = useState<Visualizacao>("LISTA");
+  const [visualizacao, setVisualizacao] = useState<Visualizacao>(modo === "PROJETOS" ? "QUADRO" : "LISTA");
   const [busca, setBusca] = useState("");
+  const [secretaria, setSecretaria] = useState("");
+  const [projeto, setProjeto] = useState("");
+  const [responsavel, setResponsavel] = useState("");
+  const [ordem, setOrdem] = useState("prazo");
+  const recorte = tarefas.filter((tarefa) =>
+    (!secretaria || tarefa.secretaria === secretaria) &&
+    (!projeto || tarefa.iniciativaId === projeto) &&
+    (!responsavel || (tarefa.responsavel || "Sem responsável") === responsavel),
+  );
 
   const normalizedSearch = busca.trim().toLocaleLowerCase("pt-BR");
-  const filtradas = tarefas.filter((tarefa) => {
+  const filtradas = recorte.filter((tarefa) => {
     if (!tarefasParaFiltro(tarefa, filtro)) return false;
     if (!normalizedSearch) return true;
     return [
@@ -288,32 +308,36 @@ export function TarefasGestao({
       tarefa.iniciativaNome,
       tarefa.meta,
       tarefa.responsavel,
+      tarefa.secretaria,
     ]
       .filter(Boolean)
       .some((value) => value!.toLocaleLowerCase("pt-BR").includes(normalizedSearch));
   });
 
-  const abertas = tarefas.filter((tarefa) =>
+  filtradas.sort((a, b) => ordem === "nome"
+    ? a.descricao.localeCompare(b.descricao, "pt-BR")
+    : (a.prazo ? Date.parse(a.prazo) : Infinity) - (b.prazo ? Date.parse(b.prazo) : Infinity));
+  const abertas = recorte.filter((tarefa) =>
     tarefasParaFiltro(tarefa, "ABERTAS"),
   ).length;
-  const atrasadas = tarefas.filter((tarefa) => tarefa.status === "VENCIDO").length;
-  const semPrazo = tarefas.filter((tarefa) => tarefa.status === "SEM_PRAZO").length;
-  const concluidas = tarefas.filter((tarefa) => tarefa.status === "CONCLUIDO").length;
-  const aguardando = tarefas.filter((tarefa) => tarefa.aguardandoValidacao).length;
+  const atrasadas = recorte.filter((tarefa) => tarefa.status === "VENCIDO").length;
+  const semPrazo = recorte.filter((tarefa) => tarefa.status === "SEM_PRAZO").length;
+  const concluidas = recorte.filter((tarefa) => tarefa.status === "CONCLUIDO").length;
+  const aguardando = recorte.filter((tarefa) => tarefa.aguardandoValidacao).length;
 
   return (
     <section
-      className="pasta-section gestao-tarefas"
+      className={`pasta-section gestao-tarefas${modo === "PROJETOS" ? " tarefas-projetos" : ""}`}
       aria-labelledby="gestao-tarefas-title"
     >
       <div className="pasta-section__head">
         <div>
-          <h2 id="gestao-tarefas-title">Tarefas da secretaria</h2>
-          <p>
+          <h2 id="gestao-tarefas-title">{modo === "PROJETOS" ? "Tarefas dos projetos" : "Tarefas da secretaria"}</h2>
+          {modo === "SECRETARIA" && <p>
             As tarefas são definidas pela consultoria. Você anexa evidências
             (documento, foto ou vídeo), reprograma com justificativa e informa a
             conclusão para validação.
-          </p>
+          </p>}
         </div>
         <div className="gestao-tarefas__summary" aria-label="Resumo das tarefas">
           <span><strong>{abertas}</strong> em aberto</span>
@@ -324,6 +348,12 @@ export function TarefasGestao({
         </div>
       </div>
 
+      {modo === "PROJETOS" && <div className="tarefas-recorte">
+        <label>Secretaria<select value={secretaria} onChange={(event) => { setSecretaria(event.target.value); setProjeto(""); }}><option value="">Todas as secretarias</option>{[...new Set(tarefas.map((tarefa) => tarefa.secretaria))].sort().map((nome) => <option key={nome}>{nome}</option>)}</select></label>
+        <label>Projeto<select value={projeto} onChange={(event) => setProjeto(event.target.value)}><option value="">Todos os projetos</option>{[...new Map(tarefas.filter((tarefa) => !secretaria || tarefa.secretaria === secretaria).map((tarefa) => [tarefa.iniciativaId, tarefa])).values()].map((tarefa) => <option key={tarefa.iniciativaId} value={tarefa.iniciativaId}>{tarefa.iniciativaCodigo} · {tarefa.iniciativaNome}</option>)}</select></label>
+        <label>Responsável<select value={responsavel} onChange={(event) => setResponsavel(event.target.value)}><option value="">Todos os responsáveis</option>{[...new Set(tarefas.map((tarefa) => tarefa.responsavel || "Sem responsável"))].sort().map((nome) => <option key={nome}>{nome}</option>)}</select></label>
+        <label>Ordenar por<select value={ordem} onChange={(event) => setOrdem(event.target.value)}><option value="prazo">Prazo mais próximo</option><option value="nome">Nome da tarefa</option></select></label>
+      </div>}
       <div className="gestao-tarefas__toolbar">
         <label className="gestao-tarefas__search">
           <span className="sr-only">Buscar tarefa</span>
@@ -354,7 +384,7 @@ export function TarefasGestao({
 
       <div className="gestao-tarefas__filters" aria-label="Filtrar tarefas">
         {filtros.map((item) => {
-          const count = tarefas.filter((tarefa) =>
+          const count = recorte.filter((tarefa) =>
             tarefasParaFiltro(tarefa, item.id),
           ).length;
           return (
@@ -373,7 +403,7 @@ export function TarefasGestao({
       {visualizacao === "LISTA" ? (
         <div className="gestao-tarefas__list">
           {filtradas.map((tarefa) => (
-            <TarefaCard key={tarefa.id} tarefa={tarefa} token={token} />
+            <TarefaCard key={tarefa.id} tarefa={tarefa} token={token} gerenciar={modo === "PROJETOS"} podeEditar={podeEditar} />
           ))}
         </div>
       ) : (
@@ -391,7 +421,7 @@ export function TarefasGestao({
                 </h3>
                 <div className="gestao-tarefas__column-list">
                   {itens.map((tarefa) => (
-                    <TarefaCard key={tarefa.id} tarefa={tarefa} token={token} />
+                    <TarefaCard key={tarefa.id} tarefa={tarefa} token={token} gerenciar={modo === "PROJETOS"} podeEditar={podeEditar} />
                   ))}
                   {!itens.length && (
                     <p className="dashboard-muted">Nenhuma tarefa</p>
@@ -408,7 +438,7 @@ export function TarefasGestao({
           <p>
             {tarefas.length
               ? "Nenhuma tarefa corresponde a esta busca e filtro."
-              : "Ainda não há tarefas vinculadas a esta secretaria."}
+              : "Ainda não há tarefas cadastradas nos projetos disponíveis."}
           </p>
         </div>
       )}

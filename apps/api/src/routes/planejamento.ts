@@ -218,12 +218,29 @@ const metaSchema = z.object({
 planejamentoRouter.post(
   "/metas",
   requirePermission("iniciativa:write"),
-  (_req, _res, next) => {
-    next(new HttpError(
-      409,
-      "PROJETO_REQUIRED",
-      "Crie a meta estratégica dentro de um projeto ou na confirmação do assistente de novo projeto",
-    ));
+  async (req, res, next) => {
+    try {
+      const body = metaSchema.extend({ secretariaId: z.string().min(1) }).parse(req.body);
+      const municipioId = req.user!.municipioId;
+      const meta = await transacaoEstrategica(async (tx) => {
+        const plano = await tx.planoGoverno.findFirst({ where: { id: body.planoId, municipioId } });
+        if (!plano) throw new HttpError(422, "INVALID_PLANO", "Plano inválido para esta prefeitura");
+        const secretaria = await tx.secretaria.findFirst({ where: { id: body.secretariaId, municipioId, active: true } });
+        if (!secretaria || (req.user!.role === "gestor" && req.user!.secretariaId !== secretaria.id)) {
+          throw new HttpError(422, "INVALID_SECRETARIA", "Secretaria inválida para este acesso");
+        }
+        const responsavel = await resolverResponsavel(municipioId, body.responsavelUserId);
+        return tx.metaEstrategica.create({ data: {
+          ...body,
+          responsavelUserId: responsavel?.id ?? null,
+          prazo: body.prazo ? new Date(body.prazo) : null,
+        } });
+      });
+      await writeAudit({ user: req.user, action: "CREATE", entity: "MetaEstrategica", entityId: meta.id, after: meta, ip: req.ip });
+      res.status(201).json({ data: meta });
+    } catch (err) {
+      next(err);
+    }
   },
 );
 
@@ -436,13 +453,7 @@ async function assertAlvosIndicador(
       select: { id: true },
     });
     if (!ok) throw new HttpError(422, "INVALID_META", "Meta estratégica inválida");
-    const projeto = await client.iniciativa.findFirst({
-      where: { metaEstrategicaId: body.metaEstrategicaId, municipioId },
-      select: { id: true },
-    });
-    if (!projeto) {
-      throw new HttpError(409, "PROJETO_REQUIRED", "Vincule a meta estratégica a um projeto antes de adicionar indicadores");
-    }
+
   }
   if (body.metaExecucaoId) {
     const ok = await client.metaExecucao.findFirst({

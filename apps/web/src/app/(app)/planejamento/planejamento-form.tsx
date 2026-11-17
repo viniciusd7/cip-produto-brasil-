@@ -33,7 +33,7 @@ export function PlanejamentoForm({ token }: { token: string }) {
   if (!open) return <Button onClick={() => setOpen(true)}>+ Novo plano de governo</Button>;
 
   return (
-    <Card title="Novo plano de governo" subtitle="Cadastre o plano aqui. Metas estratégicas são criadas dentro de um projeto ou no assistente de novo projeto.">
+    <Card title="Novo plano de governo" subtitle="Cadastre o plano para organizar suas metas estratégicas e indicadores.">
       <form onSubmit={submit} className="stack">
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
           <div><label htmlFor="planoNome">Nome do plano</label><input id="planoNome" name="planoNome" required placeholder="Plano de governo 2025–2028" /></div>

@@ -159,6 +159,7 @@ export function NovoProjetoWizard({
   municipioId,
   initialClassification,
   defaultSecretariaId,
+  defaultMetaId,
   secretarias,
   modelos,
   metas,
@@ -169,6 +170,7 @@ export function NovoProjetoWizard({
   municipioId: string;
   initialClassification: Classificacao;
   defaultSecretariaId?: string;
+  defaultMetaId?: string;
   secretarias: Secretaria[];
   modelos: Modelo[];
   metas: Array<{ id: string; label: string }>;
@@ -207,7 +209,7 @@ export function NovoProjetoWizard({
   const [entrega, setEntrega] = useState("");
   const [foraEscopo, setForaEscopo] = useState("");
   const [beneficiariosTxt, setBeneficiariosTxt] = useState("");
-  const [metaId, setMetaId] = useState("");
+  const [metaId, setMetaId] = useState(defaultMetaId || "");
   const [novaMetaNome, setNovaMetaNome] = useState("");
   const [planoId, setPlanoId] = useState(planos[0]?.id || "__novo__");
   const [novoPlanoNome, setNovoPlanoNome] = useState("");
@@ -252,7 +254,7 @@ export function NovoProjetoWizard({
           setEntrega(dados.entrega);
           setForaEscopo(dados.foraEscopo);
           setBeneficiariosTxt(dados.beneficiariosTxt);
-          setMetaId(dados.metaId);
+          setMetaId(defaultMetaId || dados.metaId);
           setNovaMetaNome(dados.novaMetaNome);
           setPlanoId(dados.planoId);
           setNovoPlanoNome(dados.novoPlanoNome);
@@ -270,7 +272,7 @@ export function NovoProjetoWizard({
       setRascunhoPronto(true);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [rascunhoKey, totalPassos]);
+  }, [rascunhoKey, totalPassos, defaultMetaId]);
 
   useLayoutEffect(() => {
     if (!rascunhoPronto || concluido.current || rascunhoBloqueado.current) return;
@@ -315,7 +317,7 @@ export function NovoProjetoWizard({
       ? [GRUPO_IMPEDIMENTOS, ...GRUPOS_PLANO]
       : [GRUPO_IMPEDIMENTOS, ...GRUPOS_ACAO];
   const grupoAtualMeta = gruposAtivos.find((g) => g.nome === steps[step]);
-  const exigeMeta = classificacoes.includes("PLANO_GOVERNO");
+  const exigeMeta = true;
   const modeloPadrao = useMemo(
     () =>
       modelos.find((m) => m.codigo === "PROJETO_ESTRUTURANTE_PADRAO") ||
@@ -612,6 +614,11 @@ export function NovoProjetoWizard({
   }
 
   async function confirm() {
+    if (metaId === "__nova__" ? novaMetaNome.trim().length < 3 || (planoId === "__novo__" && novoPlanoNome.trim().length < 3) : !metaId) {
+      setError("Selecione uma meta estratégica ou preencha os dados da nova meta na etapa de identificação.");
+      setStep(0);
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -1019,7 +1026,7 @@ export function NovoProjetoWizard({
             )}
             {exigeMeta && (
               <div>
-                <RotuloComAjuda htmlFor="projeto-meta" campo="Meta estratégica do Plano de Governo" ajuda="Escolha a meta do plano à qual este projeto contribui ou crie uma nova meta." />
+                <RotuloComAjuda htmlFor="projeto-meta" campo="A qual meta estratégica este projeto pertence?" ajuda="Todo projeto precisa pertencer a uma meta estratégica. Selecione uma meta cadastrada ou crie uma nova para vincular ao projeto." />
                 <select
                   id="projeto-meta"
                   value={metaId}

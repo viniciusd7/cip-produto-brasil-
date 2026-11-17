@@ -366,14 +366,12 @@ iniciativasRouter.post(
         );
       }
       if (
-        classificacoes.includes("PLANO_GOVERNO") &&
-        !body.metaEstrategicaId &&
-        !(body.compromissoIds?.length)
+        !body.metaEstrategicaId
       ) {
         throw new HttpError(
           422,
           "PLANO_GOVERNO_LINK_REQUIRED",
-          "Vincule um compromisso ou uma meta estratégica antes de classificar a iniciativa no Plano de Governo",
+          "Selecione uma meta estratégica para criar o projeto",
         );
       }
       if (secretarias.length !== new Set(body.secretariaIds || []).size) {
