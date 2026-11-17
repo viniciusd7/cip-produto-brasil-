@@ -28,10 +28,20 @@ export function ExportButtons({
     }
   }
 
+  function imprimirRelatorio() {
+    const recolhidos = Array.from(document.querySelectorAll<HTMLDetailsElement>(".pc-gerenciador details, .pc-dados, .pc-complemento"))
+      .filter((detalhe) => !detalhe.open);
+    recolhidos.forEach((detalhe) => { detalhe.open = true; });
+    window.addEventListener("afterprint", () => {
+      recolhidos.forEach((detalhe) => { detalhe.open = false; });
+    }, { once: true });
+    window.print();
+  }
+
   return (
     <div className="pc-exportar no-print">
       <div className="chip-row">
-      <Button type="button" onClick={() => window.print()}>
+      <Button type="button" onClick={imprimirRelatorio}>
         Salvar PDF / imprimir
       </Button>
       <Button type="button" variant="secondary" disabled={exportando} onClick={downloadCsv}>

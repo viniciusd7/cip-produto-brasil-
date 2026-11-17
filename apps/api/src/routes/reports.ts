@@ -309,7 +309,10 @@ async function buildPrestacao(
       include: {
         marcos: {
           include: {
-            subtarefas: { select: { concluida: true } },
+            subtarefas: {
+              select: { id: true, descricao: true, concluida: true, prazo: true, responsavel: true },
+              orderBy: { createdAt: "asc" },
+            },
             evidencias: { select: { id: true, status: true } },
             _count: { select: { reprogramacoes: true } },
           },
@@ -355,7 +358,17 @@ async function buildPrestacao(
         entregueNoPrazo: noPrazoEntregue,
         reprogramacoes: m._count.reprogramacoes,
         responsavel: m.responsavel,
-        subtarefas: { total: m.subtarefas.length, feitas: m.subtarefas.filter((s) => s.concluida).length },
+        subtarefas: {
+          total: m.subtarefas.length,
+          feitas: m.subtarefas.filter((s) => s.concluida).length,
+          itens: m.subtarefas.map((subtarefa) => ({
+            id: subtarefa.id,
+            descricao: subtarefa.descricao,
+            concluida: subtarefa.concluida,
+            prazo: subtarefa.prazo?.toISOString() ?? null,
+            responsavel: subtarefa.responsavel,
+          })),
+        },
         evidencias: {
           total: m.evidencias.length,
           aprovadas: m.evidencias.filter((e) => e.status === "VERIFICADA").length,

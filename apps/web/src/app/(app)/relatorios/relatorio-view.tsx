@@ -3,8 +3,10 @@ import { authOptions } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 import { ExportButtons } from "./export-buttons";
 import { FiltrosPrestacao } from "./filtros-prestacao";
+import { GerenciadorRelatorio, type DadosGerenciador } from "./gerenciador-relatorio";
 import { TabelaRelatorio, type ConsultaRelatorio } from "./tabela-relatorio";
 import { VisaoGrafica } from "./visao-grafica";
+import Link from "next/link";
 import "./prestacao.css";
 
 export type SecaoRelatorio = "visao" | "secretarias" | "metas" | "projetos" | "tarefas" | "evidencias";
@@ -19,7 +21,7 @@ type Prestacao = {
     };
     consulta: ConsultaRelatorio;
     csv: string;
-  };
+  } & DadosGerenciador;
 };
 
 const TITULOS: Record<string, string> = {
@@ -47,6 +49,14 @@ export async function RelatorioConteudo({
   const { data } = await apiFetch<Prestacao>(`/reports/prestacao.json?${qs}`, { token: session?.accessToken });
   const { consulta, opcoes } = data;
   const titulo = TITULOS[consulta.tipo];
+  const filtrosAtivos = ["de", "ate", "secretariaId", "projetoId", "status", "busca"].some((chave) => qs.has(chave));
+  const secoes = [
+    { tipo: "tarefas", titulo: "Tarefas e progresso", href: "/relatorios" },
+    { tipo: "metas", titulo: "Indicadores", href: "/relatorios/metas" },
+    { tipo: "projetos", titulo: "Projetos", href: "/relatorios/projetos" },
+    { tipo: "secretarias", titulo: "Secretarias", href: "/relatorios/secretarias" },
+    { tipo: "evidencias", titulo: "Evidências", href: "/relatorios/evidencias" },
+  ];
 
   return (
     <div className="pc">
@@ -59,10 +69,21 @@ export async function RelatorioConteudo({
         <ExportButtons csv={data.csv} />
       </header>
 
-      <VisaoGrafica consulta={consulta} titulo={titulo} />
+      <nav className="pc-areas no-print" aria-label="Áreas dos relatórios">
+        {secoes.map((item) => <Link key={item.tipo} href={item.href} aria-current={consulta.tipo === item.tipo ? "page" : undefined}>{item.titulo}</Link>)}
+      </nav>
 
-      <FiltrosPrestacao key={qs.toString()} opcoes={opcoes} filtros={Object.fromEntries(qs)} />
+      <details className="pc-filtros-box no-print" open={filtrosAtivos}>
+        <summary>Filtros adicionais{filtrosAtivos ? " · ativos" : ""}</summary>
+        <FiltrosPrestacao key={qs.toString()} opcoes={opcoes} filtros={Object.fromEntries(qs)} />
+      </details>
 
+      {consulta.tipo === "tarefas" ? <>
+        <GerenciadorRelatorio dados={data} consulta={consulta} />
+        <details className="pc-complemento"><summary>Gráficos complementares</summary><VisaoGrafica consulta={consulta} titulo={titulo} /></details>
+      </> : <VisaoGrafica consulta={consulta} titulo={titulo} />}
+
+      <details className="pc-dados"><summary>Tabela completa · {consulta.total} {consulta.total === 1 ? "linha" : "linhas"}</summary>
       <section className="pc-resultados" aria-labelledby="relatorio-resultados">
         <header className="pc-resultados__cabecalho">
           <div>
@@ -76,7 +97,9 @@ export async function RelatorioConteudo({
             ? "Uma linha por indicador real. Metas sem indicadores também aparecem. O período limita as medições; base, atual e alvo mantêm os valores cadastrados."
             : consulta.tipo === "evidencias"
               ? "Uma linha por evidência do projeto. O período considera a data de envio."
-              : "Todas as tarefas do projeto, inclusive as anteriores, entram na contagem. O período considera o prazo ou a conclusão."}
+              : consulta.tipo === "tarefas"
+                ? "Uma linha por tarefa. O período considera o prazo ou a conclusão."
+                : "Uma linha por projeto ou secretaria. As contagens consideram as tarefas do recorte selecionado."}
         </p>
         <TabelaRelatorio consulta={consulta} parametros={qs.toString()} />
         <footer className="pc-nota">
@@ -84,6 +107,7 @@ export async function RelatorioConteudo({
           {" "}O CSV corresponde a esta consulta. Aplique os filtros novamente para atualizar os dados.
         </footer>
       </section>
+      </details>
     </div>
   );
 }

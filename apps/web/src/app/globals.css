@@ -4491,3 +4491,38 @@ a.ag-resumo__card:focus-visible {
   .app-cip-footer { display: none !important; }
   .app-shell, .app-main { display: block !important; padding: 0 !important; margin: 0 !important; background: #fff !important; }
 }
+
+@media screen and (max-width: 900px) {
+  .app-rail {
+    width: min(calc(100% - 32px), 320px);
+    visibility: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+
+  .app-shell.nav-open .app-rail { visibility: visible; }
+  .app-back-bar { position: static; }
+
+  .app-main {
+    padding-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right));
+    padding-bottom: max(32px, env(safe-area-inset-bottom));
+    overflow-wrap: anywhere;
+  }
+
+  .app-main :is(.stack, .chip-row, .table-scroll, .gestao-tarefas__board) { min-width: 0; max-width: 100%; }
+  .app-main :is(input:not([type="checkbox"], [type="radio"]), select, textarea) {
+    max-width: 100%;
+    min-width: 0;
+    font-size: max(16px, 1em);
+  }
+
+  .app-main .table-scroll { overscroll-behavior-inline: contain; }
+  .app-nav a, .app-nav__toggle { min-height: 44px; }
+}
+
+@media screen and (max-width: 600px) {
+  .app-main .cip-page-header { flex-direction: column; align-items: stretch; gap: 12px; }
+  .app-main .cip-page-header__actions { justify-content: flex-start; flex-wrap: wrap; }
+  .app-main .gestao-tarefas__board { grid-auto-flow: row; grid-auto-columns: minmax(0, 1fr); }
+}

@@ -51,7 +51,10 @@ async function setup(t: TestContext, role: "admin" | "gestor" = "admin") {
         metaExecucaoId: null,
         ...datasTarefa(),
         responsavel: null,
-        subtarefas: [],
+        subtarefas: [{
+          id: "subtarefa-direta", descricao: "Conferir entrega", concluida: true,
+          prazo: new Date("2026-11-20T00:00:00.000Z"), responsavel: "Equipe de projeto",
+        }],
         evidencias: [{
           id: "ev-1", tipo: "FOTO", status: "VERIFICADA", createdAt: new Date("2026-11-16T23:59:59.999Z"),
         }],
@@ -154,7 +157,7 @@ test("relatório mantém a contagem de todas as tarefas sem expor metas de execu
   assert.equal(jsonResponse.status, 200);
   const { data } = await jsonResponse.json() as { data: {
     resumo: { total: number };
-    tarefas: Array<{ id: string; descricao: string }>;
+    tarefas: Array<{ id: string; descricao: string; subtarefas: { total: number; feitas: number; itens: Array<{ id: string; descricao: string; concluida: boolean; prazo: string | null; responsavel: string | null }> } }>;
     metasEstrategicas: Array<{
       id: string;
       projetos: Array<{ id: string }>;
@@ -173,6 +176,11 @@ test("relatório mantém a contagem de todas as tarefas sem expor metas de execu
   assert.equal(data.resumo.total, 2);
   assert.deepEqual(new Set(data.tarefas.map((t) => t.id)), new Set(["tarefa-legada", "tarefa-direta"]));
   assert.ok(data.tarefas.some((t) => t.descricao === "Tarefa historicamente vinculada"));
+  assert.deepEqual(data.tarefas.find((t) => t.id === "tarefa-direta")?.subtarefas, {
+    total: 1, feitas: 1,
+    itens: [{ id: "subtarefa-direta", descricao: "Conferir entrega", concluida: true,
+      prazo: "2026-11-20T00:00:00.000Z", responsavel: "Equipe de projeto" }],
+  });
   assert.equal("metasExecucao" in data, false);
   assert.equal(data.metasEstrategicas.length, 1);
   assert.deepEqual(data.metasEstrategicas[0].projetos.map((projeto) => projeto.id), ["projeto"]);
