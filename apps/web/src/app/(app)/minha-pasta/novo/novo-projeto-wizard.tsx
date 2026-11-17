@@ -352,7 +352,7 @@ export function NovoProjetoWizard({
   const perguntasBase: ModeloPerguntaDef[] = estruturante
     ? modeloPadrao?.codigo === "PROJETO_ESTRUTURANTE_PADRAO"
       ? PERGUNTAS_ESTRUTURANTE
-      : modeloCarregado?.id === modeloPadrao?.id ? modeloCarregado.perguntas : []
+      : modeloCarregado && modeloPadrao && modeloCarregado.id === modeloPadrao.id ? modeloCarregado.perguntas : []
     : classificacao === "PLANO_GOVERNO"
       ? MODELO_PLANO_GOVERNO.perguntas
       : MODELO_ACAO_DIARIA.perguntas;
@@ -734,6 +734,9 @@ export function NovoProjetoWizard({
         <p className="dashboard-muted">Um rascunho por tipo, usuário e prefeitura. Disponível somente neste navegador; não é sincronizado entre dispositivos.</p>
         <Button type="button" variant="ghost" disabled={saving} onClick={descartarRascunho}>Descartar rascunho e recomeçar</Button>
       </div>
+      {estruturante && !modeloPadrao && (
+        <p role="alert">Modelo estruturante não encontrado nesta prefeitura. Peça ao administrador para ativar o modelo CIP antes de concluir o cadastro. Seu rascunho pode ser mantido neste navegador.</p>
+      )}
       <header className="wizard-head">
         <p className="section-kicker">
           {classificacao === "PLANO_GOVERNO"
