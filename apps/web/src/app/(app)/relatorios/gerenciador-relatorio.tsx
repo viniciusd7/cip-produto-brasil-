@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ConsultaRelatorio } from "./tabela-relatorio";
 
 export type DadosGerenciador = {
-  projetos: Array<{ id: string; codigo: string; nome: string; secretaria: string; total: number; concluidas: number; noPrazo: number; semPrazo: number; atrasadas: number }>;
+  projetos: Array<{ id: string; codigo: string; nome: string; secretaria: string; secretariaId?: string; total: number; concluidas: number; noPrazo: number; semPrazo: number; atrasadas: number }>;
   tarefas: Array<{
     id: string; codigo: string | null; descricao: string; status: string;
     responsavel: string | null; prazo: string | null; projetoId: string;
@@ -13,7 +13,8 @@ export type DadosGerenciador = {
     };
   }>;
   metasEstrategicas: Array<{
-    id: string; nome: string; secretaria: string | null;
+    id: string; nome: string; secretaria: string | null; secretariaId?: string | null;
+    projetos?: Array<{ id: string; codigo: string; nome: string }>;
     base?: string | null; alvo?: string | null; realizado?: string | null; dataCorte?: string | null;
     indicadores: Array<{
       id: string; nome: string; unidade: string | null; valorBase: string | null;
@@ -56,6 +57,16 @@ function dataCurta(valor: string | null) {
   return valor ? new Date(valor).toLocaleDateString("pt-BR", { timeZone: "UTC" }) : "Sem prazo";
 }
 
+
+function BarraProgresso({ valor }: { valor: number }) {
+  const faixa = valor >= 100 ? "concluido" : valor >= 50 ? "avancado" : "inicial";
+  return (
+    <div className={`pc-avanco pc-avanco--${faixa}`} role="progressbar" aria-label="Progresso" aria-valuenow={valor} aria-valuemin={0} aria-valuemax={100}>
+      <span style={{ width: `${valor}%` }} />
+    </div>
+  );
+}
+
 export function GerenciadorRelatorio({ dados, consulta }: { dados: DadosGerenciador; consulta: ConsultaRelatorio }) {
   const ids = new Set(consulta.linhas.map((linha) => linha.id));
   const tarefas = dados.tarefas.filter((tarefa) => ids.has(tarefa.id));
@@ -68,6 +79,10 @@ export function GerenciadorRelatorio({ dados, consulta }: { dados: DadosGerencia
     ...projeto,
     tarefas: tarefas.filter((tarefa) => tarefa.projetoId === projeto.id),
   })).filter((projeto) => !consulta.busca || projeto.tarefas.length);
+  const secretarias = [...new Map([
+    ...projetos.map((projeto) => [projeto.secretariaId || projeto.secretaria, projeto.secretaria] as const),
+    ...dados.metasEstrategicas.filter(() => !consulta.busca).map((meta) => [meta.secretariaId || meta.secretaria || "municipal", meta.secretaria || "Gestão municipal"] as const),
+  ]).entries()];
   const distribuicao = SITUACOES.map((situacao) => ({ ...situacao, quantidade: tarefas.filter((tarefa) => tarefa.status === situacao.chave).length }));
   const outras = tarefas.length - distribuicao.reduce((soma, situacao) => soma + situacao.quantidade, 0);
 
@@ -76,7 +91,7 @@ export function GerenciadorRelatorio({ dados, consulta }: { dados: DadosGerencia
       <div className="pc-gerenciador__intro">
         <div>
           <p className="pc-kicker">Acompanhamento da execução</p>
-          <h2 id="pc-gerenciador-titulo">Painel de tarefas e resultados</h2>
+          <h2 id="pc-gerenciador-titulo">Visão geral da execução</h2>
           <p>Veja o andamento dos projetos, abra as tarefas e confira cada subtarefa registrada.</p>
         </div>
         <Link href="/carteira" className="pc-gerenciador__link">Abrir projetos →</Link>
@@ -114,36 +129,66 @@ export function GerenciadorRelatorio({ dados, consulta }: { dados: DadosGerencia
         </article>
       </div>
 
-      <IndicadoresRelatorio dados={dados} />
-
-      <div className="pc-gerenciador__bloco">
-        <div className="pc-gerenciador__bloco-head"><div><p className="pc-kicker">Gerenciador de tarefas</p><h3>Projetos, tarefas e subtarefas</h3></div><span>{projetos.length} projetos</span></div>
-        <p className="pc-gerenciador__nota">O progresso do projeto conta tarefas concluídas. Dentro de cada tarefa, a barra conta subtarefas concluídas.</p>
-        {projetos.length ? <div className="pc-gerenciador__projetos">{projetos.map((projeto, index) => {
-          const feitas = projeto.tarefas.filter((tarefa) => tarefa.status === "CONCLUIDO").length;
-          const progresso = percentual(feitas, projeto.tarefas.length);
-          return <details key={projeto.id} className="pc-gerenciador__projeto" open={index === 0} style={{ ["--progresso" as string]: `${progresso}%` }}>
-            <summary><span><strong>{projeto.codigo} · {projeto.nome}</strong><small>{projeto.secretaria}</small></span><span className="pc-gerenciador__projeto-pct">{feitas} de {projeto.tarefas.length} tarefas · {progresso}%</span></summary>
-            {projeto.tarefas.length ? <ul className="pc-gerenciador__tarefas">{projeto.tarefas.map((tarefa) => {
-              const estado = SITUACOES.find((item) => item.chave === tarefa.status);
-              const subPct = percentual(tarefa.subtarefas.feitas, tarefa.subtarefas.total);
-              const progressoTarefa = tarefa.subtarefas.total ? subPct : tarefa.status === "CONCLUIDO" ? 100 : 0;
-              return <li key={tarefa.id}>
-                <div className="pc-gerenciador__tarefa-head"><span className="pc-gerenciador__situacao" style={{ ["--situacao" as string]: estado?.cor ?? "#a5aec5" }}>{estado?.nome ?? tarefa.status}</span><Link href={`/iniciativas/${tarefa.projetoId}?aba=andamento`}>{tarefa.codigo ? `${tarefa.codigo} · ` : ""}{tarefa.descricao}</Link></div>
-                <div className="pc-gerenciador__tarefa-meta"><span>{tarefa.responsavel || "Responsável não informado"}</span><span>Prazo: {dataCurta(tarefa.prazo)}</span></div>
-                <div className="pc-gerenciador__progresso pc-gerenciador__progresso-tarefa"><div><span>{tarefa.subtarefas.total ? "Progresso das subtarefas" : "Conclusão da tarefa"}</span><strong>{progressoTarefa}%</strong></div><progress value={progressoTarefa} max="100">{progressoTarefa}%</progress></div>
-                {tarefa.subtarefas.total ? <details className="pc-gerenciador__subtarefas"><summary>Ver {tarefa.subtarefas.total} {tarefa.subtarefas.total === 1 ? "subtarefa" : "subtarefas"} · {tarefa.subtarefas.feitas} {tarefa.subtarefas.feitas === 1 ? "concluída" : "concluídas"}</summary><ul>{tarefa.subtarefas.itens.map((subtarefa) => <li key={subtarefa.id}><span className={subtarefa.concluida ? "pc-gerenciador__feito" : "pc-gerenciador__pendente"} aria-label={subtarefa.concluida ? "Concluída" : "Pendente"}>{subtarefa.concluida ? "✓" : "○"}</span><span>{subtarefa.descricao}<small>{subtarefa.responsavel || "Sem responsável"} · {subtarefa.prazo ? `prazo ${dataCurta(subtarefa.prazo)}` : "sem prazo"}</small></span></li>)}</ul></details> : <small className="pc-gerenciador__nota">Sem subtarefas cadastradas.</small>}
-              </li>;
-            })}</ul> : <p className="pc-grafico__vazio">Nenhuma tarefa neste projeto e recorte.</p>}
-          </details>;
-        })}</div> : <p className="pc-vazio">Nenhum projeto com tarefas corresponde à consulta.</p>}
-      </div>
+      {secretarias.map(([secretariaKey, secretariaNome]) => {
+        const projetosSecretaria = projetos.filter((projeto) => (projeto.secretariaId || projeto.secretaria) === secretariaKey);
+        const metasSecretaria = dados.metasEstrategicas.filter((meta) => (meta.secretariaId || meta.secretaria || "municipal") === secretariaKey);
+        const tarefasSecretaria = projetosSecretaria.flatMap((projeto) => projeto.tarefas);
+        const concluidasSecretaria = tarefasSecretaria.filter((tarefa) => tarefa.status === "CONCLUIDO").length;
+        return <section key={secretariaKey} className="pc-secretaria" aria-label={`Relatório de ${secretariaNome}`}>
+          <header className="pc-secretaria__cabecalho">
+            <p className="pc-kicker">Secretaria</p>
+            <h2>{secretariaNome}</h2>
+            <p>{projetosSecretaria.length} projetos · {metasSecretaria.length} metas estratégicas</p>
+            <dl className="pc-secretaria__resumo">
+              <div><dt>Tarefas concluídas</dt><dd>{concluidasSecretaria}/{tarefasSecretaria.length}</dd></div>
+              <div><dt>Execução das tarefas</dt><dd>{percentual(concluidasSecretaria, tarefasSecretaria.length)}%</dd></div>
+              <div><dt>Tarefas atrasadas</dt><dd>{tarefasSecretaria.filter((tarefa) => tarefa.status === "VENCIDO").length}</dd></div>
+            </dl>
+            <div className="pc-gerenciador__pilha" role="img" aria-label={SITUACOES.map((item) => `${item.nome}: ${tarefasSecretaria.filter((tarefa) => tarefa.status === item.chave).length}`).join("; ")}>
+              {SITUACOES.map((item) => {
+                const total = tarefasSecretaria.filter((tarefa) => tarefa.status === item.chave).length;
+                return total > 0 && <span key={item.chave} style={{ width: `${(total / tarefasSecretaria.length) * 100}%`, background: item.cor }} />;
+              })}
+            </div>
+            <ul className="pc-faixas">
+              {SITUACOES.map((item) => <li key={item.chave}><i style={{ background: item.cor }} />{item.nome} · {tarefasSecretaria.filter((tarefa) => tarefa.status === item.chave).length}</li>)}
+            </ul>
+          </header>
+          <IndicadoresRelatorio dados={{ ...dados, metasEstrategicas: metasSecretaria }} />
+          <div className="pc-gerenciador__bloco">
+            <div className="pc-gerenciador__bloco-head"><div><p className="pc-kicker">Gerenciador de tarefas</p><h3>Projetos, tarefas e subtarefas</h3></div><span>{projetosSecretaria.length} projetos</span></div>
+            <p className="pc-gerenciador__nota">O progresso do projeto conta tarefas concluídas. Dentro de cada tarefa, a barra conta subtarefas concluídas.</p>
+            {projetosSecretaria.length ? <div className="pc-gerenciador__projetos">{projetosSecretaria.map((projeto, index) => {
+              const feitas = projeto.tarefas.filter((tarefa) => tarefa.status === "CONCLUIDO").length;
+              const progresso = percentual(feitas, projeto.tarefas.length);
+              return <details key={projeto.id} className="pc-gerenciador__projeto" open={index === 0} style={{ ["--progresso" as string]: `${progresso}%` }}>
+                <summary><span><strong>{projeto.codigo} · {projeto.nome}</strong><small>{projeto.secretaria}</small></span><span className="pc-gerenciador__projeto-pct">{feitas} de {projeto.tarefas.length} tarefas · {progresso}%</span></summary>
+                <IndicadoresRelatorio
+                  dados={{ ...dados, metasEstrategicas: dados.metasEstrategicas.filter((meta) => meta.projetos?.some((vinculo) => vinculo.id === projeto.id)) }}
+                  somenteIndicadores
+                />
+                {projeto.tarefas.length ? <ul className="pc-gerenciador__tarefas">{projeto.tarefas.map((tarefa) => {
+                  const estado = SITUACOES.find((item) => item.chave === tarefa.status);
+                  const subPct = percentual(tarefa.subtarefas.feitas, tarefa.subtarefas.total);
+                  const progressoTarefa = tarefa.subtarefas.total ? subPct : tarefa.status === "CONCLUIDO" ? 100 : 0;
+                  return <li key={tarefa.id}>
+                    <div className="pc-gerenciador__tarefa-head"><span className="pc-gerenciador__situacao" style={{ ["--situacao" as string]: estado?.cor ?? "#a5aec5" }}>{estado?.nome ?? tarefa.status}</span><Link href={`/iniciativas/${tarefa.projetoId}?aba=andamento`}>{tarefa.codigo ? `${tarefa.codigo} · ` : ""}{tarefa.descricao}</Link></div>
+                    <div className="pc-gerenciador__tarefa-meta"><span>{tarefa.responsavel || "Responsável não informado"}</span><span>Prazo: {dataCurta(tarefa.prazo)}</span></div>
+                    <div className="pc-gerenciador__progresso pc-gerenciador__progresso-tarefa"><div><span>{tarefa.subtarefas.total ? "Progresso das subtarefas" : "Conclusão da tarefa"}</span><strong>{progressoTarefa}%</strong></div><BarraProgresso valor={progressoTarefa} /></div>
+                    {tarefa.subtarefas.total ? <details className="pc-gerenciador__subtarefas"><summary>Ver {tarefa.subtarefas.total} {tarefa.subtarefas.total === 1 ? "subtarefa" : "subtarefas"} · {tarefa.subtarefas.feitas} {tarefa.subtarefas.feitas === 1 ? "concluída" : "concluídas"}</summary><ul>{tarefa.subtarefas.itens.map((subtarefa) => <li key={subtarefa.id}><span className={subtarefa.concluida ? "pc-gerenciador__feito" : "pc-gerenciador__pendente"} aria-label={subtarefa.concluida ? "Concluída" : "Pendente"}>{subtarefa.concluida ? "✓" : "○"}</span><span>{subtarefa.descricao}<small>{subtarefa.responsavel || "Sem responsável"} · {subtarefa.prazo ? `prazo ${dataCurta(subtarefa.prazo)}` : "sem prazo"}</small></span></li>)}</ul></details> : <small className="pc-gerenciador__nota">Sem subtarefas cadastradas.</small>}
+                  </li>;
+                })}</ul> : <p className="pc-grafico__vazio">Nenhuma tarefa neste projeto e recorte.</p>}
+              </details>;
+            })}</div> : <p className="pc-vazio">Nenhum projeto com tarefas corresponde à consulta.</p>}
+          </div>
+        </section>;
+      })}
     </section>
   );
 }
 
 
-export function IndicadoresRelatorio({ dados, consulta }: { dados: DadosGerenciador; consulta?: ConsultaRelatorio }) {
+export function IndicadoresRelatorio({ dados, consulta, somenteIndicadores = false }: { dados: DadosGerenciador; consulta?: ConsultaRelatorio; somenteIndicadores?: boolean }) {
   const ids = consulta ? new Set(consulta.linhas.map((linha) => linha.id)) : null;
   const indicadores = dados.metasEstrategicas.flatMap((meta) =>
     meta.indicadores.filter((indicador) => !ids || ids.has(`${meta.id}:${indicador.id}`))
@@ -152,8 +197,15 @@ export function IndicadoresRelatorio({ dados, consulta }: { dados: DadosGerencia
   const indicadoresMedidos = indicadores.filter((indicador) => indicador.medicao).length;
   return (
     <section className="pc-gerenciador">
-      <div className="pc-gerenciador__bloco">
+      {!somenteIndicadores && <div className="pc-gerenciador__bloco">
         <h3>Metas estratégicas</h3>
+        <p className="pc-gerenciador__nota">O percentual representa o avanço do valor base até o alvo, conforme a medição registrada.</p>
+        <ul className="pc-faixas" aria-label="Legenda das barras de progresso">
+          <li><i className="pc-faixas__inicial" />0 a 49%</li>
+          <li><i className="pc-faixas__avancado" />50 a 99%</li>
+          <li><i className="pc-faixas__concluido" />100% · alvo atingido</li>
+        </ul>
+        {!dados.metasEstrategicas.length && <p className="pc-gerenciador__nota">Nenhuma meta estratégica vinculada aos projetos desta secretaria no recorte selecionado.</p>}
         <div className="pc-gerenciador__indicadores">
           {dados.metasEstrategicas.filter((meta) => !ids || ids.has(meta.id) || meta.indicadores.some((indicador) => ids.has(`${meta.id}:${indicador.id}`))).map((meta) => {
             const progresso = avancar(meta.base ?? null, meta.alvo ?? null, meta.realizado ?? null);
@@ -162,18 +214,19 @@ export function IndicadoresRelatorio({ dados, consulta }: { dados: DadosGerencia
                 <small>{meta.secretaria || "Gestão municipal"}</small>
                 <h4>{meta.nome}</h4>
                 <div className="pc-gerenciador__valores">
+                  <div><span>Base</span><strong>{meta.base ?? "Não informada"}</strong></div>
                   <div><span>Realizado</span><strong>{meta.realizado ?? "Sem medição"}</strong></div>
                   <div><span>Alvo</span><strong>{meta.alvo ?? "Não informado"}</strong></div>
                 </div>
-                {progresso != null && <div className="pc-gerenciador__progresso"><div><span>Avanço da meta entre base e alvo</span><strong>{progresso}%</strong></div><progress value={progresso} max="100">{progresso}%</progress></div>}
+                {progresso != null ? <div className="pc-gerenciador__progresso"><div><span>Avanço da meta entre base e alvo</span><strong>{progresso}%</strong></div><BarraProgresso valor={progresso} /></div> : <p className="pc-gerenciador__nota">Percentual indisponível. Confira a base, o alvo e a medição desta meta.</p>}
                 <small>{meta.dataCorte ? `Medido em ${dataCurta(meta.dataCorte)}` : "Sem medição da meta no período"}</small>
               </article>
             );
           })}
         </div>
-      </div>
-      <div className="pc-gerenciador__bloco">
-        <div className="pc-gerenciador__bloco-head"><div><p className="pc-kicker">Resultados medidos</p><h3>Indicadores estratégicos</h3></div><span>{indicadoresMedidos} de {indicadores.length} com medição</span></div>
+      </div>}
+      {(somenteIndicadores || consulta) && <div className="pc-gerenciador__bloco">
+        <div className="pc-gerenciador__bloco-head"><div><p className="pc-kicker">Resultados medidos</p><h3>{somenteIndicadores ? "Indicadores vinculados ao projeto" : "Indicadores estratégicos"}</h3></div><span>{indicadoresMedidos} de {indicadores.length} com medição</span></div>
         <p className="pc-gerenciador__nota">Indicadores seguem os filtros de secretaria, projeto e período. Busca textual e situação selecionam apenas tarefas.</p>
         {indicadores.length ? <div className="pc-gerenciador__indicadores">{indicadores.map((indicador) => {
           const atual = indicador.medicao?.valorRealizado ?? indicador.valorAtual;
@@ -182,11 +235,11 @@ export function IndicadoresRelatorio({ dados, consulta }: { dados: DadosGerencia
             <small>{indicador.secretaria || "Secretaria não informada"} · {indicador.meta}</small>
             <h4>{indicador.nome}</h4>
             <div className="pc-gerenciador__valores"><div><span>{indicador.medicao ? "Última medição" : "Atual cadastrado"}</span><strong>{atual ?? "Não informado"}{atual && indicador.unidade ? ` ${indicador.unidade}` : ""}</strong></div><div><span>Alvo</span><strong>{indicador.alvo ?? "Não informado"}{indicador.alvo && indicador.unidade ? ` ${indicador.unidade}` : ""}</strong></div></div>
-            {progresso != null ? <div className="pc-gerenciador__progresso"><div><span>Avanço entre base e alvo</span><strong>{progresso}%</strong></div><progress value={progresso} max="100">{progresso}%</progress></div> : <p className="pc-gerenciador__nota">Avanço percentual indisponível para os valores cadastrados.</p>}
+            {progresso != null ? <div className="pc-gerenciador__progresso"><div><span>Avanço entre base e alvo</span><strong>{progresso}%</strong></div><BarraProgresso valor={progresso} /></div> : <p className="pc-gerenciador__nota">Avanço percentual indisponível para os valores cadastrados.</p>}
             <small>{indicador.medicao ? `Medido em ${dataCurta(indicador.medicao.dataCorte)}` : "Sem medição no período"}</small>
           </article>;
         })}</div> : <p className="pc-vazio">Ainda não há indicadores vinculados aos projetos deste recorte.</p>}
-      </div>
+      </div>}
     </section>
   );
 }

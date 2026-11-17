@@ -39,7 +39,7 @@ export function TabelaRelatorio({ consulta, parametros }: { consulta: ConsultaRe
         <tbody>
           {consulta.linhas.map((linha) => (
             <tr key={linha.id}>
-              {consulta.colunas.map((coluna) => <td key={coluna.chave}>{linha.valores[coluna.chave] ?? ""}</td>)}
+              {consulta.colunas.map((coluna) => <td key={coluna.chave} data-rotulo={coluna.rotulo}>{linha.valores[coluna.chave] ?? ""}</td>)}
             </tr>
           ))}
         </tbody>

@@ -403,6 +403,9 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
                     </ResponsiveContainer>
                   </div>
                 ) : <div className={s.empty}>{copy.emptyProjects}</div>}
+                <ul className={s.secretariaReferencias} aria-label="Nomes das secretarias do gráfico">
+                  {pastas.map((pasta) => <li key={pasta.id}><strong>{pasta.sigla || pasta.nome}</strong>{pasta.sigla && pasta.sigla !== pasta.nome && <span>{pasta.nome}</span>}</li>)}
+                </ul>
                 <div className={s.legend}>
                   {([{ key: "atraso", label: "Com atraso", color: SERIES.atraso }, { key: "semAtraso", label: "Sem atraso registrado", color: SERIES.semAtraso }, { key: "atencao", label: "Acompanhamento prioritário", color: SERIES.atencao }] as const).map((line) => (
                     <button key={line.key} type="button" className={lines[line.key] ? s.legendOn : s.legendOff} style={{ ["--series" as string]: line.color }} onClick={() => setLines((v) => ({ ...v, [line.key]: !v[line.key] }))}>

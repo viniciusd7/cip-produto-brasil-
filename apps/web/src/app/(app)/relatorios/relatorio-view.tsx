@@ -7,6 +7,7 @@ import { GerenciadorRelatorio, IndicadoresRelatorio, type DadosGerenciador } fro
 import { TabelaRelatorio, type ConsultaRelatorio } from "./tabela-relatorio";
 import { VisaoGrafica } from "./visao-grafica";
 import Link from "next/link";
+import { BrandLogo } from "@/components/brand-logo";
 import "./prestacao.css";
 
 export type SecaoRelatorio = "visao" | "secretarias" | "metas" | "projetos" | "tarefas" | "evidencias";
@@ -68,10 +69,17 @@ export async function RelatorioConteudo({
 
   return (
     <div className="pc">
+      <header className="pc-identidade">
+        <BrandLogo priority />
+        <div>
+          <strong>Centro de Inteligência Pública</strong>
+          <span>Da estratégia à entrega</span>
+        </div>
+      </header>
       <header className="pc-acoes">
         <div>
           <p className="pc-acoes__marca">CIP · Inteligência de gestão municipal</p>
-          <h1>Relatórios</h1>
+          <h1>Relatório de acompanhamento</h1>
           <p>Explore os dados do município em gráficos e detalhes. Escolha um recorte para orientar suas decisões.</p>
         </div>
         <ExportButtons />
@@ -88,7 +96,7 @@ export async function RelatorioConteudo({
 
       <section className="pc-recorte" aria-label="Recorte aplicado ao relatório">
         <strong>{session?.user?.municipioNome || "Prefeitura"} · {titulo}</strong>
-        <span>{qs.get("de") || "Início não limitado"} até {qs.get("ate") || "Fim não limitado"}</span>
+        <span>{qs.has("de") || qs.has("ate") ? `Período de ${qs.get("de") || "início dos registros"} até ${qs.get("ate") || "hoje"}` : "Período completo"}</span>
         <span>{opcoes.secretarias.find((item) => item.id === qs.get("secretariaId"))?.nome || "Todas as secretarias"} · {opcoes.projetos.find((item) => item.id === qs.get("projetoId"))?.nome || "Todos os projetos"}</span>
         {qs.get("status") && <span>Situação selecionada: {({ VENCIDO: "Atrasadas", SEM_PRAZO: "Sem prazo", NO_PRAZO: "No prazo", CONCLUIDO: "Concluídas", ENCERRADO_SEM_SOLUCAO: "Encerradas sem solução" } as Record<string, string>)[qs.get("status")!] || qs.get("status")}</span>}
         {consulta.busca && <span>Busca aplicada: {consulta.busca}</span>}
@@ -125,6 +133,11 @@ export async function RelatorioConteudo({
         </footer>
       </section>
       </details>
+      <footer className="pc-assinatura">
+        <strong>CIP · Centro de Inteligência Pública</strong>
+        <span>Inteligência de gestão municipal</span>
+        <a href="https://cipinteligenciapublica.com.br/">cipinteligenciapublica.com.br</a>
+      </footer>
     </div>
   );
 }

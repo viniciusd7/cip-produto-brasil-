@@ -332,6 +332,13 @@ async function buildPrestacao(
     user.role !== "gestor" || s.id === user.secretariaId || secretariasDosProjetos.has(s.id),
   );
   const secNome = new Map(secretariasTodas.map((s) => [s.id, s]));
+  const nomeSecretaria = (id: string) => {
+    const secretaria = secNome.get(id);
+    if (!secretaria) return "Secretaria não informada";
+    return secretaria.sigla && secretaria.sigla !== secretaria.nome
+      ? `${secretaria.nome} (${secretaria.sigla})`
+      : secretaria.nome;
+  };
   const projetosOpcoes = iniciativas
     .map((i) => ({ id: i.id, codigo: i.codigo, nome: i.nome, secretariaId: i.secretariaPrincipalId }));
 
@@ -462,7 +469,8 @@ async function buildPrestacao(
         id: i.id,
         codigo: i.codigo,
         nome: i.nome,
-        secretaria: secNome.get(i.secretariaPrincipalId)?.sigla || secNome.get(i.secretariaPrincipalId)?.nome || "",
+        secretariaId: i.secretariaPrincipalId,
+        secretaria: nomeSecretaria(i.secretariaPrincipalId),
         ...contar(lista),
       };
     })
@@ -472,7 +480,7 @@ async function buildPrestacao(
   const evidencias = inisFiltradas
     .flatMap((i) => i.evidencias.map((e) => ({
       ...e,
-      secretaria: secNome.get(i.secretariaPrincipalId)?.sigla || secNome.get(i.secretariaPrincipalId)?.nome || "",
+      secretaria: nomeSecretaria(i.secretariaPrincipalId),
       projeto: `${i.codigo} · ${i.nome}`,
     })))
     .filter((e) => !temPeriodo || dentro(e.createdAt));
@@ -490,7 +498,7 @@ async function buildPrestacao(
     },
     orderBy: { nome: "asc" },
     include: {
-      secretaria: { select: { nome: true, sigla: true } },
+      secretaria: { select: { id: true, nome: true, sigla: true } },
       medicoes: {
         where: temPeriodo ? { dataCorte: { ...(f.de ? { gte: f.de } : {}), ...(f.ate ? { lte: f.ate } : {}) } } : {},
         orderBy: { dataCorte: "desc" },
@@ -562,7 +570,8 @@ async function buildPrestacao(
         unidade: m.unidade,
         alvo: m.alvo,
         base: m.valorBase,
-        secretaria: m.secretaria?.sigla || m.secretaria?.nome || null,
+        secretariaId: m.secretaria?.id ?? null,
+        secretaria: m.secretaria ? (m.secretaria.sigla && m.secretaria.sigla !== m.secretaria.nome ? `${m.secretaria.nome} (${m.secretaria.sigla})` : m.secretaria.nome) : null,
         realizado: atual?.valorRealizado ?? null,
         dataCorte: atual?.dataCorte?.toISOString() ?? null,
         projetos: m.iniciativas,
@@ -593,7 +602,7 @@ async function buildPrestacao(
       })
       .map((t) => ({
         ...t,
-        secretaria: secNome.get(t.secretariaId)?.sigla || secNome.get(t.secretariaId)?.nome || "",
+        secretaria: nomeSecretaria(t.secretariaId),
         prazo: t.prazo?.toISOString() ?? null,
         prazoOriginal: t.prazoOriginal?.toISOString() ?? null,
         concluidoEm: t.concluidoEm?.toISOString() ?? null,

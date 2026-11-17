@@ -17,7 +17,7 @@ const dados: DadosGerenciador = {
     { id: "t2", codigo: "T-02", descricao: "Pintura", status: "CONCLUIDO", responsavel: null, prazo: null, projetoId: "p1", projetoCodigo: "P-01", projetoNome: "Escola", secretaria: "Educação", subtarefas: { total: 0, feitas: 0, itens: [] } },
     { id: "t3", codigo: "T-03", descricao: "Abrir praça", status: "NO_PRAZO", responsavel: null, prazo: null, projetoId: "p2", projetoCodigo: "P-02", projetoNome: "Praça", secretaria: "Obras", subtarefas: { total: 0, feitas: 0, itens: [] } },
   ],
-  metasEstrategicas: [{ id: "m1", nome: "Aprendizagem", secretaria: "Educação", indicadores: [{ id: "i1", nome: "Escolas reformadas", unidade: "%", valorBase: "0", valorAtual: "30", alvo: "100", medicao: { valorRealizado: "40", dataCorte: "2026-11-17T00:00:00.000Z" } }] }],
+  metasEstrategicas: [{ id: "m1", nome: "Aprendizagem", secretaria: "Educação", projetos: [{ id: "p1", codigo: "P-01", nome: "Escola" }], indicadores: [{ id: "i1", nome: "Escolas reformadas", unidade: "%", valorBase: "0", valorAtual: "30", alvo: "100", medicao: { valorRealizado: "40", dataCorte: "2026-11-17T00:00:00.000Z" } }] }],
 };
 
 test("gerenciador mostra gráficos, progresso e cada subtarefa", () => {
@@ -29,7 +29,7 @@ test("gerenciador mostra gráficos, progresso e cada subtarefa", () => {
   assert.match(html, /Comprar materiais/);
   assert.match(html, /Instalar telhado/);
   assert.match(html, /Avanço entre base e alvo/);
-  assert.match(html, /value="40" max="100"/);
+  assert.match(html, /aria-valuenow="40" aria-valuemin="0" aria-valuemax="100"/);
   assert.match(html, /P-01 · Escola/);
   assert.match(html, /href="\/iniciativas\/p1\?aba=andamento"/);
 });
@@ -41,4 +41,17 @@ test("busca da consulta limita tarefas e projetos do gerenciador", () => {
   assert.doesNotMatch(html, /P-02 · Praça/);
   assert.doesNotMatch(html, /Pintura/);
   assert.match(html, /Busca textual e situação selecionam apenas tarefas/);
+});
+
+test("separa secretarias e mantém indicadores apenas nos projetos vinculados", () => {
+  const consulta: ConsultaRelatorio = { tipo: "tarefas", busca: "", ordenar: "tarefa", direcao: "asc", total: 3, colunas: [], linhas: ["t1", "t2", "t3"].map((id) => ({ id, valores: {} })) };
+  const html = renderToStaticMarkup(<GerenciadorRelatorio dados={dados} consulta={consulta} />);
+  const educacao = html.slice(html.indexOf('aria-label="Relatório de Educação"'), html.indexOf('aria-label="Relatório de Obras"'));
+  const obras = html.slice(html.indexOf('aria-label="Relatório de Obras"'));
+  assert.match(educacao, /Aprendizagem/);
+  assert.match(educacao, /Escolas reformadas/);
+  assert.match(educacao, /P-01 · Escola/);
+  assert.doesNotMatch(educacao, /P-02 · Praça/);
+  assert.match(obras, /P-02 · Praça/);
+  assert.doesNotMatch(obras, /Escolas reformadas|Aprendizagem/);
 });

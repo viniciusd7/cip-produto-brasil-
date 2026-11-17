@@ -45,7 +45,7 @@ function rotuloMeta(meta: { codigo?: string | null; nome: string }) {
 }
 
 function detalheMeta(meta: MetaNo) {
-  const secretaria = meta.secretaria?.sigla || meta.secretaria?.nome;
+  const secretaria = meta.secretaria?.nome;
   const indicador = meta.indicadores?.[0];
   return [
     secretaria,

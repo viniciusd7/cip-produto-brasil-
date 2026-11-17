@@ -191,14 +191,14 @@ export function CenarioSecretaria({
             aria-pressed={sec.id === selected.id}
             onClick={() => onSelect(sec.id)}
           >
-            {sec.sigla || sec.nome}
+            {sec.nome}{sec.sigla && sec.sigla !== sec.nome ? ` (${sec.sigla})` : ""}
           </button>
         ))}
       </div>
 
       {role === "prefeito" && <PrefeitoExecutiveFocus metas={payload.data.metasEstrategicas} dataReferencia={payload.meta?.dataReferencia} escopo="secretaria" />}
       {role === "prefeito" && <PrefeitoExecutionGoals projetos={payload.data.projetos ?? []} />}
-      <SecretariaGlance dados={payload.data} titulo={`${role === "prefeito" ? "Execução registrada" : "Situação"} · ${selected.sigla || selected.nome}`} role={role} mostrarMetas={role !== "prefeito"} />
+      <SecretariaGlance dados={payload.data} titulo={`${role === "prefeito" ? "Execução registrada" : "Situação"} · ${selected.nome}`} role={role} mostrarMetas={role !== "prefeito"} />
     </div>
   );
 }

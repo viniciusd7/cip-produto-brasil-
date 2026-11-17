@@ -277,7 +277,7 @@ test("gestor preserva tarefas de projetos correlacionados sem expor secretarias 
   assert.equal(response.status, 200);
   const { data } = await response.json();
   assert.equal(data.consulta.total, 2);
-  assert.equal(data.consulta.linhas[0].valores.secretaria, "COR");
+  assert.equal(data.consulta.linhas[0].valores.secretaria, "Secretaria correlacionada (COR)");
   assert.deepEqual(data.opcoes.secretarias.map((s: { id: string }) => s.id), ["secretaria", "correlacionada"]);
   const bloqueado = await fetch(`${base}/reports/prestacao.json?secretariaId=sem-acesso`, { headers });
   assert.equal((await bloqueado.json()).data.consulta.total, 0);
