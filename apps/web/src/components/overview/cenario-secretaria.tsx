@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { canManageSecretariaRole, getNextStepForRole } from "@/lib/roles";
 import { s } from "./ov";
 import { SecretariaGlance } from "./secretaria-glance";
+import { overviewCopy } from "./audience";
+import { PrefeitoExecutiveFocus, PrefeitoExecutionGoals } from "./prefeito-overview";
 
 export type CenarioSecretariaResponse = {
   data: {
@@ -51,6 +53,10 @@ export type CenarioSecretariaResponse = {
         valorEsperado: string | null;
         fonte: string | null;
       } | null;
+      medicaoAnterior?: {
+        dataCorte: string;
+        valorRealizado: string;
+      } | null;
     }>;
     indicadores: {
       projetos: number;
@@ -71,6 +77,27 @@ export type CenarioSecretariaResponse = {
       atrasadas: number;
       semPrazo: number;
       pctConclusao: number;
+      metasExecucao?: Array<{
+        id: string;
+        codigo: string | null;
+        nome: string;
+        indicador: string | null;
+        unidade: string | null;
+        alvo: string | null;
+        valorAtual: string | null;
+        prazo: string | null;
+        medicaoAtual: {
+          dataCorte: string;
+          valorRealizado: string;
+          valorEsperado: string | null;
+          fonte: string | null;
+        } | null;
+        medicaoAnterior: {
+          dataCorte: string;
+          valorRealizado: string;
+        } | null;
+        desvio: number | null;
+      }>;
     }>;
     tarefasAtencao?: Array<{
       id: string;
@@ -98,6 +125,7 @@ export function CenarioSecretaria({
   const { secretarias, selected } = payload.data;
   const nextStep = getNextStepForRole(role);
   const canManage = canManageSecretariaRole(role);
+  const copy = overviewCopy(role);
   const dataRef = payload.meta?.dataReferencia
     ? new Date(payload.meta.dataReferencia).toLocaleDateString("pt-BR", {
         timeZone: "UTC",
@@ -114,7 +142,7 @@ export function CenarioSecretaria({
         <header className={s.header}>
           <div>
             <span className={s.eyebrow}>Cenário</span>
-            <p className={s.toplineTitle}>Cadastre uma secretaria</p>
+            <p className={s.toplineTitle}>{copy.secretariaEmpty}</p>
             <p>{municipio}</p>
           </div>
           {canManage && (
@@ -142,7 +170,7 @@ export function CenarioSecretaria({
         <div className={s.headerActions}>
           <span className={s.date}>◷ {dataRef}</span>
           <Link href="/painel" className={s.button}>
-            Cenário geral
+            Visão geral
           </Link>
           {canManage && (
             <Link href={`/secretarias/${selected.id}`} className={s.button}>
@@ -168,7 +196,9 @@ export function CenarioSecretaria({
         ))}
       </div>
 
-      <SecretariaGlance dados={payload.data} titulo={`Situação · ${selected.sigla || selected.nome}`} />
+      {role === "prefeito" && <PrefeitoExecutiveFocus metas={payload.data.metasEstrategicas} dataReferencia={payload.meta?.dataReferencia} escopo="secretaria" />}
+      {role === "prefeito" && <PrefeitoExecutionGoals projetos={payload.data.projetos ?? []} />}
+      <SecretariaGlance dados={payload.data} titulo={`${role === "prefeito" ? "Execução registrada" : "Situação"} · ${selected.sigla || selected.nome}`} role={role} mostrarMetas={role !== "prefeito"} />
     </div>
   );
 }

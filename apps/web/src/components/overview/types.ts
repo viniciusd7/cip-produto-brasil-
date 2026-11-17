@@ -69,6 +69,19 @@ export type OverviewResponse = {
       }>;
     };
     porSecretaria: SecretariaOverview[];
+    projetosVisao?: Array<{
+      id: string;
+      codigo: string;
+      nome: string;
+      secretaria: string;
+      ciclo: string;
+      estruturante: boolean;
+      totalTarefas: number;
+      concluidas: number;
+      atrasadas: number;
+      pendencias: number;
+      atualizadoEm: string;
+    }>;
     projetosEstruturantes: Array<{
       id: string;
       nome: string;
@@ -90,6 +103,7 @@ export type OverviewResponse = {
         id: string;
         nome: string;
         codigo?: string | null;
+        secretariaId?: string | null;
         secretariaNome?: string | null;
         valorBase?: string | null;
         alvo?: string | null;

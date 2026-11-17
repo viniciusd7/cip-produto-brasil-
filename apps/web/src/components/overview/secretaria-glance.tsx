@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { BarraEmpilhada, COR, Medidor, veredito } from "./governo-glance";
 import type { CenarioSecretariaResponse } from "./cenario-secretaria";
+import { overviewCopy } from "./audience";
 import "./overview-painel.css";
 
 type Dados = CenarioSecretariaResponse["data"];
@@ -36,13 +37,16 @@ export function SecretariaGlance({
   mostrarProjetos = true,
   mostrarMetas = true,
   extra,
+  role,
 }: {
   dados: Dados;
   titulo?: string;
   mostrarProjetos?: boolean;
   mostrarMetas?: boolean;
   extra?: ReactNode;
+  role?: string;
 }) {
+  const copy = overviewCopy(role);
   const { indicadores: ind, metasEstrategicas } = dados;
   const projetos = dados.projetos ?? [];
   const atencao = dados.tarefasAtencao ?? [];
@@ -50,12 +54,14 @@ export function SecretariaGlance({
   const v = veredito(saude);
   const textoVeredito =
     saude == null
-      ? "O consultor ainda está cadastrando projetos e tarefas desta secretaria."
+      ? copy.emptyTasks
       : saude >= 80
         ? "A maior parte das entregas da secretaria está concluída ou dentro do prazo."
         : saude >= 60
           ? "Há atrasos ou tarefas sem prazo que pedem acompanhamento."
-          : "Muitas entregas atrasadas. Priorize as tarefas em vermelho abaixo.";
+          : role === "prefeito"
+            ? "Há entregas atrasadas. Peça à secretaria uma posição sobre causas e prazos."
+            : "Muitas entregas atrasadas. Priorize as tarefas em vermelho abaixo.";
 
   const principais = projetos.filter((p) => p.participacao === "PRINCIPAL").length;
   const correlacionados = projetos.length - principais;
@@ -91,7 +97,7 @@ export function SecretariaGlance({
       <section className="gl-bloco">
         <header className="gl-bloco__cab">
           <div>
-            <p className="gl-kicker">Para agir agora</p>
+            <p className="gl-kicker">{copy.secretariaAttention}</p>
             <h2>O que precisa de atenção</h2>
           </div>
           <Link href="/pendencias" className="gl-link">Agenda completa →</Link>

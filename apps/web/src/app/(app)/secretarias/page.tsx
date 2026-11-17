@@ -53,7 +53,7 @@ export default async function SecretariasPage({
     <div className="stack">
       <Breadcrumbs
         items={[
-          { label: "Cenário", href: "/painel" },
+          { label: "Visão geral", href: "/painel" },
           { label: "Pastas" },
         ]}
       />
@@ -72,7 +72,7 @@ export default async function SecretariasPage({
               ? "Pastas da prefeitura"
               : "Saúde de cada secretaria"
         }
-        description="Identifique o sinal, entenda a causa e abra a pauta de acompanhamento de cada pasta. Fluxo: Cenário → Pasta → Projeto → Cobrança."
+        description="Identifique o sinal, entenda a causa e abra a pauta de acompanhamento de cada pasta. Fluxo: Visão geral → Pasta → Projeto → Cobrança."
       />
 
       {canManage && (

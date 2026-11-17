@@ -6,7 +6,6 @@ import { NotificacoesBadge } from "./notificacoes-badge";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useEffect, useRef, useState } from "react";
-import { PAINEL_TOC } from "@cip/shared";
 import { BrandLogo } from "@/components/brand-logo";
 import { TenantSwitcher } from "@/components/tenant-switcher";
 import { s as overview } from "@/components/overview/ov";
@@ -50,7 +49,6 @@ export function AppShell({
   const { data } = useSession();
   const [open, setOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
-  const [tocActive, setTocActive] = useState("visao");
   const menuToggleRef = useRef<HTMLButtonElement>(null);
   const railRef = useRef<HTMLElement>(null);
   const role = data?.user?.role || initialRole;
@@ -67,8 +65,8 @@ export function AppShell({
     : role === "gestor"
       ? ["Minha pasta", "Projetos", "Tarefas", "Evidências"]
       : role === "analista"
-        ? ["Secretarias", "Projetos", "Tarefas", "Evidências"]
-        : ["Cenário", "Pasta", "Projeto", "Cobrança"];
+        ? ["Visão geral", "Secretarias", "Projetos", "Tarefas"]
+        : ["Visão geral", "Pasta", "Projeto", "Cobrança"];
   const userName = data?.user?.name || initialName;
   const municipioNome = data?.user?.municipioNome || initialMunicipio;
   const onPainel = pathname === "/painel";
@@ -130,26 +128,6 @@ export function AppShell({
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open]);
-
-  useEffect(() => {
-    if (!onPainel) return;
-    const ids = PAINEL_TOC.map((t) => t.id);
-    const nodes = ids
-      .map((id) => document.getElementById(id))
-      .filter((el): el is HTMLElement => !!el);
-    if (!nodes.length) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
-        if (visible[0]?.target?.id) setTocActive(visible[0].target.id);
-      },
-      { rootMargin: "-10% 0px -70% 0px", threshold: [0.1, 0.25, 0.5] },
-    );
-    nodes.forEach((n) => observer.observe(n));
-    return () => observer.disconnect();
-  }, [onPainel, children]);
 
   return (
     <div
@@ -222,26 +200,6 @@ export function AppShell({
           </ol>
         </div>
 
-        {onPainel && (
-          <nav className="painel-toc" aria-label="Seções do cenário">
-            {PAINEL_TOC.map((item, i) => (
-              <a
-                key={item.id}
-                href={`#${item.id}`}
-                className={tocActive === item.id ? "active" : ""}
-                onClick={() => setTocActive(item.id)}
-              >
-                <span className="toc-n" aria-hidden="true">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <span>{item.label}</span>
-              </a>
-            ))}
-          </nav>
-        )}
-
-        {onPainel && <div className="ops-nav-label">Navegação do painel</div>}
-
         <nav className="app-nav" aria-label="Navegação principal">
           {visibleNav.map((item) => {
             if (item.children?.length) {
@@ -249,25 +207,21 @@ export function AppShell({
               const expanded = openGroups[item.href] ?? branchActive;
               return (
                 <div key={item.href} className="app-nav__group">
-                  <button
-                    type="button"
-                    className={branchActive ? "app-nav__toggle active" : "app-nav__toggle"}
-                    aria-expanded={expanded}
-                    onClick={() =>
-                      setOpenGroups((current) => ({
-                        ...current,
-                        [item.href]: !expanded,
-                      }))
-                    }
-                  >
-                    <span className="nav-icon" aria-hidden="true">
-                      {item.icon}
-                    </span>
-                    <span>{item.label}</span>
-                    <span className="app-nav__chevron" aria-hidden="true">
-                      {expanded ? "▾" : "▸"}
-                    </span>
-                  </button>
+                  <div className="app-nav__group-head">
+                    <Link href={item.href} className={branchActive ? "active" : ""} aria-current={pathname === item.href ? "page" : undefined}>
+                      <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+                      <span>{item.label}</span>
+                    </Link>
+                    <button
+                      type="button"
+                      className="app-nav__toggle"
+                      aria-label={`${expanded ? "Ocultar" : "Mostrar"} categorias de ${item.label}`}
+                      aria-expanded={expanded}
+                      onClick={() => setOpenGroups((current) => ({ ...current, [item.href]: !expanded }))}
+                    >
+                      <span className="app-nav__chevron" aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+                    </button>
+                  </div>
                   {expanded && (
                     <div className="app-nav__children" role="group" aria-label={item.label}>
                       {item.children.map((child) => {

@@ -3,51 +3,42 @@
 import { Button } from "@cip/ui";
 import { useState } from "react";
 
-export function ExportButtons({
-  csv,
-}: {
-  csv: string;
-}) {
-  const [erro, setErro] = useState("");
+export function ExportButtons() {
   const [exportando, setExportando] = useState(false);
-  function downloadCsv() {
-    setErro("");
-    setExportando(true);
-    try {
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "cip-relatorios.csv";
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (error) {
-      setErro(error instanceof Error ? error.message : "Não foi possível baixar o CSV. Verifique a conexão e tente novamente.");
-    } finally {
-      setExportando(false);
-    }
-  }
+  const [erro, setErro] = useState("");
 
-  function imprimirRelatorio() {
-    const recolhidos = Array.from(document.querySelectorAll<HTMLDetailsElement>(".pc-gerenciador details, .pc-dados, .pc-complemento"))
-      .filter((detalhe) => !detalhe.open);
-    recolhidos.forEach((detalhe) => { detalhe.open = true; });
-    window.addEventListener("afterprint", () => {
+  async function imprimirRelatorio() {
+    setExportando(true);
+    setErro("");
+    const recolhidos = Array.from(document.querySelectorAll<HTMLDetailsElement>(
+      ".pc-gerenciador details, .pc-dados, .pc-complemento",
+    )).filter((detalhe) => !detalhe.open);
+
+    function restaurar() {
       recolhidos.forEach((detalhe) => { detalhe.open = false; });
-    }, { once: true });
-    window.print();
+      setExportando(false);
+      window.removeEventListener("afterprint", restaurar);
+    }
+
+    try {
+      recolhidos.forEach((detalhe) => { detalhe.open = true; });
+      await document.fonts.ready;
+      await Promise.all(Array.from(document.querySelectorAll<HTMLImageElement>(".pc img"))
+        .map((imagem) => imagem.decode().catch(() => undefined)));
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      window.addEventListener("afterprint", restaurar, { once: true });
+      window.print();
+    } catch {
+      restaurar();
+      setErro("Não foi possível preparar o PDF. Tente novamente.");
+    }
   }
 
   return (
     <div className="pc-exportar no-print">
-      <div className="chip-row">
-      <Button type="button" onClick={imprimirRelatorio}>
-        Salvar PDF / imprimir
+      <Button type="button" disabled={exportando} onClick={() => void imprimirRelatorio()}>
+        {exportando ? "Preparando PDF…" : "Salvar relatório em PDF"}
       </Button>
-      <Button type="button" variant="secondary" disabled={exportando} onClick={downloadCsv}>
-        {exportando ? "Exportando…" : "Exportar esta tabela (CSV)"}
-      </Button>
-      </div>
       {erro && <p role="alert">{erro}</p>}
     </div>
   );

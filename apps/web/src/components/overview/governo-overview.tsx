@@ -13,10 +13,13 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { CLASS_GROUPS, SERIES } from "@cip/shared";
+import { CLASS_GROUPS, PAINEL_TOC, SERIES } from "@cip/shared";
 import { getNextStepForRole, getRoleLabel } from "@/lib/roles";
 import type { OverviewResponse, SecretariaOverview } from "./types";
 import { GovernoGlance } from "./governo-glance";
+import { PrefeitoExecutiveFocus } from "./prefeito-overview";
+import { PrefeitoProjetos } from "./prefeito-projetos";
+import { overviewCopy, secretariaRecommendation } from "./audience";
 import { s } from "./ov";
 
 const groups = CLASS_GROUPS;
@@ -66,19 +69,11 @@ function Radar({ pasta, color }: { pasta: SecretariaOverview; color: string }) {
   );
 }
 
-function recommendation(p: SecretariaOverview) {
-  if (!p.projetos) return "Vincular o primeiro projeto a esta secretaria para iniciar o acompanhamento.";
-  if (!p.tarefasTotal) return "Registrar as primeiras tarefas dos projetos para iniciar o acompanhamento.";
-  if (p.classificacao === "DADOS_DEFASADOS") return "Validar a situação das entregas e atualizar a carteira antes da próxima reunião.";
-  if (p.criticas) return `Revisar as ${p.criticas} tarefas críticas e pactuar as providências com os responsáveis.`;
-  if (p.semPrazo) return `Definir datas para as ${p.semPrazo} tarefas sem prazo e revisar os encaminhamentos.`;
-  if (p.atrasadas) return `Solicitar causa, providência e responsável para as ${p.atrasadas} tarefas atrasadas.`;
-  return "Manter o acompanhamento e reunir evidências das entregas registradas.";
-}
-
 export function GovernoOverview({ payload, municipio, role }: { payload: OverviewResponse; municipio: string; role?: string }) {
   const { governo, porSecretaria, agenda, projetosEstruturantes, pendencias, tarefasPedemAcao, estrategia } = payload.data;
+  const copy = overviewCopy(role);
   const [detalhe, setDetalhe] = useState(false);
+  const [mayorTab, setMayorTab] = useState<"resultados" | "secretarias" | "projetos" | "atencao">("resultados");
   const [tab, setTab] = useState("compare");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("");
@@ -91,6 +86,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
   const shortDate = dataRef ? new Date(dataRef).toLocaleDateString("pt-BR", { timeZone: "UTC" }) : "Data não informada";
   const longDate = dataRef ? new Date(dataRef).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric", timeZone: "UTC" }) : "Data-base não informada";
   const nextStep = getNextStepForRole(role);
+  const sectionLinks = PAINEL_TOC;
   const chart = pastas.map((p) => ({
     id: p.id, nome: p.nome, sigla: p.sigla || p.nome,
     atraso: percent(p.projetosComAtraso, p.projetos),
@@ -120,12 +116,17 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
       <section id="secretarias" className={s.healthSection}>
         <div className={s.sectionHead}>
           <div>
-            <p className={s.kicker}>Semáforo das secretarias</p>
-            <h2>A saúde de cada pasta</h2>
-            <p>Identifique o sinal, entenda a causa e abra o cenário de cada secretaria, inclusive das que ainda não têm projetos.</p>
+            <p className={s.kicker}>{role === "prefeito" ? "Prazos e entregas" : "Semáforo das secretarias"}</p>
+            <h2>{role === "prefeito" ? "Situação das secretarias" : "A saúde de cada pasta"}</h2>
+            <p>{role === "prefeito" ? "Os sinais abaixo resumem prazos e tarefas dos projetos. Abra uma secretaria para ver suas metas e os resultados medidos." : "Identifique o sinal, entenda a causa e abra o cenário de cada secretaria, inclusive das que ainda não têm projetos."}</p>
           </div>
-          <Link href="/secretarias" className={s.button}>Todas as pastas ↗</Link>
+          <Link href="/secretarias" className={s.button}>Lista completa ↗</Link>
         </div>
+        <details className={s.filterPanel} open={role !== "prefeito"}>
+          <summary className={s.filterPanelHead}>
+            <strong>Filtros adicionais</strong>
+            <span>Busca, situação e ordem dos cartões</span>
+          </summary>
         <div className="gl-chips" role="group" aria-label="Filtrar por situação">
           <button type="button" aria-pressed={!filter} onClick={() => setFilter("")}>Todas <b>{porSecretaria.length}</b></button>
           {groups.map((g) => (
@@ -133,20 +134,21 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
               <i />{g.label} <b>{porSecretaria.filter((p) => p.classificacao === g.key).length}</b>
             </button>
           ))}
+          {role === "prefeito" && <button type="button" aria-pressed={filter === "SEM_PRAZO"} onClick={() => setFilter((f) => (f === "SEM_PRAZO" ? "" : "SEM_PRAZO"))}>Sem prazo <b>{porSecretaria.filter((p) => p.semPrazo > 0).length}</b></button>}
         </div>
-        <div className={s.filters}>
+        <div className={`${s.filters}${role === "prefeito" ? ` ${s.filtersCompact}` : ""}`}>
           <div>
             <label htmlFor="overview-search">Buscar secretaria ou responsável</label>
-            <input id="overview-search" type="search" placeholder="Buscar na carteira…" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <input id="overview-search" type="search" placeholder="Nome da secretaria ou responsável" value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
-          <div>
+          {role !== "prefeito" && <div>
             <label htmlFor="overview-filter">Situação</label>
             <select id="overview-filter" value={filter} onChange={(e) => setFilter(e.target.value)}>
               <option value="">Todas as situações</option>
               {groups.map((g) => <option key={g.key} value={g.key}>{g.label}</option>)}
               <option value="SEM_PRAZO">Com tarefas sem prazo</option>
             </select>
-          </div>
+          </div>}
           <div>
             <label htmlFor="overview-sort">Ordenar por</label>
             <select id="overview-sort" value={sort} onChange={(e) => setSort(e.target.value)}>
@@ -156,9 +158,10 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
             </select>
           </div>
         </div>
+        </details>
         <div className={s.resultMeta}>
           <span aria-live="polite">{visible.length} de {porSecretaria.length} secretarias ativas · {pastas.length} com projetos</span>
-          <span>Quanto mais próximo da borda, melhor a dimensão. <a href="#metodo">Como ler ↗</a></span>
+          <span>{role === "prefeito" ? "Os sinais resumem prazos e tarefas. Os critérios estão na aba Acompanhamento." : <>Quanto mais próximo da borda, melhor a dimensão. <a href="#metodo">Como ler ↗</a></>}</span>
         </div>
         <div className={s.healthGrid}>
           {visible.map((p) => {
@@ -185,7 +188,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
                 </div>
                 <p className={s.healthMessage}>
                   {p.classificacao === "DADOS_DEFASADOS"
-                    ? `${p.diasSemAtualizacao} dias sem atualizar na data-base. Validar a informação.`
+                    ? `${p.diasSemAtualizacao} dias sem atualizar na data-base. ${copy.missingData}`
                     : p.abertas
                       ? `${number(p.pctAtraso)}% das tarefas abertas estão atrasadas.`
                       : !p.projetos
@@ -199,7 +202,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
                   <span><b>{p.semPrazo}</b> sem prazo</span>
                   <span><b>{p.criticas}</b> críticas</span>
                 </div>
-                <div className={s.recommendation}><small>Próxima cobrança sugerida</small><p>{recommendation(p)}</p></div>
+                <div className={s.recommendation}><small>{copy.recommendationLabel}</small><p>{secretariaRecommendation(p, role)}</p></div>
                 <footer>
                   <small>{p.diasSemAtualizacao == null ? "Sem atualização registrada" : p.diasSemAtualizacao <= 0 ? "Atualizada no dia da base" : `${p.diasSemAtualizacao} dias sem atualizar na base`}</small>
                   <Link href={`/painel?secretariaId=${encodeURIComponent(p.id)}`} className={s.button}>Abrir cenário ↗</Link>
@@ -212,7 +215,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
           <div className={s.empty}>
             {porSecretaria.length
               ? <>Nenhuma secretaria corresponde aos filtros. <button type="button" onClick={() => { setQuery(""); setFilter(""); }}>Limpar filtros</button></>
-              : <>Nenhuma secretaria ativa cadastrada. <Link href="/secretarias">Abrir secretarias</Link></>}
+              : <>{copy.secretariaEmpty} <Link href="/secretarias">Abrir secretarias</Link></>}
           </div>
         )}
       </section>
@@ -223,8 +226,9 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
       <header className={s.header}>
         <div>
           <span className={s.eyebrow}>Centro de Inteligência Pública</span>
-          <p className={s.toplineTitle}>Governo em perspectiva</p>
+          <p className={s.toplineTitle}>{copy.title}</p>
           <p>{municipio}</p>
+          <p>{copy.intro}</p>
         </div>
         <div className={s.headerActions}>
           <span className={s.date}>◷ {longDate}</span>
@@ -232,13 +236,34 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
         </div>
       </header>
 
-      <GovernoGlance data={payload.data} secretarias={saudeSecretarias} />
+      {role === "prefeito" ? <div className={s.prefeitoTabs} role="tablist" aria-label="Visão geral do prefeito">
+        {([
+          { id: "resultados", titulo: "Resultados", detalhe: `${estrategia?.metas.length ?? 0} metas estratégicas` },
+          { id: "secretarias", titulo: "Situação das secretarias", detalhe: `${porSecretaria.length} pastas` },
+          { id: "projetos", titulo: "Projetos", detalhe: `${governo.totalProjetos} projetos` },
+          { id: "atencao", titulo: "Acompanhamento", detalhe: "Entregas e atenção" },
+        ] as const).map((item) => <button key={item.id} id={`aba-${item.id}`} type="button" role="tab" aria-selected={mayorTab === item.id} aria-controls={mayorTab === item.id ? `painel-${item.id}` : undefined} onClick={() => setMayorTab(item.id)}><strong>{item.titulo}</strong><span>{item.detalhe}</span></button>)}
+      </div> : <nav className={s.overviewShortcuts} aria-label="Seções da Visão geral">
+        {sectionLinks.map((item, index) => (
+          <a key={item.id} href={`#${item.id}`}>
+            <span aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+            <strong>{item.label}</strong>
+            <b aria-hidden="true">↓</b>
+          </a>
+        ))}
+      </nav>}
+
+      {role === "prefeito" && mayorTab === "resultados" && <div id="painel-resultados" role="tabpanel" aria-labelledby="aba-resultados" className={s.prefeitoTabPanel}><PrefeitoExecutiveFocus metas={estrategia?.metas ?? []} dataReferencia={dataRef} /></div>}
+      {role === "prefeito" && mayorTab === "secretarias" && <div id="painel-secretarias" role="tabpanel" aria-labelledby="aba-secretarias" className={s.prefeitoTabPanel}>{saudeSecretarias}</div>}
+      {role === "prefeito" && mayorTab === "projetos" && <div id="painel-projetos" role="tabpanel" aria-labelledby="aba-projetos" className={s.prefeitoTabPanel}><PrefeitoProjetos projetos={payload.data.projetosVisao ?? []} /></div>}
+      {(role !== "prefeito" || mayorTab === "atencao") && <div id={role === "prefeito" ? "painel-atencao" : undefined} role={role === "prefeito" ? "tabpanel" : undefined} aria-labelledby={role === "prefeito" ? "aba-atencao" : undefined} className={role === "prefeito" ? s.prefeitoTabPanel : undefined}>
+      {role === "prefeito" ? <GovernoGlance data={payload.data} role={role} showGoals={false} showSecretarias={false} heroId="execucao" /> : <GovernoGlance data={payload.data} secretarias={saudeSecretarias} role={role} />}
 
       <section id="detalhes" className="gl-detalhes">
         <button type="button" className="gl-detalhes__botao" aria-expanded={detalhe} aria-controls="analise-detalhada" onClick={() => setDetalhe((v) => !v)}>
           <span>
             <strong>{detalhe ? "Ocultar análise detalhada" : "Ver análise detalhada"}</strong>
-            <small>Gráficos comparativos, saúde de cada pasta, entraves, prestação e critérios de leitura.</small>
+            <small>{copy.detailDescription}</small>
           </span>
           <b aria-hidden="true">{detalhe ? "−" : "+"}</b>
         </button>
@@ -294,7 +319,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
                 </div>
               ))}
               {!estrategia.metas?.length && (
-                <p className="dashboard-muted">Cadastre metas estratégicas com indicador e registre medições em Planejamento.</p>
+                <p className="dashboard-muted">{copy.emptyGoals}</p>
               )}
             </div>
             {(estrategia.alertaEquipamentos?.length ?? 0) > 0 && (
@@ -334,7 +359,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
             </div>
             <a href="#projetos" className={s.focusCount}>
               <strong>{governo.atencaoExecutiva}</strong>
-              <span>projetos na pauta<br />de atenção executiva</span>
+              <span>projetos para<br />acompanhamento prioritário</span>
               <b aria-hidden="true">↗</b>
             </a>
             <footer>{pastas.length} secretarias com projetos<span>Posição em {shortDate}</span></footer>
@@ -372,14 +397,14 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
                         <ReferenceLine y={governo.pctCarteiraComAtraso} stroke="#8b93b0" strokeDasharray="4 6" label={{ value: "gov.", fill: "#8b93b0", fontSize: 10, position: "insideTopRight" }} />
                         <Tooltip contentStyle={{ background: "#1a1d2b", border: "1px solid rgba(124,156,255,.35)", borderRadius: 12, color: "#f1f3fc", fontSize: 12 }} labelFormatter={(_, items) => items?.[0]?.payload?.nome || ""} formatter={(value, name) => [`${number(Number(value))}%`, name]} />
                         {lines.atraso && <Area name="Com atraso" dataKey="atraso" type="monotone" stroke={SERIES.atraso} fill="url(#gAtraso)" strokeWidth={3} dot={{ r: 4, fill: "#101218", stroke: SERIES.atraso, strokeWidth: 2 }} activeDot={{ r: 7, strokeWidth: 0, fill: SERIES.atraso }} isAnimationActive={false} style={{ filter: `drop-shadow(0 0 8px ${SERIES.atraso}aa)` }} />}
-                        {lines.atencao && <Area name="Atenção executiva" dataKey="atencao" type="monotone" stroke={SERIES.atencao} fill="url(#gAtencao)" strokeWidth={3} dot={{ r: 4, fill: "#101218", stroke: SERIES.atencao, strokeWidth: 2 }} activeDot={{ r: 7, strokeWidth: 0, fill: SERIES.atencao }} isAnimationActive={false} style={{ filter: `drop-shadow(0 0 8px ${SERIES.atencao}aa)` }} />}
+                        {lines.atencao && <Area name="Acompanhamento prioritário" dataKey="atencao" type="monotone" stroke={SERIES.atencao} fill="url(#gAtencao)" strokeWidth={3} dot={{ r: 4, fill: "#101218", stroke: SERIES.atencao, strokeWidth: 2 }} activeDot={{ r: 7, strokeWidth: 0, fill: SERIES.atencao }} isAnimationActive={false} style={{ filter: `drop-shadow(0 0 8px ${SERIES.atencao}aa)` }} />}
                         {lines.semAtraso && <Line name="Sem atraso registrado" dataKey="semAtraso" type="monotone" stroke={SERIES.semAtraso} strokeWidth={2.5} dot={{ r: 3.5, fill: "#101218", stroke: SERIES.semAtraso, strokeWidth: 2 }} isAnimationActive={false} />}
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
-                ) : <div className={s.empty}>Cadastre projetos e vincule suas secretarias para visualizar a carteira.</div>}
+                ) : <div className={s.empty}>{copy.emptyProjects}</div>}
                 <div className={s.legend}>
-                  {([{ key: "atraso", label: "Com atraso", color: SERIES.atraso }, { key: "semAtraso", label: "Sem atraso registrado", color: SERIES.semAtraso }, { key: "atencao", label: "Atenção executiva", color: SERIES.atencao }] as const).map((line) => (
+                  {([{ key: "atraso", label: "Com atraso", color: SERIES.atraso }, { key: "semAtraso", label: "Sem atraso registrado", color: SERIES.semAtraso }, { key: "atencao", label: "Acompanhamento prioritário", color: SERIES.atencao }] as const).map((line) => (
                     <button key={line.key} type="button" className={lines[line.key] ? s.legendOn : s.legendOff} style={{ ["--series" as string]: line.color }} onClick={() => setLines((v) => ({ ...v, [line.key]: !v[line.key] }))}>
                       <i /><span>{line.label}</span>
                     </button>
@@ -426,7 +451,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
                         if (cx == null || cy == null || payload?.atraso == null) return <g />;
                         return <g><circle cx={cx} cy={cy} r={12} fill={`${SERIES.atraso}33`} /><circle cx={cx} cy={cy} r={7} fill={SERIES.atraso} stroke="#101218" strokeWidth={3} /></g>;
                       }} activeDot={false} isAnimationActive={false} />
-                      <Area name="% atenção executiva" dataKey="atencao" type="monotone" connectNulls={false} stroke={SERIES.atencao} fill="url(#gTimeAtencao)" strokeWidth={3.5} dot={(props) => {
+                      <Area name="% acompanhamento prioritário" dataKey="atencao" type="monotone" connectNulls={false} stroke={SERIES.atencao} fill="url(#gTimeAtencao)" strokeWidth={3.5} dot={(props) => {
                         const { cx, cy, payload } = props as { cx?: number; cy?: number; payload?: { atencao: number | null } };
                         if (cx == null || cy == null || payload?.atencao == null) return <g />;
                         return <g><circle cx={cx} cy={cy} r={12} fill={`${SERIES.atencao}33`} /><circle cx={cx} cy={cy} r={7} fill={SERIES.atencao} stroke="#101218" strokeWidth={3} /></g>;
@@ -436,7 +461,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
                 </div>
                 <div className={s.timelineMeta}>
                   <div className={s.timelineMarker}><i style={{ background: SERIES.atraso, ["--mark" as string]: SERIES.atraso }} /><div><strong>{shortDate}</strong><span>Único marco real · {governo.projetosComAtraso} de {governo.totalProjetos} com atraso ({number(governo.pctCarteiraComAtraso)}%)</span></div></div>
-                  <div className={s.timelineMarker}><i style={{ background: SERIES.atencao, ["--mark" as string]: SERIES.atencao }} /><div><strong>Atenção executiva</strong><span>{governo.atencaoExecutiva} projetos na pauta da alta gestão</span></div></div>
+                  <div className={s.timelineMarker}><i style={{ background: SERIES.atencao, ["--mark" as string]: SERIES.atencao }} /><div><strong>Acompanhamento prioritário</strong><span>{governo.atencaoExecutiva} projetos {role === "prefeito" ? "para atenção do gabinete" : "para acompanhamento da consultoria"}</span></div></div>
                   <div className={`${s.timelineMarker} ${s.timelineMuted}`}><i /><div><strong>Próxima medição</strong><span>Sem interpolação — aguarda nova posição consolidada</span></div></div>
                 </div>
                 <p className={s.chartFoot}>A aba Linha do tempo não inventa histórico. <a href="#metodo">Critérios de leitura ↗</a></p>
@@ -445,7 +470,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
           </div>
         </div>
 
-        <p className={s.readingNote}>Um projeto entra em “com atraso” quando tem ao menos uma tarefa atrasada. Atenção executiva é um subconjunto desses projetos.</p>
+        <p className={s.readingNote}>Um projeto entra em “com atraso” quando tem ao menos uma tarefa atrasada. O acompanhamento prioritário é um subconjunto desses projetos.</p>
 
         <div className={s.signals}>
           {groups.map((g) => (
@@ -457,8 +482,8 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
           ))}
         </div>
 
-        <div className={s.alertCard} aria-label="Na agenda da alta gestão">
-          <h2>Na agenda da alta gestão</h2>
+        <div className={s.alertCard} aria-label={copy.agendaTitle}>
+          <h2>{copy.agendaTitle}</h2>
           <div className={s.alertGrid}>
             <div className={s.agendaItem} style={{ ["--accent" as string]: SERIES.atraso }}>
               <strong>{governo.atrasadas}</strong>
@@ -466,7 +491,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
             </div>
             <div className={s.agendaItem} style={{ ["--accent" as string]: SERIES.atencao }}>
               <strong>{agenda.estruturantesAtrasados}</strong>
-              <span>tarefas de estruturantes atrasadas<br /><small>Coordenar as prioridades da gestão</small></span>
+              <span>tarefas de estruturantes atrasadas<br /><small>Organizar as prioridades de acompanhamento</small></span>
             </div>
             <div className={s.agendaItem} style={{ ["--accent" as string]: "#eac78c" }}>
               <strong>{governo.semPrazo}</strong>
@@ -487,8 +512,8 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
       <section id="decisoes" className={s.chapter}>
         <div className={s.sectionHead}>
           <div>
-            <p className={s.kicker}>Agenda de gestão / propostas para validação</p>
-            <h2>Onde intervir. Quem cobrar. O que pedir.</h2>
+            <p className={s.kicker}>{copy.decisionsKicker}</p>
+            <h2>{copy.decisionsTitle}</h2>
           </div>
           <Link href="/pendencias" className={s.button}>Agenda completa ↗</Link>
         </div>
@@ -505,7 +530,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
               <small>Pedido sugerido</small>
               <p>Mapear causa, responsável e prazo de desbloqueio nas tarefas vencidas.</p>
             </div>
-            <Link href="/pendencias" className={s.button}>Abrir cobrança ↗</Link>
+            <Link href="/pendencias" className={s.button}>Abrir agenda ↗</Link>
           </article>
           <article className={`${s.panel} ${s.decisionCard}`} style={{ ["--accent" as string]: "#ff779a" }}>
             <span className={s.healthPill} style={{ ["--health" as string]: "#ff779a" }}><i />Plano de recuperação</span>
@@ -514,7 +539,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
             <p>{intervencao.length ? intervencao.map((p) => p.nome).join(", ") : "Nenhuma pasta em intervenção nesta base."}</p>
             <div className={s.recommendation}>
               <small>Pedido sugerido</small>
-              <p>Cobrar plano de recuperação com datas e responsáveis.</p>
+              <p>Organizar um plano de recuperação com datas e responsáveis.</p>
             </div>
             <button type="button" className={s.button} onClick={() => chooseGroup("INTERVENCAO")}>Filtrar pastas ↗</button>
           </article>
@@ -565,8 +590,8 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
       <section id="prestacao" className={s.chapter}>
         <div className={s.sectionHead}>
           <div>
-            <p className={s.kicker}>Evidências para a comunicação pública</p>
-            <h2>O que já pode sustentar uma prestação de contas</h2>
+            <p className={s.kicker}>{copy.accountKicker}</p>
+            <h2>{copy.accountTitle}</h2>
           </div>
           <Link href="/relatorios" className={s.button}>Relatórios ↗</Link>
         </div>
@@ -576,11 +601,11 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
             <h3>Concluídas na base</h3>
             <strong className={s.decisionNumber}>{governo.concluidas}</strong>
             <p>Tarefas concluídas na base.</p>
-            <div className={s.recommendation}><small>Antes de divulgar</small><p>Validar as evidências das entregas antes da divulgação.</p></div>
+            <div className={s.recommendation}><small>Próxima conferência</small><p>{copy.accountAction}</p></div>
           </article>
           <article className={s.panel}>
             <span className={s.healthPill} style={{ ["--health" as string]: SERIES.atraso }}><i />Pendências</span>
-            <h3>O que ainda trava a narrativa</h3>
+            <h3>Entregas com pendências</h3>
             <strong className={s.decisionNumber}>{governo.atrasadas}</strong>
             <p>{governo.atrasadas} atrasos · {governo.semPrazo} sem prazo. <a href="#decisoes">Ver agenda ↗</a></p>
             <ul className={s.bulletList}>
@@ -661,10 +686,10 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
       {/* ——— #metodo ——— */}
       <section id="metodo" className={s.criteria}>
         <p className={s.kicker}>Transparência da leitura</p>
-        <h2>Critérios que sustentam a decisão</h2>
+        <h2>Critérios de leitura dos indicadores</h2>
         <details open>
           <summary>Como ler o panorama de projetos</summary>
-          <p>O panorama compara projetos com pelo menos uma tarefa vencida com o total de projetos da secretaria. Atenção executiva considera projetos estruturantes com atraso ou projetos com tarefas graves ou críticas. As linhas representam secretarias, não evolução temporal.</p>
+          <p>O panorama compara projetos com pelo menos uma tarefa vencida com o total de projetos da secretaria. Acompanhamento prioritário considera projetos estruturantes com atraso ou projetos com tarefas graves ou críticas. As linhas representam secretarias, não evolução temporal.</p>
         </details>
         <details>
           <summary>Classificação de saúde das secretarias</summary>
@@ -682,6 +707,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
       </section>
       </div>
       )}
+      </div>}
 
       <footer className={s.boardFooter}>
         <span>CIP · Centro de Inteligência Pública</span>

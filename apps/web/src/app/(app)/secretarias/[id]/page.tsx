@@ -70,7 +70,7 @@ export default async function SecretariaDetailPage({
     <div className="stack">
       <Breadcrumbs
         items={[
-          { label: "Cenário", href: "/painel" },
+          { label: "Visão geral", href: "/painel" },
           { label: "Pastas", href: "/secretarias" },
           { label: s.nome },
         ]}

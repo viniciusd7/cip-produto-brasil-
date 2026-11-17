@@ -3,7 +3,7 @@ import { authOptions } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 import { ExportButtons } from "./export-buttons";
 import { FiltrosPrestacao } from "./filtros-prestacao";
-import { GerenciadorRelatorio, type DadosGerenciador } from "./gerenciador-relatorio";
+import { GerenciadorRelatorio, IndicadoresRelatorio, type DadosGerenciador } from "./gerenciador-relatorio";
 import { TabelaRelatorio, type ConsultaRelatorio } from "./tabela-relatorio";
 import { VisaoGrafica } from "./visao-grafica";
 import Link from "next/link";
@@ -20,7 +20,6 @@ type Prestacao = {
       mandato: { inicio: string | null; fim: string | null } | null;
     };
     consulta: ConsultaRelatorio;
-    csv: string;
   } & DadosGerenciador;
 };
 
@@ -58,6 +57,15 @@ export async function RelatorioConteudo({
     { tipo: "evidencias", titulo: "Evidências", href: "/relatorios/evidencias" },
   ];
 
+  function enderecoSecao(item: { tipo: string; href: string }) {
+    const parametros = new URLSearchParams(qs);
+    parametros.set("tipo", item.tipo);
+    parametros.delete("ordenar");
+    parametros.delete("direcao");
+    if (item.tipo === "metas" || item.tipo === "evidencias") parametros.delete("status");
+    return `${item.href}?${parametros}`;
+  }
+
   return (
     <div className="pc">
       <header className="pc-acoes">
@@ -66,11 +74,11 @@ export async function RelatorioConteudo({
           <h1>Relatórios</h1>
           <p>Explore os dados do município em gráficos e detalhes. Escolha um recorte para orientar suas decisões.</p>
         </div>
-        <ExportButtons csv={data.csv} />
+        <ExportButtons />
       </header>
 
       <nav className="pc-areas no-print" aria-label="Áreas dos relatórios">
-        {secoes.map((item) => <Link key={item.tipo} href={item.href} aria-current={consulta.tipo === item.tipo ? "page" : undefined}>{item.titulo}</Link>)}
+        {secoes.map((item) => <Link key={item.tipo} href={enderecoSecao(item)} aria-current={consulta.tipo === item.tipo ? "page" : undefined}>{item.titulo}</Link>)}
       </nav>
 
       <details className="pc-filtros-box no-print" open={filtrosAtivos}>
@@ -78,6 +86,15 @@ export async function RelatorioConteudo({
         <FiltrosPrestacao key={qs.toString()} opcoes={opcoes} filtros={Object.fromEntries(qs)} />
       </details>
 
+      <section className="pc-recorte" aria-label="Recorte aplicado ao relatório">
+        <strong>{session?.user?.municipioNome || "Prefeitura"} · {titulo}</strong>
+        <span>{qs.get("de") || "Início não limitado"} até {qs.get("ate") || "Fim não limitado"}</span>
+        <span>{opcoes.secretarias.find((item) => item.id === qs.get("secretariaId"))?.nome || "Todas as secretarias"} · {opcoes.projetos.find((item) => item.id === qs.get("projetoId"))?.nome || "Todos os projetos"}</span>
+        {qs.get("status") && <span>Situação selecionada: {({ VENCIDO: "Atrasadas", SEM_PRAZO: "Sem prazo", NO_PRAZO: "No prazo", CONCLUIDO: "Concluídas", ENCERRADO_SEM_SOLUCAO: "Encerradas sem solução" } as Record<string, string>)[qs.get("status")!] || qs.get("status")}</span>}
+        {consulta.busca && <span>Busca aplicada: {consulta.busca}</span>}
+      </section>
+
+      {consulta.tipo === "metas" && <IndicadoresRelatorio dados={data} consulta={consulta} />}
       {consulta.tipo === "tarefas" ? <>
         <GerenciadorRelatorio dados={data} consulta={consulta} />
         <details className="pc-complemento"><summary>Gráficos complementares</summary><VisaoGrafica consulta={consulta} titulo={titulo} /></details>
@@ -90,7 +107,7 @@ export async function RelatorioConteudo({
             <h2 id="relatorio-resultados">Detalhamento: {titulo}</h2>
             <p>{session?.user?.municipioNome || "Prefeitura"} · {consulta.total} {consulta.total === 1 ? "linha" : "linhas"}</p>
           </div>
-          <p className="pc-nota">CSV com as mesmas colunas, linhas e ordem. Datas no formato ano-mês-dia.</p>
+          <p className="pc-nota">O PDF inclui os gráficos e o detalhamento desta consulta.</p>
         </header>
         <p className="pc-nota">
           {consulta.tipo === "metas"
@@ -104,7 +121,7 @@ export async function RelatorioConteudo({
         <TabelaRelatorio consulta={consulta} parametros={qs.toString()} />
         <footer className="pc-nota">
           Consulta gerada em {new Date(data.geradoEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}.
-          {" "}O CSV corresponde a esta consulta. Aplique os filtros novamente para atualizar os dados.
+          {" "}Relatório com os filtros aplicados nesta consulta.
         </footer>
       </section>
       </details>

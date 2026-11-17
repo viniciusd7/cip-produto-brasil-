@@ -6,6 +6,7 @@ import { permissionsForRole, requireAuth, requirePermission, signAccessToken } f
 import { errorHandler } from "../middleware/error";
 import { authRouter } from "./auth";
 import { dashboardRouter } from "./dashboard";
+import { planejamentoRouter } from "./planejamento";
 
 process.env.DATABASE_URL = "postgresql://test:test@127.0.0.1:1/tenant_tests?connect_timeout=1";
 process.env.DIRECT_URL = process.env.DATABASE_URL;
@@ -83,6 +84,7 @@ async function setup(t: TestContext, isPlatformAdmin = false) {
   app.use(express.json());
   app.use("/auth", authRouter);
   app.use("/dashboard", dashboardRouter);
+  app.use("/planejamento", planejamentoRouter);
   app.post("/write-probe", requireAuth, requirePermission("iniciativa:write"), (_req, res) => res.sendStatus(204));
   app.use(errorHandler);
   const server = app.listen(0, "127.0.0.1");
@@ -142,6 +144,23 @@ test("cada prefeitura de consultoria fornece visão geral só do município da s
       if (model === "iniciativa") assert.deepEqual(where.AND, [{}]);
     }
   }
+});
+
+test("consultor e prefeito consultam a mesma visão geral no mesmo município", async (t) => {
+  const { request, memberships } = await setup(t);
+  const consultor = await request("/dashboard/resumo");
+  assert.equal(consultor.status, 200);
+  const consultorData = (await consultor.json()).data;
+  memberships.set("a", { roleCode: "prefeito", secretariaId: null });
+  const prefeito = await request("/dashboard/resumo");
+  assert.equal(prefeito.status, 200);
+  assert.deepEqual((await prefeito.json()).data, consultorData);
+});
+
+test("a API da área de implantação foi removida", async (t) => {
+  const { request } = await setup(t);
+  const response = await request("/planejamento/implantacao");
+  assert.equal(response.status, 404);
 });
 
 test("perfis municipais abrem cenário vazio e gestor mantém seu escopo", async (t) => {

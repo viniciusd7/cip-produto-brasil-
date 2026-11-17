@@ -148,8 +148,10 @@ export async function ListaCarteira({
         dataReferencia={payload.meta?.dataReferencia}
       />
 
-      <Card>
-        <form className="filter-grid">
+      <details className="more-block" open={Boolean(sp.q || sp.ciclo)}>
+        <summary>Filtros adicionais{sp.q || sp.ciclo ? " · ativos" : ""}</summary>
+        <Card>
+          <form className="filter-grid">
           <div>
             <label htmlFor="q">Buscar</label>
             <input
@@ -174,11 +176,16 @@ export async function ListaCarteira({
               Filtrar
             </Button>
           </div>
-        </form>
-      </Card>
+          </form>
+        </Card>
+      </details>
 
       {!projetos.length && (
-        <p>{pasta?.vazio || "Nenhum projeto encontrado. Crie uma pasta ou ajuste os filtros."}</p>
+        <p>{pasta?.vazio || (sp.q || sp.ciclo
+          ? "Nenhum projeto corresponde aos filtros. Ajuste a busca para ver a carteira."
+          : podeCadastrar
+            ? "Ainda não há projetos cadastrados. Cadastre o primeiro projeto para iniciar a carteira."
+            : "Ainda não há projetos cadastrados para esta prefeitura.")}</p>
       )}
       {secretarias.map((secretaria) => (
         <details key={secretaria} className="more-block projeto-pasta" open>

@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import mammoth from "mammoth";
 import WordExtractor from "word-extractor";
-import { PDFParse } from "pdf-parse";
 import { HttpError } from "../middleware/error";
 import { localStorage } from "./storage";
 
@@ -49,6 +48,9 @@ export async function extractKnowledgeText(
       throw new HttpError(422, "INVALID_FILE", "O arquivo não contém um PDF válido.");
     }
 
+    // Explicit import lets serverless bundlers trace pdf-parse's native dependency.
+    await import("@napi-rs/canvas");
+    const { PDFParse } = await import("pdf-parse");
     const parser = new PDFParse({ data: Uint8Array.from(buffer) });
     try {
       text = (await parser.getText()).text;

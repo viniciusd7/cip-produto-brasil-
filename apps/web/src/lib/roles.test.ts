@@ -5,7 +5,8 @@ import { canUploadKnowledgeRole, getHomeForRole, getNavForRole, getNextStepForRo
 describe("navegação sem a área de implantação", () => {
   it("encaminha o consultor ao cenário e mantém secretarias como próximo passo", () => {
     assert.equal(getHomeForRole("analista"), "/painel");
-    assert.ok(getNavForRole("analista").some((item) => item.href === "/painel"));
+    assert.deepEqual(getNavForRole("analista")[0], { href: "/painel", label: "Visão geral", icon: "01" });
+    assert.equal(getHomeForRole("prefeito"), getHomeForRole("analista"));
     assert.equal(getNextStepForRole("analista").href, "/secretarias");
   });
 
@@ -35,5 +36,15 @@ describe("navegação sem a área de implantação", () => {
     for (const href of ["/secretarias", "/carteira", "/acoes", "/validacoes", "/equipe"]) {
       assert.ok(links.includes(href), href);
     }
+  });
+
+  it("ordena os atalhos numerados sem lacunas para todos os perfis", () => {
+    for (const role of ["admin", "analista", "prefeito", "gestor", "leitura"]) {
+      const nav = getNavForRole(role);
+      const numeric = nav.filter((item) => /^\d+$/.test(item.icon || ""));
+      assert.deepEqual(numeric.map((item) => item.icon), numeric.map((_, i) => String(i + 1).padStart(2, "0")), role);
+    }
+    assert.deepEqual(getNavForRole("analista").slice(0, 5).map((item) => item.label),
+      ["Visão geral", "Secretarias", "Projetos", "Tarefas", "Aprovações"]);
   });
 });

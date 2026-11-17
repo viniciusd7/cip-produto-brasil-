@@ -281,14 +281,14 @@ dashboardRouter.get("/resumo", async (req, res, next) => {
     const metasEstrategicas = await prisma.metaEstrategica.findMany({
       where: {
         plano: { municipioId },
-        iniciativas: {
-          some: {
-            municipioId,
-            AND: [iniciativaScopeFilter(req.user!)],
-          },
-        },
         ...(req.user!.role === "gestor"
           ? {
+              iniciativas: {
+                some: {
+                  municipioId,
+                  AND: [iniciativaScopeFilter(req.user!)],
+                },
+              },
               OR: [
                 { secretariaId: req.user!.secretariaId || "__no_secretaria__" },
                 { secretariaId: null },
@@ -517,6 +517,24 @@ dashboardRouter.get("/resumo", async (req, res, next) => {
         },
         tarefasPedemAcao,
         porSecretaria,
+        projetosVisao: iniciativas.map((iniciativa) => {
+          const estados = iniciativa.marcos.map((marco) =>
+            prazoStatus(marco, iniciativa.dataReferencia ?? dataRef),
+          );
+          return {
+            id: iniciativa.id,
+            codigo: iniciativa.codigo,
+            nome: iniciativa.nome,
+            secretaria: iniciativa.secretariaPrincipal.nome,
+            ciclo: iniciativa.ciclo,
+            estruturante: iniciativa.estruturante,
+            totalTarefas: estados.length,
+            concluidas: estados.filter((estado) => estado === "CONCLUIDO").length,
+            atrasadas: estados.filter((estado) => estado === "VENCIDO").length,
+            pendencias: iniciativa.impedimentos.length,
+            atualizadoEm: iniciativa.atualizadoEm.toISOString(),
+          };
+        }),
         projetosEstruturantes: iniciativas
           .filter((i) => i.estruturante)
           .slice(0, 12)
@@ -850,13 +868,12 @@ dashboardRouter.get("/cenario-secretaria", async (req, res, next) => {
     const metasEstrategicas = await prisma.metaEstrategica.findMany({
       where: {
         plano: { municipioId },
-        iniciativas: {
-          some: {
-            municipioId,
-            AND: [iniciativaScopeFilter(req.user!)],
-          },
-        },
-        OR: [{ secretariaId: selectedId }, { secretariaId: null }],
+        ...(req.user!.role === "gestor"
+          ? { iniciativas: { some: { municipioId, AND: [iniciativaScopeFilter(req.user!)] } } }
+          : {}),
+        ...(req.user!.role === "gestor"
+          ? { OR: [{ secretariaId: selectedId }, { secretariaId: null }] }
+          : {}),
       },
       include: {
         medicoes: { orderBy: { dataCorte: "desc" }, take: 2 },
@@ -892,10 +909,6 @@ dashboardRouter.get("/cenario-secretaria", async (req, res, next) => {
       orderBy: { nome: "asc" },
     });
 
-    const metasEstrategicasDaPasta = metasEstrategicas.filter(
-      (m) => m.secretariaId === selectedId,
-    );
-
     const iniciativas = await prisma.iniciativa.findMany({
       where: {
         municipioId,
@@ -911,9 +924,21 @@ dashboardRouter.get("/cenario-secretaria", async (req, res, next) => {
       },
       include: {
         marcos: true,
+        metasExecucao: {
+          orderBy: [{ ordem: "asc" }, { createdAt: "asc" }],
+          include: {
+            medicoes: { orderBy: { dataCorte: "desc" }, take: 2 },
+          },
+        },
       },
       orderBy: { atualizadoEm: "desc" },
     });
+
+    const idsProjetosDaPasta = new Set(iniciativas.map((iniciativa) => iniciativa.id));
+    const metasEstrategicasDaPasta = metasEstrategicas.filter(
+      (meta) => meta.secretariaId === selectedId ||
+        meta.iniciativas.some((iniciativa) => idsProjetosDaPasta.has(iniciativa.id)),
+    );
 
     const dataRef =
       iniciativas.find((i) => i.dataReferencia)?.dataReferencia ?? new Date();
@@ -941,6 +966,36 @@ dashboardRouter.get("/cenario-secretaria", async (req, res, next) => {
         atrasadas: estados.filter((st) => st === "VENCIDO").length,
         semPrazo: estados.filter((st) => st === "SEM_PRAZO").length,
         pctConclusao: total ? Math.round((feitas / total) * 100) : 0,
+        metasExecucao: ini.metasExecucao.map((meta) => {
+          const atual = meta.medicoes[0];
+          const realizado = parseNum(atual?.valorRealizado ?? null);
+          const esperado = parseNum(atual?.valorEsperado ?? null);
+          return {
+            id: meta.id,
+            codigo: meta.codigo,
+            nome: meta.nome,
+            indicador: meta.indicador,
+            unidade: meta.unidade,
+            alvo: meta.alvo,
+            valorAtual: meta.valorAtual,
+            prazo: meta.prazo?.toISOString() ?? null,
+            medicaoAtual: atual
+              ? {
+                  dataCorte: atual.dataCorte.toISOString(),
+                  valorRealizado: atual.valorRealizado,
+                  valorEsperado: atual.valorEsperado,
+                  fonte: atual.fonte,
+                }
+              : null,
+            medicaoAnterior: meta.medicoes[1]
+              ? {
+                  dataCorte: meta.medicoes[1].dataCorte.toISOString(),
+                  valorRealizado: meta.medicoes[1].valorRealizado,
+                }
+              : null,
+            desvio: realizado != null && esperado != null ? realizado - esperado : null,
+          };
+        }),
       };
     });
 
@@ -981,8 +1036,8 @@ dashboardRouter.get("/cenario-secretaria", async (req, res, next) => {
         statusValidacao: m.statusValidacao,
         perspectivaBsc: m.perspectivaBsc,
         resultadoChaveOkr: m.resultadoChaveOkr,
-        projetos: m._count.iniciativas,
-        projetosVinculados: m.iniciativas,
+        projetos: m.iniciativas.filter((iniciativa) => idsProjetosDaPasta.has(iniciativa.id)).length,
+        projetosVinculados: m.iniciativas.filter((iniciativa) => idsProjetosDaPasta.has(iniciativa.id)),
         indicadores: m.indicadores.map((indicador) => ({
           id: indicador.id,
           nome: indicador.nome,
@@ -1000,6 +1055,12 @@ dashboardRouter.get("/cenario-secretaria", async (req, res, next) => {
               valorRealizado: atual.valorRealizado,
               valorEsperado: atual.valorEsperado,
               fonte: atual.fonte,
+            }
+          : null,
+        medicaoAnterior: m.medicoes[1]
+          ? {
+              dataCorte: m.medicoes[1].dataCorte.toISOString(),
+              valorRealizado: m.medicoes[1].valorRealizado,
             }
           : null,
         desvio:

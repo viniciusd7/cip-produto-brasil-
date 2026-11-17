@@ -3,7 +3,7 @@
 ## Princípios
 
 - Menu filtrado pelo papel; home distinta após o login.
-- Fluxo único: **Cenário → Minha secretaria (quem) → Projeto (o quê) → Cobrança**.
+- Fluxo único: **Visão geral → Minha secretaria (quem) → Projeto (o quê) → Cobrança**.
 - Identidade visual Azimov / CIP executive (dark: rose `#ff5982`, violet `#7c9cff`, green `#b4e4a0`).
 - Mobile-first: 1 coluna, CTAs únicos, progressive disclosure no desktop.
 - Projeto nasce pelo **wizard** (`/minha-pasta/novo`): a entrada geral oferece quatro categorias exclusivas; o assistente começa pelos impedimentos comuns e segue com o modelo e as perguntas do fluxo escolhido.
@@ -18,7 +18,7 @@
 
 | Papel | Conta demo | Home | Permissões operacionais |
 |---|---|---|---|
-| Prefeito | `prefeito@cmd.local` | `/painel` (cenário em um olhar: situação geral, semáforo das secretarias, metas e atenção) | Não — somente leitura de toda a prefeitura |
+| Prefeito | `prefeito@cmd.local` | `/painel` (visão geral única, com resultados estratégicos em destaque e detalhamento por secretaria) | Não edita projetos ou tarefas; mantém os acessos de consulta já existentes |
 | Secretário (`gestor`) | `gestor@cmd.local` | `/minha-pasta` (carteira visual da secretaria e tarefas) | Somente envio de evidências |
 | Consultor (`analista`) | `analista@cmd.local` | `/painel` (cenário da prefeitura ativa) | Sim: secretarias, equipe (`/equipe`), plano, metas, indicadores, projetos e tarefas |
 | Leitura | — | `/painel` | Não |
@@ -33,9 +33,12 @@ Senha demo: ver [`docs/DEMO.md`](DEMO.md) (somente ambiente local).
 
 ## 1) Prefeito
 
-1. Login → cenário em um olhar (`#visao` → `#detalhes`): medidor de entregas em dia, semáforo das secretarias, metas estratégicas e o que precisa de atenção; a análise completa fica atrás de “Ver análise detalhada”
-2. Visão de todas as secretarias ativas, incluindo as que ainda não têm projetos, com indicadores, metas, agenda e prioridades
-3. Drill para o cenário detalhado de uma secretaria e, dali, para projetos; sem formulários de edição
+1. Login → dashboard executivo único em `/painel`: metas estratégicas, indicadores, realizado informado, esperado na data, desvio, medição anterior e fonte.
+2. A visão mostra todas as secretarias ativas, inclusive as que ainda não têm projetos. A seleção de uma secretaria aprofunda metas estratégicas, metas de execução e projetos na própria rota `/painel?secretariaId=…`.
+3. Projetos com atraso e dados defasados aparecem como pontos de atenção. As contagens de tarefas permanecem em um bloco de execução, separado dos indicadores de resultado.
+4. Os acessos de consulta já existentes permanecem disponíveis. O prefeito não recebe formulários de edição de projetos ou tarefas.
+5. A Visão geral do prefeito tem abas para Resultados, Secretarias, Projetos e Acompanhamento. Cada aba abre conteúdo próprio; os filtros de secretarias e projetos ficam recolhidos em “Filtros adicionais”.
+6. No menu lateral, clicar em Projetos abre a carteira completa. A seta ao lado expande as categorias de projeto.
 
 ## 2) Secretário
 
@@ -47,7 +50,7 @@ Senha demo: ver [`docs/DEMO.md`](DEMO.md) (somente ambiente local).
 
 ## 3) Consultor (analista)
 
-1. Login ou troca de prefeitura → **Cenário** (`/painel`), com visão geral da prefeitura ativa e entrada permanente no menu; Secretarias continua como próximo passo para acompanhar prioridades e abrir a pasta municipal
+1. Login ou troca de prefeitura → **Visão geral** (`/painel`) da prefeitura ativa, com indicadores operacionais, tarefas, prazos e ações de acompanhamento. Secretarias continua como próximo passo para abrir a pasta municipal.
 2. Projetos → abrir metas, tarefas, subtarefas e evidências; em **Aprovações**, decidir pedidos de conclusão com justificativa e evidência
 3. Agenda → consultar a carteira de projetos com progresso, tarefas por estado, secretarias correlacionadas e providências abertas; no perfil secretário, os dados são limitados à própria secretaria
 
@@ -74,7 +77,7 @@ A troca confirma a sessão antes de recarregar a página de entrada, descartando
 ## Visão da secretaria
 
 - O mesmo painel visual (medidor, barra de status, "o que precisa de atenção", pastas de projetos com correlacionados 🤝 e metas estratégicas) aparece:
-  - para o **prefeito**, em `/painel?secretariaId=…`, com chips para trocar de secretaria e filtros de saúde;
+  - para o **prefeito**, em `/painel?secretariaId=…`, com metas estratégicas, metas de execução por projeto, medições e projetos vinculados em leitura executiva;
   - para o **secretário**, em `/minha-pasta`, restrito à própria secretaria.
 
 ## Central de notificações

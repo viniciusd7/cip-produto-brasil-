@@ -31,8 +31,8 @@ test("consulta vazia tem explicação e exportação continua disponível", () =
     tipo: "tarefas", busca: "", ordenar: "codigo", direcao: "asc", total: 0, colunas: [], linhas: [],
   }} />);
   assert.match(html, /Nenhum resultado/);
-  const botoes = renderToStaticMarkup(<ExportButtons csv="Código;Tarefa" />);
-  assert.match(botoes, /Exportar esta tabela \(CSV\)/);
+  const botoes = renderToStaticMarkup(<ExportButtons />);
+  assert.doesNotMatch(botoes, /CSV/);
 });
 
 test("filtros aplicados por formulário único e metas não herdam situação de tarefas", () => {

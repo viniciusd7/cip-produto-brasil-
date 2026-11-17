@@ -256,7 +256,7 @@ O seed **não publica nem troca a conexão do aplicativo atual**. Para acesso:
    para essa conta porque esse perfil é restrito a uma única prefeitura.
    As contas `prefeito@modelo1.example.test` e `prefeito@modelo2.example.test`
    continuam disponíveis, cada uma com acesso apenas à sua própria prefeitura.
-4. Comece em **Cenário**, depois Secretarias, Projetos, Tarefas e Pendências.
+4. Comece em **Visão geral**, depois Secretarias, Projetos, Tarefas e Agenda.
    Essas contas acompanham, mas não são contas de edição/consultoria.
 
 O painel antigo de credenciais da tela de login **não inclui estas contas**:

@@ -217,7 +217,7 @@ export function LoginForm({
 
         <ul className="login-hero__points">
           <li>
-            <span>Cenário</span>
+            <span>Visão geral</span>
             Visão executiva da carteira, atrasos e atenção do gabinete.
           </li>
           <li>
@@ -258,7 +258,7 @@ export function LoginForm({
         </p>
 
         {tenantOptions ? (
-          <div className="login-form">
+          <div className="login-form tenant-picker" aria-busy={loading}>
             {tenantOptions.map((tenant) => (
               <button
                 key={tenant.id}
@@ -267,8 +267,11 @@ export function LoginForm({
                 disabled={loading}
                 onClick={() => void selectTenant(tenant.id)}
               >
-                <strong>{tenant.nome} ({tenant.uf})</strong>
-                <span>
+                <span className="tenant-choice__avatar" aria-hidden="true">{tenant.nome.trim().charAt(0).toLocaleUpperCase("pt-BR")}</span>
+                <span className="tenant-choice__body">
+                <small className="tenant-choice__location">Prefeitura · {tenant.uf}</small>
+                <strong>{tenant.nome}</strong>
+                <span className="tenant-choice__role">
                   {tenant.role === "gestor"
                     ? `Secretário${tenant.secretariaNome ? ` · ${tenant.secretariaNome}` : ""}`
                     : tenant.role === "analista"
@@ -277,6 +280,8 @@ export function LoginForm({
                         ? "Prefeito"
                         : "Acesso de consulta"}
                 </span>
+                </span>
+                <span className="tenant-choice__enter" aria-hidden="true">{loading ? "…" : "→"}</span>
               </button>
             ))}
             <Button

@@ -14,6 +14,7 @@ export type DadosGerenciador = {
   }>;
   metasEstrategicas: Array<{
     id: string; nome: string; secretaria: string | null;
+    base?: string | null; alvo?: string | null; realizado?: string | null; dataCorte?: string | null;
     indicadores: Array<{
       id: string; nome: string; unidade: string | null; valorBase: string | null;
       valorAtual: string | null; alvo: string | null;
@@ -113,21 +114,7 @@ export function GerenciadorRelatorio({ dados, consulta }: { dados: DadosGerencia
         </article>
       </div>
 
-      <div className="pc-gerenciador__bloco">
-        <div className="pc-gerenciador__bloco-head"><div><p className="pc-kicker">Resultados medidos</p><h3>Indicadores estratégicos</h3></div><span>{indicadoresMedidos} de {indicadores.length} com medição</span></div>
-        <p className="pc-gerenciador__nota">Indicadores seguem os filtros de secretaria, projeto e período. Busca textual e situação selecionam apenas tarefas.</p>
-        {indicadores.length ? <div className="pc-gerenciador__indicadores">{indicadores.map((indicador) => {
-          const atual = indicador.medicao?.valorRealizado ?? indicador.valorAtual;
-          const progresso = avancar(indicador.valorBase, indicador.alvo, atual);
-          return <article key={indicador.id} className="pc-gerenciador__indicador">
-            <small>{indicador.secretaria || "Secretaria não informada"} · {indicador.meta}</small>
-            <h4>{indicador.nome}</h4>
-            <div className="pc-gerenciador__valores"><div><span>{indicador.medicao ? "Última medição" : "Atual cadastrado"}</span><strong>{atual ?? "Não informado"}{atual && indicador.unidade ? ` ${indicador.unidade}` : ""}</strong></div><div><span>Alvo</span><strong>{indicador.alvo ?? "Não informado"}{indicador.alvo && indicador.unidade ? ` ${indicador.unidade}` : ""}</strong></div></div>
-            {progresso != null ? <div className="pc-gerenciador__progresso"><div><span>Avanço entre base e alvo</span><strong>{progresso}%</strong></div><progress value={progresso} max="100">{progresso}%</progress></div> : <p className="pc-gerenciador__nota">Avanço percentual indisponível para os valores cadastrados.</p>}
-            <small>{indicador.medicao ? `Medido em ${dataCurta(indicador.medicao.dataCorte)}` : "Sem medição no período"}</small>
-          </article>;
-        })}</div> : <p className="pc-vazio">Ainda não há indicadores vinculados aos projetos deste recorte.</p>}
-      </div>
+      <IndicadoresRelatorio dados={dados} />
 
       <div className="pc-gerenciador__bloco">
         <div className="pc-gerenciador__bloco-head"><div><p className="pc-kicker">Gerenciador de tarefas</p><h3>Projetos, tarefas e subtarefas</h3></div><span>{projetos.length} projetos</span></div>
@@ -150,6 +137,55 @@ export function GerenciadorRelatorio({ dados, consulta }: { dados: DadosGerencia
             })}</ul> : <p className="pc-grafico__vazio">Nenhuma tarefa neste projeto e recorte.</p>}
           </details>;
         })}</div> : <p className="pc-vazio">Nenhum projeto com tarefas corresponde à consulta.</p>}
+      </div>
+    </section>
+  );
+}
+
+
+export function IndicadoresRelatorio({ dados, consulta }: { dados: DadosGerenciador; consulta?: ConsultaRelatorio }) {
+  const ids = consulta ? new Set(consulta.linhas.map((linha) => linha.id)) : null;
+  const indicadores = dados.metasEstrategicas.flatMap((meta) =>
+    meta.indicadores.filter((indicador) => !ids || ids.has(`${meta.id}:${indicador.id}`))
+      .map((indicador) => ({ ...indicador, meta: meta.nome, secretaria: meta.secretaria })),
+  );
+  const indicadoresMedidos = indicadores.filter((indicador) => indicador.medicao).length;
+  return (
+    <section className="pc-gerenciador">
+      <div className="pc-gerenciador__bloco">
+        <h3>Metas estratégicas</h3>
+        <div className="pc-gerenciador__indicadores">
+          {dados.metasEstrategicas.filter((meta) => !ids || ids.has(meta.id) || meta.indicadores.some((indicador) => ids.has(`${meta.id}:${indicador.id}`))).map((meta) => {
+            const progresso = avancar(meta.base ?? null, meta.alvo ?? null, meta.realizado ?? null);
+            return (
+              <article key={meta.id} className="pc-gerenciador__indicador">
+                <small>{meta.secretaria || "Gestão municipal"}</small>
+                <h4>{meta.nome}</h4>
+                <div className="pc-gerenciador__valores">
+                  <div><span>Realizado</span><strong>{meta.realizado ?? "Sem medição"}</strong></div>
+                  <div><span>Alvo</span><strong>{meta.alvo ?? "Não informado"}</strong></div>
+                </div>
+                {progresso != null && <div className="pc-gerenciador__progresso"><div><span>Avanço da meta entre base e alvo</span><strong>{progresso}%</strong></div><progress value={progresso} max="100">{progresso}%</progress></div>}
+                <small>{meta.dataCorte ? `Medido em ${dataCurta(meta.dataCorte)}` : "Sem medição da meta no período"}</small>
+              </article>
+            );
+          })}
+        </div>
+      </div>
+      <div className="pc-gerenciador__bloco">
+        <div className="pc-gerenciador__bloco-head"><div><p className="pc-kicker">Resultados medidos</p><h3>Indicadores estratégicos</h3></div><span>{indicadoresMedidos} de {indicadores.length} com medição</span></div>
+        <p className="pc-gerenciador__nota">Indicadores seguem os filtros de secretaria, projeto e período. Busca textual e situação selecionam apenas tarefas.</p>
+        {indicadores.length ? <div className="pc-gerenciador__indicadores">{indicadores.map((indicador) => {
+          const atual = indicador.medicao?.valorRealizado ?? indicador.valorAtual;
+          const progresso = avancar(indicador.valorBase, indicador.alvo, atual);
+          return <article key={indicador.id} className="pc-gerenciador__indicador">
+            <small>{indicador.secretaria || "Secretaria não informada"} · {indicador.meta}</small>
+            <h4>{indicador.nome}</h4>
+            <div className="pc-gerenciador__valores"><div><span>{indicador.medicao ? "Última medição" : "Atual cadastrado"}</span><strong>{atual ?? "Não informado"}{atual && indicador.unidade ? ` ${indicador.unidade}` : ""}</strong></div><div><span>Alvo</span><strong>{indicador.alvo ?? "Não informado"}{indicador.alvo && indicador.unidade ? ` ${indicador.unidade}` : ""}</strong></div></div>
+            {progresso != null ? <div className="pc-gerenciador__progresso"><div><span>Avanço entre base e alvo</span><strong>{progresso}%</strong></div><progress value={progresso} max="100">{progresso}%</progress></div> : <p className="pc-gerenciador__nota">Avanço percentual indisponível para os valores cadastrados.</p>}
+            <small>{indicador.medicao ? `Medido em ${dataCurta(indicador.medicao.dataCorte)}` : "Sem medição no período"}</small>
+          </article>;
+        })}</div> : <p className="pc-vazio">Ainda não há indicadores vinculados aos projetos deste recorte.</p>}
       </div>
     </section>
   );

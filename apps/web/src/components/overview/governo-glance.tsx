@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { CLASS_GROUPS } from "@cip/shared";
 import type { OverviewResponse } from "./types";
+import { overviewCopy } from "./audience";
 
 type Data = OverviewResponse["data"];
 
@@ -24,7 +25,7 @@ export function saudeGoverno(governo: Data["governo"]) {
 
 export function veredito(saude: number | null) {
   if (saude == null)
-    return { cor: COR.cinza, titulo: "Aguardando cadastros", texto: "O consultor ainda está cadastrando projetos e tarefas." };
+    return { cor: COR.cinza, titulo: "Aguardando cadastros", texto: "Ainda não há projetos e tarefas cadastrados." };
   if (saude >= 80)
     return { cor: COR.verde, titulo: "Governo em dia", texto: "A maior parte das entregas está concluída ou dentro do prazo." };
   if (saude >= 60)
@@ -83,8 +84,9 @@ export function BarraEmpilhada({ partes }: { partes: Array<{ rotulo: string; val
   );
 }
 
-export function GovernoGlance({ data, secretarias: secretariasSlot }: { data: Data; secretarias?: ReactNode }) {
+export function GovernoGlance({ data, secretarias: secretariasSlot, role, showGoals = true, showSecretarias = true, heroId = "visao" }: { data: Data; secretarias?: ReactNode; role?: string; showGoals?: boolean; showSecretarias?: boolean; heroId?: string }) {
   const { governo, porSecretaria, estrategia, tarefasPedemAcao } = data;
+  const copy = overviewCopy(role);
   const saude = saudeGoverno(governo);
   const v = veredito(saude);
   const abertasEmDia = Math.max(0, governo.abertas - governo.atrasadas - governo.semPrazo);
@@ -119,14 +121,14 @@ export function GovernoGlance({ data, secretarias: secretariasSlot }: { data: Da
 
   return (
     <div className="gl">
-      <section id="visao" className="gl-hero" style={{ ["--v" as string]: v.cor }}>
+      <section id={heroId} className="gl-hero" style={{ ["--v" as string]: v.cor }}>
         <div className="gl-hero__medidor">
           <Medidor valor={saude} cor={v.cor} />
         </div>
         <div className="gl-hero__texto">
-          <p className="gl-kicker">Situação geral do governo</p>
-          <h2>{v.titulo}</h2>
-          <p>{v.texto}</p>
+          <p className="gl-kicker">{role === "prefeito" ? "Execução registrada nos projetos" : "Situação geral do governo"}</p>
+          <h2>{role === "prefeito" && saude != null ? "Situação das entregas" : v.titulo}</h2>
+          <p>{saude == null ? copy.emptyTasks : role === "prefeito" && saude < 60 ? "Há entregas atrasadas. Solicite às secretarias uma posição sobre causas e prazos." : v.texto}</p>
           <BarraEmpilhada
             partes={[
               { rotulo: "concluídas", valor: governo.concluidas, cor: COR.verde },
@@ -143,7 +145,7 @@ export function GovernoGlance({ data, secretarias: secretariasSlot }: { data: Da
         </ul>
       </section>
 
-      {secretariasSlot ?? (
+      {showSecretarias && (secretariasSlot ?? (
       <section id="secretarias" className="gl-bloco">
         <header className="gl-bloco__cab">
           <div>
@@ -186,9 +188,9 @@ export function GovernoGlance({ data, secretarias: secretariasSlot }: { data: Da
         </ul>
         {!secretarias.length && <p className="gl-vazio">Nenhuma secretaria cadastrada ainda.</p>}
       </section>
-      )}
+      ))}
 
-      <section id="meta-estrategica" className="gl-bloco">
+      {showGoals && <section id="meta-estrategica" className="gl-bloco">
           <header className="gl-bloco__cab">
             <div>
               <p className="gl-kicker">Plano de governo</p>
@@ -243,15 +245,15 @@ export function GovernoGlance({ data, secretarias: secretariasSlot }: { data: Da
               })}
             </ul>
           ) : (
-            <p className="gl-vazio">O consultor ainda não cadastrou metas estratégicas.</p>
+            <p className="gl-vazio">{copy.emptyGoals}</p>
           )}
-      </section>
+      </section>}
 
       <section id="atencao" className="gl-bloco">
         <header className="gl-bloco__cab">
           <div>
-            <p className="gl-kicker">Para a próxima reunião</p>
-            <h2>O que precisa da sua atenção</h2>
+            <p className="gl-kicker">{copy.attentionKicker}</p>
+            <h2>{copy.attentionTitle}</h2>
           </div>
           <Link href="/pendencias" className="gl-link">Agenda completa →</Link>
         </header>

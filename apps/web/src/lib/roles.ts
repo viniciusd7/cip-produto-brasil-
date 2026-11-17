@@ -111,9 +111,9 @@ const PROJETOS_CARTEIRA: NavItem["children"] = [
   { href: "/carteira/acao-diaria", label: "Ação diária" },
 ];
 
-/** Ordem da jornada: Cenário → Secretarias → Projetos → Cobrança. */
+/** Ordem da jornada: visão geral → secretarias → projetos → acompanhamento. */
 const ALL_NAV: NavItem[] = [
-  { href: "/painel", label: "Cenário" },
+  { href: "/painel", label: "Visão geral" },
   { href: "/minha-pasta", label: "Minha secretaria" },
   { href: "/secretarias", label: "Secretarias" },
   { href: "/carteira", label: "Projetos", children: PROJETOS_CARTEIRA },
