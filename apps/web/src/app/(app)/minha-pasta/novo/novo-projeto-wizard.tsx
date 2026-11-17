@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Card } from "@cip/ui";
 import {
@@ -29,6 +29,7 @@ import { FluxoArvore, type FluxoNode } from "@/components/fluxo-arvore";
 import { EscopoEditor, temResponsavel, type EscopoNo } from "./escopo-editor";
 import { mesclarEscopo } from "./mesclar-escopo";
 import { normalizarEscopo, type NoApi } from "./normalizar-escopo";
+import { chaveRascunho, lerRascunho, salvarRascunho } from "./rascunho-projeto";
 
 type Secretaria = {
   id: string;
@@ -154,6 +155,8 @@ function contarItens(nos: EscopoNo[]): number {
 
 export function NovoProjetoWizard({
   token,
+  usuarioId,
+  municipioId,
   initialClassification,
   defaultSecretariaId,
   secretarias,
@@ -162,6 +165,8 @@ export function NovoProjetoWizard({
   planos,
 }: {
   token: string;
+  usuarioId: string;
+  municipioId: string;
   initialClassification: Classificacao;
   defaultSecretariaId?: string;
   secretarias: Secretaria[];
@@ -211,6 +216,12 @@ export function NovoProjetoWizard({
   const [ultimoPassoGerado, setUltimoPassoGerado] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const rascunhoKey = chaveRascunho(usuarioId, municipioId, initialClassification);
+  const [rascunhoPronto, setRascunhoPronto] = useState(false);
+  const [rascunhoMensagem, setRascunhoMensagem] = useState("Carregando rascunho…");
+  const [rascunhoErro, setRascunhoErro] = useState("");
+  const rascunhoBloqueado = useRef(false);
+  const concluido = useRef(false);
 
   const estruturante =
     classificacao === "ESTRUTURANTE" || classificacao === "PRIORITARIO";
@@ -219,6 +230,83 @@ export function NovoProjetoWizard({
     : classificacao === "PLANO_GOVERNO"
       ? STEPS_PLANO
       : STEPS_ACAO;
+  const totalPassos = steps.length;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const dados = lerRascunho(window.localStorage, rascunhoKey);
+        if (dados) {
+          setStep(Math.min(dados.step, totalPassos - 2));
+          setRespostas(dados.respostas);
+          setSecretariaId(dados.secretariaId);
+          setSecretariasCorrelatas(dados.secretariasCorrelatas);
+          setResponsavelPessoaId(dados.responsavelPessoaId);
+          setNovoNome(dados.novoNome);
+          setNovoCargo(dados.novoCargo);
+          setNovoTelefone(dados.novoTelefone);
+          setNovoEmail(dados.novoEmail);
+          setNome(dados.nome);
+          setCodigo(dados.codigo);
+          setDescricao(dados.descricao);
+          setEntrega(dados.entrega);
+          setForaEscopo(dados.foraEscopo);
+          setBeneficiariosTxt(dados.beneficiariosTxt);
+          setMetaId(dados.metaId);
+          setNovaMetaNome(dados.novaMetaNome);
+          setPlanoId(dados.planoId);
+          setNovoPlanoNome(dados.novoPlanoNome);
+          setEscopo(dados.escopo);
+          setUltimoPassoGerado(dados.ultimoPassoGerado);
+          setRascunhoMensagem("Rascunho recuperado. Suas alterações são salvas automaticamente neste navegador.");
+        } else {
+          setRascunhoMensagem("Rascunho salvo automaticamente neste navegador.");
+        }
+      } catch (err) {
+        rascunhoBloqueado.current = true;
+        const mensagem = err instanceof Error ? err.message : "Não foi possível recuperar o rascunho.";
+        setRascunhoErro(`${mensagem} O salvamento automático está pausado; descarte o rascunho para recomeçar.`);
+      }
+      setRascunhoPronto(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [rascunhoKey, totalPassos]);
+
+  useEffect(() => {
+    if (!rascunhoPronto || concluido.current || rascunhoBloqueado.current) return;
+    let ativo = true;
+    try {
+      salvarRascunho(window.localStorage, rascunhoKey, {
+        step, respostas, secretariaId, secretariasCorrelatas, responsavelPessoaId,
+        novoNome, novoCargo, novoTelefone, novoEmail, nome, codigo, descricao,
+        entrega, foraEscopo, beneficiariosTxt, metaId, novaMetaNome, planoId,
+        novoPlanoNome, escopo, ultimoPassoGerado,
+      });
+      queueMicrotask(() => { if (ativo) setRascunhoErro(""); });
+    } catch (err) {
+      const mensagem = err instanceof Error ? err.message : "Armazenamento indisponível.";
+      queueMicrotask(() => {
+        if (ativo) setRascunhoErro(`Não foi possível salvar o rascunho. Não saia desta página antes de concluir. ${mensagem}`);
+      });
+    }
+    return () => { ativo = false; };
+  }, [
+    rascunhoPronto, rascunhoKey, step, respostas, secretariaId, secretariasCorrelatas,
+    responsavelPessoaId, novoNome, novoCargo, novoTelefone, novoEmail, nome, codigo,
+    descricao, entrega, foraEscopo, beneficiariosTxt, metaId, novaMetaNome, planoId,
+    novoPlanoNome, escopo, ultimoPassoGerado,
+  ]);
+
+  function descartarRascunho() {
+    if (!window.confirm("Descartar o rascunho deste tipo de projeto e recomeçar?")) return;
+    try {
+      window.localStorage.removeItem(rascunhoKey);
+      concluido.current = true;
+      window.location.reload();
+    } catch (err) {
+      setRascunhoErro(err instanceof Error ? err.message : "Não foi possível descartar o rascunho.");
+    }
+  }
   // Grupos do catálogo ativo, buscados dentro do próprio fluxo. Um mapa global
   // nome→id colidia ("Recursos" existe no estruturante e no Plano de Governo).
   const gruposAtivos = estruturante
@@ -334,7 +422,7 @@ export function NovoProjetoWizard({
   // Equipe de todas as pastas envolvidas (principal + correlacionadas).
   // Responsável do projeto pode vir de qualquer uma delas.
   useEffect(() => {
-    if (!token || !secretariaId) return;
+    if (!rascunhoPronto || !token || !secretariaId) return;
     let cancelled = false;
     Promise.all(
       envolvidasKey.split(",").map(async (id) => {
@@ -372,7 +460,7 @@ export function NovoProjetoWizard({
       cancelled = true;
     };
     // secretariaId já está representado em envolvidasKey.
-  }, [envolvidasKey, secretariaId, token, tentativaEquipe]);
+  }, [rascunhoPronto, envolvidasKey, secretariaId, token, tentativaEquipe]);
 
   async function runPreview() {
     const res = await fetch(`${API_URL}/iniciativas/wizard/preview`, {
@@ -574,6 +662,12 @@ export function NovoProjetoWizard({
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error?.message || "Falha ao criar");
+      concluido.current = true;
+      try {
+        window.localStorage.removeItem(rascunhoKey);
+      } catch (err) {
+        window.alert(`Projeto criado, mas não foi possível limpar o rascunho: ${err instanceof Error ? err.message : "armazenamento indisponível"}. Descarte o rascunho antes de iniciar outro cadastro deste tipo.`);
+      }
       router.push(`/iniciativas/${json.data.id}?aba=andamento`);
       router.refresh();
     } catch (e) {
@@ -631,8 +725,15 @@ export function NovoProjetoWizard({
     setStep(indice);
   }
 
+  if (!rascunhoPronto) return <p role="status">Carregando rascunho…</p>;
+
   return (
     <div className="wizard stack">
+      <div>
+        <p role={rascunhoErro ? "alert" : "status"}>{rascunhoErro || rascunhoMensagem}</p>
+        <p className="dashboard-muted">Um rascunho por tipo, usuário e prefeitura. Disponível somente neste navegador; não é sincronizado entre dispositivos.</p>
+        <Button type="button" variant="ghost" disabled={saving} onClick={descartarRascunho}>Descartar rascunho e recomeçar</Button>
+      </div>
       <header className="wizard-head">
         <p className="section-kicker">
           {classificacao === "PLANO_GOVERNO"
@@ -945,7 +1046,7 @@ export function NovoProjetoWizard({
       {steps[step] === "Urgência" && (
         <Card
           title="Urgência e impacto"
-          subtitle="Estas respostas definem a prioridade. Nada é salvo até a confirmação."
+          subtitle="Estas respostas definem a prioridade. O projeto só é criado ao confirmar; o rascunho é mantido neste navegador."
         >
           {renderPerguntas(
             estruturante
@@ -976,7 +1077,7 @@ export function NovoProjetoWizard({
       {steps[step] === "Escopo" && (
         <Card
           title="Escopo e responsáveis"
-          subtitle="Desdobre o projeto em tarefas e subtarefas e defina quem responde por cada uma. Nada é salvo até a confirmação."
+          subtitle="Desdobre o projeto em tarefas e subtarefas e defina quem responde por cada uma. O projeto só é criado ao confirmar; o rascunho é mantido neste navegador."
         >
           <div className="stack">
             <div className="chip-row">
@@ -1000,7 +1101,7 @@ export function NovoProjetoWizard({
       {steps[step] === "Prévia" && (
         <Card
           title="Pré-visualização"
-          subtitle="Revise antes de gravar. Nada foi salvo ainda."
+          subtitle="Revise o rascunho antes de confirmar a criação do projeto."
         >
           <div className="stack">
             <div className="chip-row">

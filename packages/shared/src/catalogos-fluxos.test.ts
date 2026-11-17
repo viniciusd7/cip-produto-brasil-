@@ -21,14 +21,14 @@ import {
   buildAcaoDiariaPerguntas,
 } from "./catalog/acao-diaria";
 import { formatarDetalhes, parseCondicaoResposta } from "./condicao-resposta";
-import { evaluateWizard } from "./wizard-engine";
+import { evaluateWizard, visibleQuestions } from "./wizard-engine";
 
 describe("três catálogos de gestão pública", () => {
   it("estruturante pergunta uma vez por decisão necessária", () => {
-    assert.equal(GRUPOS_CONDICOES.length, 2);
+    assert.equal(GRUPOS_CONDICOES.length, 1);
     assert.deepEqual(
       GRUPOS_CONDICOES.map((grupo) => grupo.nome),
-      ["O que falta para começar", "Após a entrega"],
+      ["Após a entrega"],
     );
     assert.equal(etapasFromGrupos().some((etapa) => etapa.nome === "Verba"), false);
     const perguntas = buildCatalogoPerguntas();
@@ -71,6 +71,40 @@ describe("três catálogos de gestão pública", () => {
     assert.ok(licenca?.camposFollowUp?.some((c) => c.chave === "quais_licencas"));
     assert.match(licitacao?.texto || "", /licitar/);
     assert.ok(!perguntas.some((p) => p.codigo === "dotacao_loa" || p.codigo === "modalidade_licitacao"));
+    assert.equal(fluxoComImpedimentos.perguntas.some((p) => p.grupo === "preparacao"), false);
+    assert.equal(fluxoComImpedimentos.perguntas.find((p) => p.codigo === "projeto_basico_executivo")?.grupo, GRUPO_IMPEDIMENTOS.id);
+    assert.equal(perguntas.find((p) => p.codigo === "custeio_pos_entrega")?.etapa, etapasFromGrupos()[0].ordem);
+  });
+
+  it("imóvel tem uma única triagem e só detalha a situação quando aplicável, preservando efeitos", () => {
+    const modelo = adicionarImpedimentosComuns({
+      codigo: "PROJETO_ESTRUTURANTE_PADRAO",
+      nome: "Projeto",
+      perguntas: buildCatalogoPerguntas(),
+      estrutura: [],
+      etapas: [
+        { codigo: "PREPARACAO", nome: "O que falta para começar", ordem: 1 },
+        { codigo: "OPERACAO", nome: "Após a entrega", ordem: 2 },
+      ],
+    });
+    const semImovel = visibleQuestions(modelo.perguntas, [{
+      perguntaCodigo: "desapropriacao_imovel",
+      valor: { codigo: "desapropriacao_imovel", aplicabilidade: "nao", situacao: "dispensada_com_fundamento" },
+    }]);
+    assert.equal(semImovel.some((p) => p.codigo === "situacao_imovel"), false);
+    assert.equal(visibleQuestions(modelo.perguntas, []).some((p) => p.codigo === "situacao_imovel"), false);
+    const comImovel = visibleQuestions(modelo.perguntas, [{
+      perguntaCodigo: "desapropriacao_imovel",
+      valor: { codigo: "desapropriacao_imovel", aplicabilidade: "sim", situacao: "pendente" },
+    }]);
+    const detalhe = comImovel.find((p) => p.codigo === "situacao_imovel");
+    assert.equal(detalhe?.pergunta, "Qual é a situação do imóvel necessário?");
+    assert.equal(detalhe?.grupo, GRUPO_IMPEDIMENTOS.id);
+    assert.equal(detalhe?.opcoes?.includes("Não precisa de imóvel"), false);
+    assert.ok(detalhe?.efeitos?.some((efeito) => efeito.incluirEstrutura?.includes("TAR_DUP")));
+    assert.equal(comImovel.filter((p) => p.camposFollowUp?.some((c) => c.chave === "endereco_ou_matricula")).length, 1);
+    assert.equal(modelo.etapas?.some((etapa) => etapa.codigo === "PREPARACAO"), false);
+    assert.deepEqual(adicionarImpedimentosComuns(modelo), modelo);
   });
 
   it("plano de governo tem segmentos compromisso→cobrança e follow-ups", () => {

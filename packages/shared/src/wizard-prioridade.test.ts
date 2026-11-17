@@ -160,7 +160,7 @@ describe("etapas — grupos e prontidão", () => {
   });
 
   it("terreno a desapropriar gera tarefas na ordem da lei sem meta de execução", () => {
-    const r = estado(R({ situacao_imovel: "Precisa desapropriar imóvel" }));
+    const r = estado(R({ desapropriacao_imovel: "pendente", situacao_imovel: "Precisa desapropriar imóvel" }));
     const codigos = codigosDaArvore(r.estrutura);
     for (const c of [
       "TAR_DUP",
@@ -187,16 +187,17 @@ describe("etapas — grupos e prontidão", () => {
     assert.ok(!codigosDaArvore(r.estrutura).includes("TAR_PCA"));
   });
 
-  it("área pública disponível é favorável em preparação", () => {
-    const r = estado(R({ situacao_imovel: "Imóvel público disponível" }));
-    const prep = r.etapas.find((e) => e.codigo === "PREPARACAO");
+  it("área pública disponível é favorável nos impedimentos e pré-requisitos", () => {
+    const r = estado(R({ desapropriacao_imovel: "atendida", situacao_imovel: "Imóvel público disponível" }));
+    const prep = r.etapas.find((e) => e.codigo === "IMPEDIMENTOS");
     assert.ok((prep?.favoraveis ?? 0) >= 1);
   });
 
-  it("impedimentos aparecem antes da preparação no fluxo", () => {
+  it("preparação integra impedimentos, antes da operação", () => {
     const r = estado([]);
     assert.equal(r.etapas[0]?.codigo, "IMPEDIMENTOS");
-    assert.equal(r.etapas[1]?.codigo, "PREPARACAO");
+    assert.equal(r.etapas[1]?.codigo, "OPERACAO");
+    assert.equal(r.etapas.some((etapa) => etapa.codigo === "PREPARACAO"), false);
   });
 
   it("prontidão sobe com respostas favoráveis parciais", () => {

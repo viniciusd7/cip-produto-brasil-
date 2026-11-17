@@ -63,7 +63,7 @@ export default async function NovoProjetoPage({
   const sp = await searchParams;
   const session = await getServerSession(authOptions);
   const token = session?.accessToken || "";
-  if (!token) redirect("/login");
+  if (!token || !session?.user.id || !session.user.municipioId) redirect("/login");
   if (!canWriteRole(session?.user?.role)) redirect(getHomeForRole(session?.user?.role));
 
   if (!sp.tipo) {
@@ -74,6 +74,7 @@ export default async function NovoProjetoPage({
           title="Escolha o fluxo de criação"
           description="Cada tipo tem perguntas próprias e será salvo em uma categoria exclusiva."
         />
+        <p className="dashboard-muted">Se você deixou um cadastro incompleto neste navegador, escolha o mesmo tipo para retomar seu rascunho automaticamente.</p>
         <Card>
           <div className="wizard-choice">
             {Object.entries(TIPOS).map(([tipo, item]) => (
@@ -139,7 +140,10 @@ export default async function NovoProjetoPage({
 
   return (
     <NovoProjetoWizard
+      key={`${session.user.id}:${session.user.municipioId}:${tipo.classificacao}`}
       token={token}
+      usuarioId={session.user.id}
+      municipioId={session.user.municipioId}
       initialClassification={tipo.classificacao}
       defaultSecretariaId={sp.secretariaId}
       secretarias={secs.data || []}

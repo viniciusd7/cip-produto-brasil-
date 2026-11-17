@@ -178,13 +178,35 @@ export function adicionarImpedimentosComuns(
     },
     efeitos: pergunta.efeitos || [],
   }));
-  const restante = modelo.perguntas.filter(
-    (pergunta) => !codigos.has(pergunta.codigo),
+  const restante = modelo.perguntas
+    .filter((pergunta) => !codigos.has(pergunta.codigo))
+    .map((pergunta, indice) => {
+      if (pergunta.grupo === "preparacao") {
+        return { ...pergunta, grupo: GRUPO_IMPEDIMENTOS.id, etapa: GRUPO_IMPEDIMENTOS.ordem, ordem: perguntas.length + indice + 1 };
+      }
+      return pergunta;
+    });
+
+  // A situação detalha a necessidade já respondida; não repete sua triagem.
+  const perguntasNormalizadas = restante.map((pergunta) =>
+    pergunta.codigo === "situacao_imovel"
+      ? {
+          ...pergunta,
+          texto: "Qual é a situação do imóvel necessário?",
+          pergunta: "Qual é a situação do imóvel necessário?",
+          rotulo: "Situação do imóvel",
+          dependeDeCodigo: "desapropriacao_imovel",
+          dependeDeValor: { in: ["pendente", "atendida"] },
+          opcoes: pergunta.opcoes?.filter((opcao) => opcao !== "Não precisa de imóvel"),
+          favoraveis: pergunta.favoraveis?.filter((opcao) => opcao !== "Não precisa de imóvel"),
+          camposFollowUp: [],
+        }
+      : pergunta,
   );
 
   return {
     ...modelo,
-    perguntas: [...perguntas, ...restante],
+    perguntas: [...perguntas, ...perguntasNormalizadas],
     etapas: [
       {
         codigo: "IMPEDIMENTOS",
@@ -192,7 +214,9 @@ export function adicionarImpedimentosComuns(
         descricao: GRUPO_IMPEDIMENTOS.ajuda,
         ordem: GRUPO_IMPEDIMENTOS.ordem,
       },
-      ...(modelo.etapas || []),
+      ...(modelo.etapas || []).filter(
+        (etapa) => !["IMPEDIMENTOS", "PREPARACAO"].includes(etapa.codigo),
+      ),
     ],
   };
 }

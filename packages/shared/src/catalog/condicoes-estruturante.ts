@@ -12,21 +12,16 @@ import type {
 
 export const GRUPOS_CONDICOES = [
   {
-    id: "preparacao",
-    nome: "O que falta para começar",
-    ajuda: "Responda sobre imóvel, projeto técnico, licenças e contratação.",
-    ordem: 1,
-  },
-  {
     id: "operacao",
     nome: "Após a entrega",
     ajuda: "Informe como a entrega será mantida em funcionamento.",
-    ordem: 2,
+    ordem: 1,
   },
 ] as const;
 
 export type GrupoCondicaoId =
   | (typeof GRUPOS_CONDICOES)[number]["id"]
+  | "preparacao"
   | "planejamento"
   | "recursos";
 
@@ -969,7 +964,7 @@ export function buildCatalogoPerguntas(): ModeloPerguntaDef[] {
       rotulo: "Custeio após a entrega", pergunta: "Depois da entrega, haverá gasto mensal ou equipe para manter o serviço?",
       ajuda: "Ex.: equipe, energia, manutenção, combustível ou suporte. Registre se já há previsão para custear.",
       tipoResposta: "SELECAO", impacto: "CONDICIONAL", obrigatoria: true,
-      ordem: 5, grupo: "operacao", etapa: 2,
+      ordem: 5, grupo: "operacao", etapa: 1,
       opcoes: ["Não haverá gasto recorrente", "Sim, custeio previsto", "Sim, custeio ainda não previsto", "A confirmar"],
       favoraveis: ["Não haverá gasto recorrente", "Sim, custeio previsto"],
       efeitos: [{ quando: { in: ["Sim, custeio ainda não previsto", "A confirmar"] }, incluirEstrutura: ["TAR_CUSTEIO"] }],

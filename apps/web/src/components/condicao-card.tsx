@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { Children, isValidElement, cloneElement, useId, type ReactElement, type ReactNode } from "react";
 import { AjudaCampo } from "@/components/ajuda-campo";
 import {
   RESPOSTA_FECHADA_LABEL,
@@ -24,13 +24,23 @@ function CampoComAjuda({
   mostrar?: boolean;
   campo: string;
   ajuda: string;
-  children: ReactNode;
+  children: ReactElement<{ children: ReactNode }>;
 }) {
+  const fieldId = useId();
   if (!mostrar) return <>{children}</>;
+  const [caption, ...controls] = Children.toArray(children.props.children);
   return (
-    <div>
-      <AjudaCampo campo={campo}>{ajuda}</AjudaCampo>
-      {children}
+    <div className="condicao-card__field">
+      <div className="rotulo-com-ajuda">
+        <label htmlFor={fieldId}>{caption}</label>
+        <AjudaCampo campo={campo}>{ajuda}</AjudaCampo>
+      </div>
+      {controls.map((control) =>
+        isValidElement<{ id?: string }>(control) &&
+        ["input", "select", "textarea"].includes(String(control.type))
+          ? cloneElement(control, { id: fieldId })
+          : control,
+      )}
     </div>
   );
 }
@@ -134,8 +144,11 @@ export function CondicaoCard({
           <span className="condicao-card__tag">bloqueante</span>
         ) : null}
       </h3>
-      <p className="condicao-card__pergunta">{perguntaTxt}</p>
-      {pergunta.ajuda ? (
+      <div className="rotulo-com-ajuda">
+        <p className="condicao-card__pergunta">{perguntaTxt}</p>
+        {mostrarAjuda && pergunta.ajuda ? <AjudaCampo campo={rotulo}>{pergunta.ajuda}</AjudaCampo> : null}
+      </div>
+      {!mostrarAjuda && pergunta.ajuda ? (
         <p className="condicao-card__ajuda">{pergunta.ajuda}</p>
       ) : null}
 

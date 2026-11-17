@@ -52,5 +52,10 @@ test("ajuda das condições inclui situação e detalhes sem alterar outras tela
     assert.ok(html.includes(`aria-label="Ajuda sobre ${campo}"`), campo);
   }
   assert.ok(html.includes("Informe o objeto."));
+  assert.match(html, /class="rotulo-com-ajuda"><label for="[^"]+"><span>Situação do item<\/span><\/label><details/);
+  assert.doesNotMatch(html, /<label\b(?:(?!<\/label>)[\s\S])*<details/);
+  const ids = [...html.matchAll(/<label for="([^"]+)"/g)].map((match) => match[1]);
+  assert.equal(new Set(ids).size, ids.length);
+  for (const id of ids) assert.ok(html.includes(`id="${id}"`), id);
   assert.doesNotMatch(renderToStaticMarkup(<CondicaoCard {...props} />), /ajuda-campo/);
 });

@@ -8,6 +8,9 @@
 - Mobile-first: 1 coluna, CTAs únicos, progressive disclosure no desktop.
 - Projeto nasce pelo **wizard** (`/minha-pasta/novo`): a entrada geral oferece quatro categorias exclusivas; o assistente começa pelos impedimentos comuns e segue com o modelo e as perguntas do fluxo escolhido.
 - Projeto prioritário é uma categoria própria, com o fluxo de viabilidade estruturante e contagem separada.
+- Preparação (projeto técnico, licenças e situação do imóvel) integra **Impedimentos e pré-requisitos**, sem etapa separada “O que falta para começar”. A necessidade de imóvel é perguntada uma vez; somente quando aplicável aparece a situação detalhada, preservando a geração das providências de aquisição/desapropriação.
+- O assistente mantém automaticamente **um rascunho por usuário, prefeitura e categoria neste navegador** (`localStorage` versionado, sem token). Ao sair e voltar ao mesmo fluxo, recupera identidade, responsável, respostas e árvore de tarefas/subtarefas; a prévia é recalculada antes de concluir. Não há sincronização entre dispositivos e limpar os dados do navegador remove esses rascunhos. O usuário pode descartar e recomeçar. Falhas de leitura/gravação são exibidas, rascunhos inválidos não são sobrescritos e a limpeza só ocorre após criação confirmada pela API.
+- A ajuda `?` fica na mesma linha do rótulo/pergunta; os controles mantêm identificação acessível e a ajuda não fica dentro de um `label`.
 - Documento do projeto: alerta de bloqueio rotulado, metas estratégicas e indicadores, e árvore Tarefa → Subtarefa.
 - Indicadores do board vêm de projetos, metas estratégicas, tarefas e impedimentos via `/dashboard/resumo`.
 
