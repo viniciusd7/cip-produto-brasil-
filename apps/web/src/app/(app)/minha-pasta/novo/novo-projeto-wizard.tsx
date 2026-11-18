@@ -14,10 +14,7 @@ import {
   adicionarImpedimentosPersonalizados,
   type ImpedimentoPersonalizado,
   GRUPO_IMPEDIMENTOS,
-  quizItem,
   parseCondicaoResposta,
-  tonePrioridade,
-  toneEtapa,
   visibleQuestions,
   type ModeloPerguntaDef,
   type RespostaViabilidade,
@@ -28,9 +25,9 @@ import { secretariaChipLabel, secretariaLabel } from "@/lib/secretaria-label";
 import { CondicaoCard, type CondicaoValorState } from "@/components/condicao-card";
 import { ImpedimentosEditor } from "@/components/impedimentos-editor";
 import { AjudaCampo, RotuloComAjuda } from "@/components/ajuda-campo";
-import { FluxoArvore, type FluxoNode } from "@/components/fluxo-arvore";
 import { EscopoEditor, temResponsavel, type EscopoNo } from "./escopo-editor";
 import { mesclarEscopo } from "./mesclar-escopo";
+import { PreviaProjeto, type CondicaoPrevia } from "./previa-projeto";
 import { normalizarEscopo, type NoApi } from "./normalizar-escopo";
 import { chaveRascunho, lerRascunho, salvarRascunho } from "./rascunho-projeto";
 
@@ -55,25 +52,9 @@ type Modelo = {
   descricao?: string | null;
 };
 
-type EtapaPreview = {
-  ordem: number;
-  codigo: string;
-  nome: string;
-  status: string;
-  respondidas: number;
-  favoraveis: number;
-  total: number;
-};
-
 type PreviewData = {
   cicloInicial: string;
-  bloqueioLabel: string | null;
   bloqueios: Array<{ perguntaCodigo: string; rotulo: string }>;
-  prioridade: string;
-  motivosPrioridade: string[];
-  prontidaoPct: number | null;
-  etapas: EtapaPreview[];
-  etapaAtual: string | null;
   avisos: string[];
 };
 
@@ -116,21 +97,6 @@ function perguntasComImpedimentos(perguntas: ModeloPerguntaDef[]) {
     estrutura: [],
   }).perguntas;
 }
-
-const PRIORIDADE_LABEL: Record<string, string> = {
-  CRITICA: "Crítica",
-  ALTA: "Alta",
-  MEDIA: "Média",
-  BAIXA: "Baixa",
-};
-
-const ETAPA_LABEL: Record<string, string> = {
-  PENDENTE: "Pendente",
-  EM_ANDAMENTO: "Em andamento",
-  BLOQUEADA: "Bloqueada",
-  CONCLUIDA: "Concluída",
-  NAO_APLICAVEL: "Não se aplica",
-};
 
 function paraTreeNode(n: EscopoNo): TreeNode {
   return {
@@ -511,13 +477,7 @@ export function NovoProjetoWizard({
     if (!res.ok) throw new Error(json?.error?.message || "Falha no preview");
     setPreview({
       cicloInicial: json.data.cicloInicial,
-      bloqueioLabel: json.data.bloqueioLabel,
       bloqueios: json.data.bloqueios || [],
-      prioridade: json.data.prioridade,
-      motivosPrioridade: json.data.motivosPrioridade || [],
-      prontidaoPct: json.data.prontidaoPct ?? null,
-      etapas: json.data.etapas || [],
-      etapaAtual: json.data.etapaAtual ?? null,
       avisos: json.data.avisos || [],
     });
     // A prévia deve respeitar as remoções e edições feitas no passo Tarefas.
@@ -776,24 +736,33 @@ export function NovoProjetoWizard({
     );
   }
 
-  function origemLabel(codigo?: string | null) {
-    if (!codigo) return null;
-    const p = perguntasAtivas.find((x) => x.codigo === codigo);
-    const quiz = quizItem(codigo);
-    return p?.rotulo || quiz?.rotulo || codigo;
+  const condicoesPrevia = new Map<string, CondicaoPrevia>();
+  for (const bloqueio of preview?.bloqueios || []) {
+    const pergunta = perguntasAtivas.find((p) => p.codigo === bloqueio.perguntaCodigo);
+    const resposta = parseCondicaoResposta(bloqueio.perguntaCodigo, respostas[bloqueio.perguntaCodigo]);
+    condicoesPrevia.set(bloqueio.perguntaCodigo, {
+      codigo: bloqueio.perguntaCodigo,
+      nome: pergunta?.rotulo || pergunta?.texto || bloqueio.rotulo.replace(/^Aguardando:\s*/i, ""),
+      atendida: false,
+      impedeInicio: true,
+      proximaProvidencia: resposta.proximoPasso,
+      responsavel: resposta.responsavel,
+    });
   }
-
-  function paraFluxo(nos: EscopoNo[]): FluxoNode[] {
-    return nos.map((n) => ({
-      codigo: n.codigo,
-      nome: n.nome,
-      nivel: n.nivel,
-      responsavel: n.responsavel,
-      prazo: n.prazo,
-      origemPerguntaCodigo: origemLabel(n.origemPerguntaCodigo) || n.origemPerguntaCodigo,
-      children: paraFluxo(n.children),
-    }));
+  for (const pergunta of visiblePerguntas) {
+    if (!pergunta.metadados?.impedimento || condicoesPrevia.has(pergunta.codigo)) continue;
+    const resposta = parseCondicaoResposta(pergunta.codigo, respostas[pergunta.codigo]);
+    if (resposta.aplicabilidade !== "sim") continue;
+    condicoesPrevia.set(pergunta.codigo, {
+      codigo: pergunta.codigo,
+      nome: pergunta.rotulo || pergunta.texto,
+      atendida: resposta.situacao === "atendida",
+      impedeInicio: pergunta.impacto === "BLOQUEANTE",
+      proximaProvidencia: resposta.proximoPasso,
+      responsavel: resposta.responsavel,
+    });
   }
+  const responsavelSelecionado = Object.values(equipePorSecretaria).flat().find((p) => p.id === responsavelPessoaId);
 
   const triagem = visiblePerguntas.filter((p) => p.etapa == null);
   const semResponsavel = contarSemResponsavel(escopo);
@@ -1198,139 +1167,29 @@ export function NovoProjetoWizard({
       )}
 
       {steps[step] === "Prévia" && (
-        <Card
-          title="Pré-visualização"
-          subtitle="Revise o rascunho antes de confirmar a criação do projeto."
-        >
-          <div className="stack">
-            <div className="chip-row">
-              <Badge tone={tonePrioridade(preview?.prioridade)}>
-                Prioridade {PRIORIDADE_LABEL[preview?.prioridade || "BAIXA"]}
-              </Badge>
-              {preview?.prontidaoPct != null && (
-                <Badge tone="info">Prontidão {preview.prontidaoPct}%</Badge>
-              )}
-              <Badge tone={preview?.cicloInicial === "AGUARDANDO_PRE_REQUISITO" ? "danger" : "neutral"}>
-                {preview?.cicloInicial === "AGUARDANDO_PRE_REQUISITO"
-                  ? "Aguardando pré-requisito"
-                  : "Em planejamento"}
-              </Badge>
-            </div>
-
-            <div>
-              <p className="section-kicker">Secretarias envolvidas</p>
-              <div className="chip-row">
-                {sec && <Badge tone="info">{secretariaChipLabel(sec)} · principal</Badge>}
-                {secretariasCorrelatas
-                  .filter((id) => id !== secretariaId)
-                  .map((id) => {
-                    const s = secretarias.find((x) => x.id === id);
-                    return s ? (
-                      <Badge key={id} tone="neutral">
-                        {secretariaChipLabel(s)} · correlacionada
-                      </Badge>
-                    ) : null;
-                  })}
-              </div>
-            </div>
-
-            {preview?.motivosPrioridade?.length ? (
-              <ul className="dashboard-muted" style={{ margin: 0, paddingLeft: 18 }}>
-                {preview.motivosPrioridade.map((m) => (
-                  <li key={m}>{m}</li>
-                ))}
-              </ul>
-            ) : null}
-
-            {preview?.bloqueioLabel && (
-              <div className="bloqueio-alert">
-                <strong>{preview.bloqueioLabel}</strong>
-                <p>O responsável será alertado ao confirmar.</p>
-              </div>
-            )}
-
-            {preview && preview.etapas.length > 0 && (
-              <div>
-                <p className="section-kicker">Condições por grupo</p>
-                <ol className="wizard-steps" style={{ flexWrap: "wrap" }}>
-                  {preview.etapas.map((e) => (
-                    <li key={e.codigo} className={e.codigo === preview.etapaAtual ? "is-active" : ""}>
-                      <span>{e.ordem}</span>
-                      {e.nome}{" "}
-                      <Badge tone={toneEtapa(e.status)}>{ETAPA_LABEL[e.status] || e.status}</Badge>
-                      <span className="dashboard-muted" style={{ marginLeft: 6, fontSize: 12 }}>
-                        {e.favoraveis}/{e.total}
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-                {preview.etapaAtual && (
-                  <p className="dashboard-muted">
-                    Grupo atual:{" "}
-                    {preview.etapas.find((e) => e.codigo === preview.etapaAtual)?.nome}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {preview?.bloqueios?.length ? (
-              <div>
-                <p className="section-kicker">Condicionantes a tratar</p>
-                <ul className="pasta-fila">
-                  {preview.bloqueios.map((b) => (
-                    <li key={b.perguntaCodigo} className="pasta-fila__item">
-                      <div>
-                        <strong>{origemLabel(b.perguntaCodigo)}</strong>
-                        <p className="dashboard-muted">{b.rotulo}</p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-
-            {preview?.avisos?.length ? (
-              <ul style={{ margin: 0, paddingLeft: 18, color: "var(--cip-danger)" }}>
-                {preview.avisos.map((a) => (
-                  <li key={a}>{traduzirAviso(a)}</li>
-                ))}
-              </ul>
-            ) : null}
-
-            {!!impedimentosPersonalizados.length && (
-              <div>
-                <p className="section-kicker">Impedimentos e pré-requisitos adicionados</p>
-                {impedimentosPersonalizados.map((item) => {
-                  const resposta = parseCondicaoResposta(item.codigo, respostas[item.codigo]);
-                  const situacao = resposta.aplicabilidade === "nao" ? "Não se aplica" : resposta.situacao === "atendida" ? "Atendido" : "Pendente";
-                  return (
-                    <div key={item.codigo} className="dashboard-list-item">
-                      <div>
-                        <strong>{item.nome}</strong>
-                        <p className="dashboard-muted">{item.tipo === "PRE_REQUISITO" ? "Pré-requisito" : "Impedimento"}{item.bloqueante ? " · Impede o avanço enquanto pendente" : ""}</p>
-                        {resposta.proximoPasso && <p>{resposta.proximoPasso}</p>}
-                        {resposta.responsavel && <p className="dashboard-muted">Responsável pelo acompanhamento: {resposta.responsavel}</p>}
-                      </div>
-                      <Badge tone={situacao === "Pendente" ? "warning" : "neutral"}>{situacao}</Badge>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            <div>
-              <p className="section-kicker">Tarefas e responsáveis</p>
-              {escopo.length ? (
-                <FluxoArvore
-                  nodes={paraFluxo(escopo)}
-                  defaultExpandedDepth={2}
-                  showOrigemLabel={estruturante}
-                />
-              ) : (
-                <p className="dashboard-muted">Nenhuma tarefa cadastrada. Volte ao passo Tarefas para adicionar.</p>
-              )}
-            </div>
-          </div>
+        <Card title="Confira antes de criar" subtitle="Se precisar ajustar alguma informação, use os botões de edição abaixo.">
+          <PreviaProjeto
+            nome={nome}
+            tipo={classificacao === "ACAO_DIARIA" ? "Ação diária" : classificacao === "PLANO_GOVERNO" ? "Plano de governo" : classificacao === "PRIORITARIO" ? "Projeto prioritário" : "Projeto estruturante"}
+            secretaria={sec ? secretariaLabel(sec) : ""}
+            outrasSecretarias={secretariasCorrelatas.filter((id) => id !== secretariaId).flatMap((id) => {
+              const secretaria = secretarias.find((s) => s.id === id);
+              return secretaria ? [secretariaLabel(secretaria)] : [];
+            })}
+            responsavel={registrandoNovo ? novoNome.trim() : responsavelSelecionado?.nome || ""}
+            meta={metaId === "__nova__" ? novaMetaNome : metas.find((meta) => meta.id === metaId)?.label || ""}
+            novoPlano={metaId === "__nova__" ? planoId === "__novo__" ? novoPlanoNome : planos.find((plano) => plano.id === planoId)?.nome : undefined}
+            descricao={descricao}
+            entrega={classificacao === "ACAO_DIARIA" ? "" : entrega}
+            beneficiarios={estruturante ? beneficiariosTxt : ""}
+            foraEscopo={estruturante ? foraEscopo : ""}
+            tarefas={escopo}
+            condicoes={[...condicoesPrevia.values()]}
+            avisos={(preview?.avisos || []).filter((aviso) => aviso.startsWith("Pergunta obrigatória sem resposta: ")).map(traduzirAviso)}
+            avaliacaoPronta={preview !== null}
+            aguardaPreRequisito={preview?.cicloInicial === "AGUARDANDO_PRE_REQUISITO"}
+            onEditar={(secao) => irPara(steps.indexOf(secao === "identidade" ? "Identidade" : secao === "condicoes" ? GRUPO_IMPEDIMENTOS.nome : "Tarefas"))}
+          />
         </Card>
       )}
 

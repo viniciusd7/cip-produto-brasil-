@@ -89,3 +89,23 @@ depreciação já existentes da configuração Prisma e da convenção middlewar
 **Parecer:** correções aprovadas no escopo verificado para versionamento.
 Homologação integrada, métricas de produção e comparação visual com baseline
 permanecem fora da evidência desta execução.
+
+## Revisão de clareza da prévia
+
+Após a revisão de usabilidade, a prévia foi reorganizada em dados do projeto,
+pendências informadas e tarefas com responsáveis e prazos. Foram retirados dessa
+tela o percentual de prontidão, a prioridade calculada, as frações por grupo e
+os avisos automáticos sobre sequência de etapas. Os cálculos da API permanecem
+inalterados. Respostas obrigatórias ausentes e pré-requisitos bloqueantes
+continuam sinalizados com orientação de revisão.
+
+Foram adicionados atalhos para editar dados, condições e tarefas. A verificação
+no navegador isolado confirmou que os atalhos preservam o preenchimento e que
+a nova composição não excede a largura de 375 e 1440 px. As pendências mostram
+a providência e o responsável informados; itens atendidos ficam em uma lista
+recolhível. Nenhum erro ou aviso foi registrado no console durante a verificação.
+
+Validação desta revisão: build web, tipos, lint dos arquivos alterados e os 67
+testes web aprovados, incluindo cinco cenários novos de apresentação da prévia.
+As mesmas limitações de ambiente simulado e ausência de baseline visual continuam
+aplicáveis.

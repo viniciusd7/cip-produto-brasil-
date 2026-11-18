@@ -2686,6 +2686,227 @@ label {
   margin: 4px 0 12px;
 }
 
+.wizard-review {
+  display: grid;
+  gap: 28px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.wizard-review__intro h2 {
+  margin: 6px 0 10px;
+  font-size: clamp(21px, 3vw, 28px);
+  line-height: 1.25;
+  color: var(--cip-ink);
+}
+
+.wizard-review p {
+  margin: 0;
+  max-width: 75ch;
+  line-height: 1.6;
+}
+
+.wizard-review__intro p,
+.wizard-review__label,
+.wizard-review__details dt {
+  color: var(--cip-muted);
+}
+
+.wizard-review__section {
+  min-width: 0;
+  padding-top: 22px;
+  border-top: 1px solid var(--cip-border);
+}
+
+.wizard-review__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 18px;
+}
+
+.wizard-review__heading h3 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.4;
+  color: var(--cip-ink);
+}
+
+.wizard-review__heading .cip-btn {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.wizard-review__details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 28px;
+  margin: 0;
+}
+
+.wizard-review__details dt,
+.wizard-review__label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.wizard-review__details dd {
+  margin: 0;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.wizard-review__wide {
+  grid-column: 1 / -1;
+}
+
+.wizard-review__notice {
+  padding: 14px 16px;
+  border-left: 3px solid var(--cip-gold);
+  background: var(--cip-gold-soft);
+  border-radius: 0 8px 8px 0;
+}
+
+.wizard-review__conditions,
+.wizard-review__tasks,
+.wizard-review__subtasks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wizard-review__conditions > li {
+  display: grid;
+  gap: 6px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--cip-border);
+}
+
+.wizard-review__conditions strong {
+  color: var(--cip-ink);
+}
+
+.wizard-review__tasks > li {
+  padding: 18px 0;
+  border-bottom: 1px solid var(--cip-border);
+}
+
+.wizard-review__tasks > li:first-child {
+  padding-top: 0;
+}
+
+.wizard-review__task {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px 24px;
+  line-height: 1.5;
+}
+
+.wizard-review__task > div {
+  min-width: 0;
+}
+
+.wizard-review__task strong {
+  display: block;
+  font-weight: 600;
+}
+
+.wizard-review__subtasks {
+  display: grid;
+  gap: 18px;
+  margin: 18px 0 0 12px;
+  padding-left: 16px;
+  border-left: 2px solid var(--cip-border);
+}
+
+.wizard-review__confirmation {
+  color: var(--cip-muted);
+  font-size: 14px;
+}
+
+@media (max-width: 600px) {
+  .wizard-review__details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wizard-review__heading h3 {
+    flex-basis: 100%;
+  }
+
+  .wizard-review__heading .cip-btn {
+    padding-inline: 0;
+    min-height: 36px;
+  }
+
+  .wizard-review__task {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .wizard-review__task > div:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
+.wizard-review__warnings,
+.wizard-review__missing {
+  color: var(--cip-warning-ink);
+}
+
+.wizard-review__resolved {
+  margin-top: 18px;
+  color: var(--cip-muted);
+}
+
+.wizard-review__resolved summary {
+  padding: 8px 0;
+  cursor: pointer;
+}
+
+.wizard-review__task {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 16px 24px;
+  padding: 18px 0;
+  line-height: 1.5;
+}
+
+.wizard-review__tasks > li + li {
+  border-top: 1px solid var(--cip-border);
+}
+
+.wizard-review__subtasks {
+  margin-bottom: 12px;
+  padding-left: 18px;
+  border-left: 2px solid var(--cip-border);
+}
+
+.wizard-review__confirmation {
+  padding-top: 20px;
+  border-top: 1px solid var(--cip-border);
+  color: var(--cip-muted);
+}
+
+@media (max-width: 600px) {
+  .wizard-review__details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wizard-review__task {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 18px;
+  }
+
+  .wizard-review__task > div:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
 .condicao-lista {
   gap: 18px;
 }
