@@ -579,26 +579,16 @@ export function ProjetoDocumento({
       {aba === "visao" && !focoSecretario && (
         <div className="stack">
           <div className="dashboard-grid-2">
-            <Card title="🎯 Meta estratégica">
+            <Card title="Meta estratégica">
               {item.metaEstrategica ? (
                 <div className="pj-meta-est">
-                  <strong>
-                    {item.metaEstrategica.codigo ? `${item.metaEstrategica.codigo} · ` : ""}
+                  <p>Resultado que este projeto ajuda a alcançar</p>
+                  <h3>
                     {item.metaEstrategica.nome}
-                  </strong>
-                  <dl>
-                    <div><dt>Indicador</dt><dd>{item.metaEstrategica.indicador || "—"}</dd></div>
-                    <div><dt>Ponto de partida</dt><dd>{item.metaEstrategica.valorBase || "—"}</dd></div>
-                    <div>
-                      <dt>Alvo</dt>
-                      <dd>
-                        {item.metaEstrategica.alvo || "—"}
-                        {item.metaEstrategica.unidade ? ` ${item.metaEstrategica.unidade}` : ""}
-                      </dd>
-                    </div>
-                  </dl>
+                  </h3>
+                  <p>Acompanhe os valores informados e o resultado esperado nos indicadores vinculados a esta meta.</p>
                   <button type="button" className="pj-link" onClick={() => navegar("metas")}>
-                    Ver indicadores vinculados à meta →
+                    Acompanhar metas e indicadores
                   </button>
                 </div>
               ) : (

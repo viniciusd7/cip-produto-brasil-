@@ -109,3 +109,30 @@ Validação desta revisão: build web, tipos, lint dos arquivos alterados e os 6
 testes web aprovados, incluindo cinco cenários novos de apresentação da prévia.
 As mesmas limitações de ambiente simulado e ausência de baseline visual continuam
 aplicáveis.
+
+## Apresentação de metas e indicadores dentro do projeto
+
+A aba Metas e indicadores passou a destacar o objetivo estratégico e sua
+descrição. Cada indicador apresenta ponto de partida, valor atual informado,
+resultado esperado, unidade e frequência prevista de atualização em campos
+separados. A visão geral do projeto direciona para os indicadores vinculados,
+sem repetir campos legados vazios como se fossem resultados atuais.
+
+Não foram criados percentuais de progresso ou classificações automáticas: há
+indicadores cujo objetivo é diminuir o valor, e os campos também aceitam texto.
+Zero continua sendo um valor válido; campos vazios aparecem como não informados.
+Unidades já escritas no valor não são duplicadas, e a frequência descritiva é
+preservada. Os formulários de cadastro ficam separados da consulta e impedem
+envios simultâneos.
+
+Verificação no navegador com respostas simuladas: larguras de 375, 768 e 1440 px
+sem overflow horizontal; cadastro de indicador com uma única requisição no
+clique duplo; erro de carga e nova tentativa; erro ao salvar com preenchimento
+preservado; cadastro de meta em projeto sem vínculo; modo leitura sem formulário;
+ausência de valor atual sem substituição por zero. Console sem erros ou avisos.
+
+Build web, tipos, lint dos arquivos alterados e 72 testes web aprovados. Seis
+testes de indicadores cobrem valores informados, zero, ausência de dados,
+unidades, texto livre, frequência, metas de redução e identificação do objetivo.
+Nenhum banco foi alterado pela verificação visual; as limitações de homologação
+integrada e de baseline visual descritas acima continuam aplicáveis.
