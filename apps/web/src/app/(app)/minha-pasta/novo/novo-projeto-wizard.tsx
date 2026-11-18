@@ -11,6 +11,8 @@ import {
   MODELO_ACAO_DIARIA,
   MODELO_PLANO_GOVERNO,
   adicionarImpedimentosComuns,
+  adicionarImpedimentosPersonalizados,
+  type ImpedimentoPersonalizado,
   GRUPO_IMPEDIMENTOS,
   quizItem,
   parseCondicaoResposta,
@@ -24,6 +26,7 @@ import {
 import { API_URL } from "@/lib/api";
 import { secretariaChipLabel, secretariaLabel } from "@/lib/secretaria-label";
 import { CondicaoCard, type CondicaoValorState } from "@/components/condicao-card";
+import { ImpedimentosEditor } from "@/components/impedimentos-editor";
 import { AjudaCampo, RotuloComAjuda } from "@/components/ajuda-campo";
 import { FluxoArvore, type FluxoNode } from "@/components/fluxo-arvore";
 import { EscopoEditor, temResponsavel, type EscopoNo } from "./escopo-editor";
@@ -85,21 +88,21 @@ const STEPS_ESTRUT = [
   GRUPO_IMPEDIMENTOS.nome,
   ...(GRUPOS_CONDICOES ?? []).map((g) => g.nome),
   "Urgência",
-  "Escopo",
+  "Tarefas",
   "Prévia",
 ];
 const STEPS_PLANO = [
   "Identidade",
   GRUPO_IMPEDIMENTOS.nome,
   ...(GRUPOS_PLANO ?? []).map((g) => g.nome),
-  "Escopo",
+  "Tarefas",
   "Prévia",
 ];
 const STEPS_ACAO = [
   "Identidade",
   GRUPO_IMPEDIMENTOS.nome,
   ...(GRUPOS_ACAO ?? []).map((g) => g.nome),
-  "Escopo",
+  "Tarefas",
   "Prévia",
 ];
 const NOVO_VALOR = "__novo__";
@@ -186,6 +189,7 @@ export function NovoProjetoWizard({
     erro?: string;
   } | null>(null);
   const [tentativaModelo, setTentativaModelo] = useState(0);
+  const [impedimentosPersonalizados, setImpedimentosPersonalizados] = useState<ImpedimentoPersonalizado[]>([]);
   const [respostas, setRespostas] = useState<Record<string, CondicaoValorState>>({});
   const [secretariaId, setSecretariaId] = useState(
     secretarias.find((s) => s.id === defaultSecretariaId)?.id || secretarias[0]?.id || "",
@@ -241,6 +245,7 @@ export function NovoProjetoWizard({
         if (dados) {
           setStep(Math.min(dados.step, totalPassos - 2));
           setRespostas(dados.respostas);
+          setImpedimentosPersonalizados(dados.impedimentosPersonalizados || []);
           setSecretariaId(dados.secretariaId);
           setSecretariasCorrelatas(dados.secretariasCorrelatas);
           setResponsavelPessoaId(dados.responsavelPessoaId);
@@ -282,7 +287,7 @@ export function NovoProjetoWizard({
         step, respostas, secretariaId, secretariasCorrelatas, responsavelPessoaId,
         novoNome, novoCargo, novoTelefone, novoEmail, nome, codigo, descricao,
         entrega, foraEscopo, beneficiariosTxt, metaId, novaMetaNome, planoId,
-        novoPlanoNome, escopo, ultimoPassoGerado,
+        novoPlanoNome, escopo, ultimoPassoGerado, impedimentosPersonalizados,
       });
       queueMicrotask(() => { if (ativo) setRascunhoErro(""); });
     } catch (err) {
@@ -296,7 +301,7 @@ export function NovoProjetoWizard({
     rascunhoPronto, rascunhoKey, step, respostas, secretariaId, secretariasCorrelatas,
     responsavelPessoaId, novoNome, novoCargo, novoTelefone, novoEmail, nome, codigo,
     descricao, entrega, foraEscopo, beneficiariosTxt, metaId, novaMetaNome, planoId,
-    novoPlanoNome, escopo, ultimoPassoGerado,
+    novoPlanoNome, escopo, ultimoPassoGerado, impedimentosPersonalizados,
   ]);
 
   function descartarRascunho() {
@@ -358,7 +363,9 @@ export function NovoProjetoWizard({
     : classificacao === "PLANO_GOVERNO"
       ? MODELO_PLANO_GOVERNO.perguntas
       : MODELO_ACAO_DIARIA.perguntas;
-  const perguntasAtivas = perguntasComImpedimentos(perguntasBase);
+  const perguntasAtivas = adicionarImpedimentosPersonalizados({
+    codigo: "WIZARD", nome: "Assistente", perguntas: perguntasComImpedimentos(perguntasBase), estrutura: [],
+  }, impedimentosPersonalizados).perguntas;
 
   // Checklist do modelo estruturante (Plano e Ação usam catálogo fixo no código).
   useEffect(() => {
@@ -476,6 +483,7 @@ export function NovoProjetoWizard({
         classificacaoPrincipal: classificacao,
         classificacoes,
         respostas: respostaList,
+        impedimentosPersonalizados,
       }),
     });
     const json = await res.json();
@@ -553,6 +561,7 @@ export function NovoProjetoWizard({
     setError("");
     try {
       const label = steps[step];
+      if (label === GRUPO_IMPEDIMENTOS.nome || label === "Tarefas" || label === "Prévia") validarItensPersonalizados();
       if (label === "Identidade") {
         if (estruturante && !modeloPadrao?.id) {
           setError("Modelo padrão estruturante não encontrado. Peça ao admin para ativar o modelo CIP.");
@@ -600,13 +609,25 @@ export function NovoProjetoWizard({
         }
       }
       const nextLabel = steps[step + 1];
-      if (nextLabel === "Escopo" || nextLabel === "Prévia") {
+      if (nextLabel === "Tarefas" || nextLabel === "Prévia") {
         await runPreview();
       }
       setStep((s) => s + 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro");
     }
+  }
+
+  function validarItensPersonalizados() {
+    const invalido = impedimentosPersonalizados.find((item) => item.nome.trim().length < 3);
+    if (invalido) throw new Error("Dê um nome com pelo menos 3 caracteres a cada impedimento ou pré-requisito adicionado, ou remova o item vazio.");
+    const semResposta = impedimentosPersonalizados.find((item) => parseCondicaoResposta(item.codigo, respostas[item.codigo]).aplicabilidade === "a_avaliar");
+    if (semResposta) throw new Error(`Defina se o item se aplica ao projeto: ${semResposta.nome}`);
+  }
+
+  function removerImpedimento(codigo: string) {
+    setImpedimentosPersonalizados((itens) => itens.filter((item) => item.codigo !== codigo));
+    setRespostas((anteriores) => Object.fromEntries(Object.entries(anteriores).filter(([chave]) => chave !== codigo)));
   }
 
   function escopoComNomeVazio(nos: EscopoNo[]): boolean {
@@ -624,11 +645,12 @@ export function NovoProjetoWizard({
     try {
       const respErr = validateResponsavel();
       if (respErr) throw new Error(respErr);
+      validarItensPersonalizados();
       if (escopoComNomeVazio(escopo)) {
-        throw new Error("Dê nome a todas as tarefas e subtarefas do escopo");
+        throw new Error("Dê nome a todas as tarefas e subtarefas");
       }
       if (!escopo.length) {
-        throw new Error("Inclua ao menos uma tarefa antes de concluir o escopo");
+        throw new Error("Inclua ao menos uma tarefa antes de concluir");
       }
 
       const selected = Object.values(equipePorSecretaria)
@@ -664,6 +686,7 @@ export function NovoProjetoWizard({
               }
             : undefined,
           respostas: respostaList,
+          impedimentosPersonalizados,
           estruturaOverride: escopo.map(paraTreeNode),
         }),
       });
@@ -1077,16 +1100,26 @@ export function NovoProjetoWizard({
           ) : (
             renderPerguntas(
               visiblePerguntas.filter(
-                (p) => p.grupo === grupoAtualMeta.id && p.etapa != null,
+                (p) => p.grupo === grupoAtualMeta.id && p.etapa != null && !impedimentosPersonalizados.some((item) => item.codigo === p.codigo),
               ),
             )
+          )}
+          {grupoAtualMeta.id === GRUPO_IMPEDIMENTOS.id && (
+            <ImpedimentosEditor
+              itens={impedimentosPersonalizados}
+              respostas={respostas}
+              onChange={setImpedimentosPersonalizados}
+              onResposta={(codigo, valor) => setRespostas((anteriores) => ({ ...anteriores, [codigo]: valor }))}
+              onRemover={removerImpedimento}
+              exemplo={classificacao === "ACAO_DIARIA" ? "disponibilidade de equipe, material ou acesso ao local" : classificacao === "PLANO_GOVERNO" ? "pactuação entre secretarias ou aprovação de cronograma" : "licença ambiental, aprovação técnica ou liberação de área"}
+            />
           )}
         </Card>
       )}
 
-      {steps[step] === "Escopo" && (
+      {steps[step] === "Tarefas" && (
         <Card
-          title="Escopo e responsáveis"
+          title="Tarefas e responsáveis"
           subtitle="Desdobre o projeto em tarefas e subtarefas e defina quem responde por cada uma. O projeto só é criado ao confirmar; o rascunho é mantido neste navegador."
         >
           <div className="stack">
@@ -1096,7 +1129,7 @@ export function NovoProjetoWizard({
                   ? `${semResponsavel} item(ns) sem responsável`
                   : "Todos os itens têm responsável"}
               </Badge>
-              <Badge tone="neutral">{totalItens} item(ns) no escopo</Badge>
+              <Badge tone="neutral">{totalItens} tarefa(s) e subtarefa(s)</Badge>
             </div>
             <EscopoEditor
               nodes={escopo}
@@ -1184,7 +1217,7 @@ export function NovoProjetoWizard({
               </div>
             )}
 
-            {estruturante && preview?.bloqueios?.length ? (
+            {preview?.bloqueios?.length ? (
               <div>
                 <p className="section-kicker">Condicionantes a tratar</p>
                 <ul className="pasta-fila">
@@ -1209,7 +1242,7 @@ export function NovoProjetoWizard({
             ) : null}
 
             <div>
-              <p className="section-kicker">Escopo e responsáveis</p>
+              <p className="section-kicker">Tarefas e responsáveis</p>
               {escopo.length ? (
                 <FluxoArvore
                   nodes={paraFluxo(escopo)}
@@ -1217,7 +1250,7 @@ export function NovoProjetoWizard({
                   showOrigemLabel={estruturante}
                 />
               ) : (
-                <p className="dashboard-muted">Nenhuma tarefa no escopo. Volte ao passo Escopo para adicionar.</p>
+                <p className="dashboard-muted">Nenhuma tarefa cadastrada. Volte ao passo Tarefas para adicionar.</p>
               )}
             </div>
           </div>

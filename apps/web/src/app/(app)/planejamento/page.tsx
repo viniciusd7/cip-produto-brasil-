@@ -1,13 +1,11 @@
-import Link from "next/link";
 import { getServerSession } from "next-auth";
-import { Card, PageHeader, SourceMeta } from "@cip/ui";
+import { Card, PageHeader } from "@cip/ui";
 import { authOptions } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 import { canWriteRole } from "@/lib/roles";
-import { NovaMetaForm } from "./nova-meta-form";
 import { PlanejamentoForm } from "./planejamento-form";
-import { ConhecimentoForm } from "./conhecimento-form";
-import { PlanoEstrutura, type Plano, type Responsavel, type Secretaria, type Sugestao } from "./plano-estrutura";
+import { PlanoEstrutura, type Plano, type Responsavel, type Secretaria } from "./plano-estrutura";
+import "./planejamento.css";
 
 type PlanningResponse = { data: Plano[]; meta?: { fonte?: string } };
 
@@ -23,48 +21,36 @@ export default async function PlanejamentoPage() {
   const session = await getServerSession(authOptions);
   const token = session?.accessToken || "";
   const podeEditar = canWriteRole(session?.user?.role);
-  const [payload, secretarias, responsaveis, sugestoes] = await Promise.all([
+  const [payload, secretarias, responsaveis] = await Promise.all([
     apiFetch<PlanningResponse>("/planejamento/resumo", { token }),
     podeEditar ? opcional(apiFetch<{ data: Secretaria[] }>("/admin/secretarias", { token }), []) : Promise.resolve([] as Secretaria[]),
     podeEditar ? opcional(apiFetch<{ data: Responsavel[] }>("/planejamento/responsaveis", { token }), []) : Promise.resolve([] as Responsavel[]),
-    podeEditar ? opcional(apiFetch<{ data: Sugestao[] }>("/planejamento/sugestoes", { token }), []) : Promise.resolve([] as Sugestao[]),
   ]);
-  const metasFlat = payload.data.flatMap((p) => p.metas.map((m) => ({ id: m.id, nome: m.nome })));
-
   return (
-    <div className="stack">
+    <div className="stack gp-planejamento">
       <PageHeader
-        eyebrow="Plano de governo"
         title="Metas estratégicas e indicadores"
-        description="Cadastre metas estratégicas, defina seus indicadores e vincule os projetos responsáveis por alcançar cada resultado."
+        description="Acompanhe as metas e os indicadores de cada secretaria."
       />
-      <SourceMeta fonte={payload.meta?.fonte} confiabilidade="Estrutura configurável por prefeitura" />
-      <div className="gp-flow" aria-label="Hierarquia da gestão">
-        {["Plano de governo", "Meta estratégica + indicadores", "Projeto", "Tarefa", "Subtarefa"].map((etapa, i) => (
-          <span key={etapa} className="gp-flow__step">{i > 0 && <span aria-hidden>→</span>}{etapa}</span>
-        ))}
-      </div>
-      {podeEditar && (
-        <div className="chip-row">
-          {payload.data.length > 0 && <NovaMetaForm planos={payload.data} token={token} secretarias={secretarias} />}
-          <PlanejamentoForm token={token} />
-          <Link href="/minha-pasta/novo" className="cip-btn cip-btn--secondary">+ Projeto a partir de uma meta</Link>
-        </div>
-      )}
       <PlanoEstrutura
         planos={payload.data}
         token={token}
         secretarias={secretarias}
         responsaveis={responsaveis}
-        sugestoes={sugestoes}
         podeEditar={podeEditar}
       />
       {!payload.data.length && (
         <Card title="Nenhum plano cadastrado">
           <p className="dashboard-muted">Registre o plano de governo vigente para começar.</p>
+          {podeEditar && <PlanejamentoForm token={token} />}
         </Card>
       )}
-      {podeEditar && <ConhecimentoForm token={token} metas={metasFlat} />}
+      {podeEditar && payload.data.length > 0 && (
+        <details className="gp-config">
+          <summary>Planos de governo</summary>
+          <PlanejamentoForm token={token} />
+        </details>
+      )}
     </div>
   );
 }

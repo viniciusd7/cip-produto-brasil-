@@ -49,6 +49,20 @@ test("isola usuário, prefeitura e categoria, inclusive com separadores nos ids"
   assert.throws(() => chaveRascunho("", "b", "c"), /incompleto/);
 });
 
+test("recupera itens personalizados, inclusive campos ainda vazios, e mantém rascunhos antigos", () => {
+  const storage = memoria();
+  const item = { codigo: "imp_personalizado_teste", nome: "", tipo: "PRE_REQUISITO" as const, descricao: "", bloqueante: false };
+  const novo = { ...dados, impedimentosPersonalizados: [item], respostas: { ...dados.respostas, [item.codigo]: "pendente" } };
+  salvarRascunho(storage, "novo", novo);
+  assert.deepEqual(lerRascunho(storage, "novo"), novo);
+  salvarRascunho(storage, "antigo", dados);
+  assert.deepEqual(lerRascunho(storage, "antigo"), dados);
+  for (const itens of [[{ ...item, tipo: "INVALIDO" }], [item, item], [{ ...item, codigo: "orcamento_recursos" }]]) {
+    storage.setItem("invalido", JSON.stringify({ versao: 1, dados: { ...dados, impedimentosPersonalizados: itens } }));
+    assert.throws(() => lerRascunho(storage, "invalido"));
+  }
+});
+
 test("rascunhos inválidos, incompatíveis e falhas de armazenamento não são mascarados", () => {
   const storage = memoria();
   for (const registro of [

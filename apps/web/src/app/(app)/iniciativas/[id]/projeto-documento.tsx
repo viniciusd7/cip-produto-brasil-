@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   GRUPOS_CONDICOES,
   GRUPO_IMPEDIMENTOS,
+  CODIGO_IMPEDIMENTO_PERSONALIZADO,
   MODELO_ACAO_DIARIA,
   MODELO_PLANO_GOVERNO,
   buildCatalogoPerguntas,
@@ -18,7 +19,8 @@ import { Badge, Card } from "@cip/ui";
 import { EVIDENCIA_STATUS, EvidenciaCard, type EvidenciaItem } from "./evidencia-actions";
 import { EvidenciaEnvio } from "./evidencia-envio";
 import { HistoricoProjeto } from "./historico-projeto";
-import { ProjetoPastas, STATUS_TAREFA } from "./projeto-pastas";
+import { ProjetoPastas, STATUS_TAREFA, type FiltroTarefaProjeto } from "./projeto-pastas";
+import type { ResponsavelOpcao } from "../../minha-pasta/tarefas-edicao";
 import { MetasIndicadores } from "./metas-indicadores";
 import { RelacoesIniciativas } from "./relacoes-iniciativas";
 import { VinculosEditor } from "./vinculos-editor";
@@ -57,11 +59,13 @@ export type ProjetoDocMarco = {
   gravidade?: string | null;
   metaExecucaoId?: string | null;
   responsavel?: string | null;
+  responsavelUserId?: string | null;
   subtarefas: Array<{
     id: string;
     descricao: string;
     concluida: boolean;
     responsavel?: string | null;
+    responsavelUserId?: string | null;
     prazo?: string | null;
   }>;
   reprogramacoes: Array<{ id: string; motivo: string; dataNova?: string; dataAnterior?: string | null }>;
@@ -177,6 +181,7 @@ function EvidenciasPainel({
   canValidate,
   marcoFiltro,
   limparMarco,
+  filtroInicial = "TODAS",
 }: {
   item: ProjetoDocData;
   token: string;
@@ -185,8 +190,9 @@ function EvidenciasPainel({
   canValidate: boolean;
   marcoFiltro: string | null;
   limparMarco: () => void;
+  filtroInicial?: FiltroEvid;
 }) {
-  const [filtro, setFiltro] = useState<FiltroEvid>("TODAS");
+  const [filtro, setFiltro] = useState<FiltroEvid>(filtroInicial);
   const [novaAberta, setNovaAberta] = useState(canSubmitEvidence && !canWrite);
   const marcoOptions = item.marcos.map((m) => ({
     id: m.id,
@@ -288,7 +294,9 @@ export function ProjetoDocumento({
   canSubmitEvidence,
   canValidate,
   token,
-  equipe,
+  responsaveis,
+  usuarioId,
+  administrador,
   todasSecretarias,
   focoSecretario = false,
 }: {
@@ -297,8 +305,9 @@ export function ProjetoDocumento({
   canSubmitEvidence: boolean;
   canValidate: boolean;
   token: string;
-  /** Nomes da equipe das pastas envolvidas (sugestões de responsável). */
-  equipe: string[];
+  responsaveis: ResponsavelOpcao[];
+  usuarioId: string;
+  administrador: boolean;
   todasSecretarias: SecretariaRef[];
   /** Secretário opera tarefas e evidências, sem o diagnóstico de cadastro. */
   focoSecretario?: boolean;
@@ -306,6 +315,10 @@ export function ProjetoDocumento({
   const router = useRouter();
   const searchParams = useSearchParams();
   const raw = searchParams.get("aba");
+  const [filtroTarefa, setFiltroTarefa] = useState<FiltroTarefaProjeto>("TODAS");
+  const [buscaTarefa, setBuscaTarefa] = useState("");
+  const [scrollTarefas, setScrollTarefas] = useState(0);
+  const [filtroEvidResumo, setFiltroEvidResumo] = useState<{ filtro: FiltroEvid; versao: number }>({ filtro: "TODAS", versao: 0 });
   const requestedMarcoId = searchParams.get("marcoId");
   const aba: Aba =
     focoSecretario && raw === "visao"
@@ -342,6 +355,13 @@ export function ProjetoDocumento({
     if (marcoId) params.set("marcoId", marcoId);
     else params.delete("marcoId");
     router.replace(`?${params.toString()}`, { scroll: false });
+  }
+
+  function filtrarTarefas(filtro: FiltroTarefaProjeto) {
+    setFiltroTarefa(filtro);
+    setBuscaTarefa("");
+    setScrollTarefas((valor) => valor + 1);
+    navegar("andamento");
   }
 
   // "Quem responde": agrupa projeto, tarefas e subtarefas por pessoa.
@@ -406,23 +426,19 @@ export function ProjetoDocumento({
           </p>
         </div>
         <div className="pj-hero__nums">
-          {(
-            [
-              ["VENCIDO", conta("VENCIDO")],
-              ["NO_PRAZO", conta("NO_PRAZO")],
-              ["SEM_PRAZO", conta("SEM_PRAZO")],
-              ["CONCLUIDO", concluidas],
-            ] as const
-          ).map(([st, n]) => (
-            <div key={st} className="pj-num" style={{ ["--c" as string]: STATUS_TAREFA[st].cor }}>
-              <b>{n}</b>
-              <small>{STATUS_TAREFA[st].label}{st === "CONCLUIDO" ? "s" : n === 1 ? "" : st === "VENCIDO" ? "s" : ""}</small>
-            </div>
+          {([
+            { id: "TODAS", nome: "Todas", valor: total, cor: "#9ea9c8" },
+            { id: "VENCIDO", nome: "Atrasadas", valor: conta("VENCIDO"), cor: STATUS_TAREFA.VENCIDO.cor },
+            { id: "NO_PRAZO", nome: "No prazo", valor: conta("NO_PRAZO"), cor: STATUS_TAREFA.NO_PRAZO.cor },
+            { id: "SEM_PRAZO", nome: "Sem prazo", valor: conta("SEM_PRAZO"), cor: STATUS_TAREFA.SEM_PRAZO.cor },
+            { id: "CONCLUIDO", nome: "Concluídas", valor: concluidas, cor: STATUS_TAREFA.CONCLUIDO.cor },
+            { id: "VALIDACAO", nome: "Em validação", valor: aguardando.length, cor: "#b9a0ff" },
+          ] as const).map((resumo) => (
+            <button key={resumo.id} type="button" className="pj-num" aria-pressed={aba === "andamento" && filtroTarefa === resumo.id} onClick={() => filtrarTarefas(resumo.id)} style={{ ["--c" as string]: resumo.cor }}>
+              <b>{resumo.valor}</b><small>{resumo.nome}</small>
+            </button>
           ))}
-          <div className="pj-num" style={{ ["--c" as string]: "#b9a0ff" }}>
-            <b>{evidPendentes + aguardando.length}</b>
-            <small>Em validação</small>
-          </div>
+          {evidPendentes > 0 && <button type="button" className="pj-hero__evid-pendentes" onClick={() => { setFiltroEvidResumo((atual) => ({ filtro: "PENDENTE", versao: atual.versao + 1 })); navegar("evidencias"); }}>{evidPendentes} evidência{evidPendentes === 1 ? "" : "s"} em validação →</button>}
         </div>
       </section>
 
@@ -502,12 +518,19 @@ export function ProjetoDocumento({
             canWrite={canWrite}
             canSubmitEvidence={canSubmitEvidence}
             token={token}
-            equipe={equipe}
+            responsaveis={responsaveis}
+            usuarioId={usuarioId}
+            administrador={administrador}
             iniciativaId={item.id}
             secretariaId={item.secretariaPrincipal.id}
             metaEstrategica={item.metaEstrategica}
             permiteMetaPlano={classificacao === "PLANO_GOVERNO" || Boolean(item.metaEstrategica)}
             onVerEvidencias={(marcoId) => navegar("evidencias", marcoId)}
+            filtroSelecionado={filtroTarefa}
+            onSelecionarFiltro={setFiltroTarefa}
+            buscaExterna={buscaTarefa}
+            onBuscaChange={setBuscaTarefa}
+            scrollRequest={scrollTarefas}
           />
           <details className="pj-secao">
             <summary>💬 Avisos e conversa do projeto</summary>
@@ -518,6 +541,7 @@ export function ProjetoDocumento({
 
       {aba === "evidencias" && (
         <EvidenciasPainel
+          key={filtroEvidResumo.versao}
           item={item}
           token={token}
           canSubmitEvidence={canSubmitEvidence}
@@ -525,6 +549,7 @@ export function ProjetoDocumento({
           canValidate={canValidate}
           marcoFiltro={requestedMarcoId}
           limparMarco={() => navegar("evidencias")}
+          filtroInicial={filtroEvidResumo.filtro}
         />
       )}
 
@@ -639,7 +664,9 @@ export function ProjetoDocumento({
               <summary>📋 Diagnóstico do cadastro (condicionantes e respostas)</summary>
               <div className="stack" style={{ marginTop: 12 }}>
                 {GRUPOS_DOCUMENTO.map((grupo) => {
-                  const itens = item.verificacoes.filter((v) => quizItem(v.tipo.codigo || "")?.grupo === grupo.id);
+                  const itens = item.verificacoes.filter((v) =>
+                    (CODIGO_IMPEDIMENTO_PERSONALIZADO.test(v.tipo.codigo || "") ? GRUPO_IMPEDIMENTOS.id : quizItem(v.tipo.codigo || "")?.grupo) === grupo.id,
+                  );
                   if (!itens.length) return null;
                   return (
                     <div key={grupo.id}>
@@ -660,7 +687,7 @@ export function ProjetoDocumento({
                   );
                 })}
                 {item.verificacoes
-                  .filter((v) => !quizItem(v.tipo.codigo || ""))
+                  .filter((v) => !quizItem(v.tipo.codigo || "") && !CODIGO_IMPEDIMENTO_PERSONALIZADO.test(v.tipo.codigo || ""))
                   .map((v) => {
                     const r = rotuloSituacao(v);
                     return (

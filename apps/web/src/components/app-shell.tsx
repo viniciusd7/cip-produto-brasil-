@@ -189,7 +189,7 @@ export function AppShell({
           {!isCentralCip && <small>{getRoleLabel(role)}</small>}
         </div>
 
-        <div className="journey-strip" aria-label="Seu próximo passo">
+        {pathname !== "/planejamento" && <div className="journey-strip" aria-label="Seu próximo passo">
           <div className="journey-strip__label">Seu próximo passo</div>
           <Link href={nextStep.href} className="journey-step active next-step-cta">
             <span className="journey-step__n">→</span>
@@ -203,7 +203,7 @@ export function AppShell({
               <li key={step}>{step}</li>
             ))}
           </ol>
-        </div>
+        </div>}
 
         <nav className="app-nav" aria-label="Navegação principal">
           {visibleNav.map((item) => {

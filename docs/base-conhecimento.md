@@ -1,6 +1,8 @@
 # Importação da base de conhecimento
 
-A aba **Base de conhecimento** está disponível a todos os perfis vinculados à prefeitura. Administradores, consultores, prefeitos e secretários podem anexar o **Plano de Governo**, único documento obrigatório, e opcionalmente outros documentos em PDF, DOC ou DOCX de até 4 MB. Para cada envio é necessário selecionar um arquivo; registros antigos sem arquivo continuam disponíveis. O perfil somente leitura pode consultar e baixar documentos, sem anexar ou alterar a conferência. Consultores e administradores podem corrigir o tipo e marcar documentos como conferidos.
+A aba **Base de conhecimento** está disponível a todos os perfis vinculados à prefeitura. Todos, inclusive o perfil somente leitura, podem anexar o **Plano de Governo**, único documento obrigatório, e opcionalmente outros documentos em PDF, DOC ou DOCX de até 4 MB. Para cada envio é necessário selecionar um arquivo e preencher o **título** e a **descrição do conteúdo**, ambos com pelo menos 3 caracteres após remover espaços nas extremidades. O título é informado pelo usuário e não é substituído pelo nome do arquivo. A descrição é armazenada no campo `observacao` e exibida junto ao documento; registros antigos sem descrição ou arquivo são preservados.
+
+O **consultor** pode enviar qualquer tipo de documento, mas sua lista, download e consulta de texto extraído permitem apenas o **Plano de Governo**. Ele também não pode editar ou conferir documentos adicionais por acesso direto à API. Os demais perfis continuam consultando os documentos da prefeitura. Administradores podem corrigir o tipo e marcar qualquer documento como conferido; consultores podem fazê-lo nos planos de governo visíveis. Os demais perfis não podem alterar a conferência.
 
 Escolha explicitamente **Plano de Governo** para o documento obrigatório ou **Outro documento** para identificação automática. A identificação é feita localmente por regras sobre o texto extraído, sem enviar o conteúdo a um serviço externo. É uma sugestão, não uma verificação de autenticidade: texto insuficiente ou ambíguo é classificado como **Outro**. PDFs digitalizados sem texto não são identificados, pois não há OCR. A classificação automática nunca identifica um arquivo como Plano de Governo; um usuário precisa selecioná-lo explicitamente. A correção do tipo por consultor ou administrador retorna o documento para conferência.
 
@@ -8,7 +10,7 @@ A interface informa se o Plano de Governo está ausente, cadastrado sem arquivo 
 
 PPA, LDO, LOA e os demais documentos opcionais não geram alertas de pendência. Quando cadastrados, podem ter sua conferência acompanhada separadamente; o seed não cria mais registros demonstrativos desses documentos. Registros existentes são preservados.
 
-Os documentos são compartilhados entre os usuários da mesma prefeitura; não inclua arquivos que devam ser restritos a uma secretaria. O sistema valida extensão, MIME, assinatura e leitura do arquivo, extrai texto para consulta e mantém o original disponível para download autenticado. Essas validações não equivalem a antivírus, análise de malware ou garantia de que o conteúdo seja confiável. A extração não conecta, por si só, um modelo de IA generativa.
+Os documentos são compartilhados entre os usuários da mesma prefeitura, respeitando a restrição de consulta do consultor ao Plano de Governo; não inclua arquivos que devam ser restritos a uma secretaria. O sistema valida extensão, MIME, assinatura e leitura do arquivo, extrai texto para consulta e mantém o original disponível para download autenticado. Essas validações não equivalem a antivírus, análise de malware ou garantia de que o conteúdo seja confiável. A extração não conecta, por si só, um modelo de IA generativa.
 
 ## Armazenamento
 

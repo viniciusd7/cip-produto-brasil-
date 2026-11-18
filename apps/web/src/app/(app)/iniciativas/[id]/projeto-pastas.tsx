@@ -1,11 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ArvoreCadastro } from "./arvore-cadastro";
+import { useEffect, useMemo, useState } from "react";
+import { CadastroTarefaProjeto } from "./arvore-cadastro";
 import { EvidenciaEnvio } from "./evidencia-envio";
 import { ItemTextoEditor } from "./item-texto-editor";
 import { ReprogramarTarefa } from "./reprogramar-tarefa";
-import { ResponsavelEditor } from "./responsavel-editor";
+import { EditarResponsavel, type ResponsavelOpcao } from "../../minha-pasta/tarefas-edicao";
 import { SubtarefaToggle, TarefaAcoes } from "./tarefa-acoes";
 import type { EvidenciaItem } from "./evidencia-actions";
 import type { ProjetoDocData, ProjetoDocMarco } from "./projeto-documento";
@@ -18,7 +18,8 @@ export const STATUS_TAREFA: Record<string, { label: string; cor: string }> = {
   ENCERRADO_SEM_SOLUCAO: { label: "Encerrada", cor: "#929bb4" },
 };
 
-type Filtro = "TODAS" | "VENCIDO" | "SEM_PRAZO" | "NO_PRAZO" | "CONCLUIDO" | "VALIDACAO";
+export type FiltroTarefaProjeto = "TODAS" | "VENCIDO" | "SEM_PRAZO" | "NO_PRAZO" | "CONCLUIDO" | "VALIDACAO";
+type Filtro = FiltroTarefaProjeto;
 
 const FILTROS: Array<{ id: Filtro; label: string; cor?: string }> = [
   { id: "TODAS", label: "Todas" },
@@ -42,7 +43,9 @@ type Ctx = {
   canWrite: boolean;
   canSubmitEvidence: boolean;
   token: string;
-  equipe: string[];
+  responsaveis: ResponsavelOpcao[];
+  usuarioId: string;
+  administrador: boolean;
   iniciativaId: string;
   aguardando: Set<string>;
   evidPorMarco: Map<string, EvidenciaItem[]>;
@@ -59,6 +62,7 @@ const EVID_ICONE: Record<string, string> = { FOTO: "📷", VIDEO: "🎥", DOCUME
 
 function TarefaLinha({ m, ctx, aberta, alternar }: { m: ProjetoDocMarco; ctx: Ctx; aberta: boolean; alternar: () => void }) {
   const [painel, setPainel] = useState<null | "EVIDENCIA" | "CONCLUSAO">(null);
+  const [criandoSubtarefa, setCriandoSubtarefa] = useState(false);
   const st = statusDe(m);
   const subsFeitas = m.subtarefas.filter((s) => s.concluida).length;
   const evid = ctx.evidPorMarco.get(m.id) ?? [];
@@ -66,55 +70,66 @@ function TarefaLinha({ m, ctx, aberta, alternar }: { m: ProjetoDocMarco; ctx: Ct
   const encerrada = m.prazoStatus === "CONCLUIDO" || m.prazoStatus === "ENCERRADO_SEM_SOLUCAO";
   const prazo = fmt(m.prazoVigente ?? m.prazoOriginal);
   const gestorPodeAgir = ctx.canSubmitEvidence && !ctx.canWrite;
+  const podeEditarTarefa = ctx.canWrite && (ctx.administrador || !m.responsavelUserId || m.responsavelUserId === ctx.usuarioId);
 
   return (
     <li className={`pj-tarefa${aberta ? " is-open" : ""}`} style={{ ["--c" as string]: st.cor }}>
-      <button type="button" className="pj-tarefa__linha" aria-expanded={aberta} onClick={alternar}>
-        <span className="pj-tarefa__check" aria-hidden="true">{encerrada ? "✓" : ""}</span>
-        <span className="pj-tarefa__texto">
-          <strong>{m.codigo ? `${m.codigo} · ` : ""}{m.descricao}</strong>
-          <span className="pj-tarefa__meta">
-            <span>👤 {m.responsavel || "Sem responsável"}</span>
-            {prazo && <span>📅 {prazo}</span>}
-            {!!m.subtarefas.length && <span>☑ {subsFeitas}/{m.subtarefas.length} subtarefas</span>}
-            {!!evid.length && <span>📎 {evid.length} evidência{evid.length > 1 ? "s" : ""}</span>}
+      <div className="pj-tarefa__cabecalho">
+        <button type="button" className="pj-tarefa__linha" aria-expanded={aberta} onClick={alternar}>
+          <span className="pj-tarefa__check" aria-hidden="true">{encerrada ? "✓" : ""}</span>
+          <span className="pj-tarefa__texto">
+            <strong>{m.codigo ? `${m.codigo} · ` : ""}{m.descricao}</strong>
+            <span className="pj-tarefa__meta">
+              <span>👤 {m.responsavel || "Sem responsável"}</span>
+              {prazo && <span>📅 {prazo}</span>}
+              {!!m.subtarefas.length && <span>☑ {subsFeitas}/{m.subtarefas.length} subtarefas</span>}
+              {!!evid.length && <span>📎 {evid.length} evidência{evid.length > 1 ? "s" : ""}</span>}
+            </span>
           </span>
-        </span>
-        {aguardando && <span className="pj-pill pj-pill--lav">Aguardando validação</span>}
-        <span className="pj-pill">{st.label}</span>
-        <span className="pj-chevron" aria-hidden="true">›</span>
-      </button>
+          {aguardando && <span className="pj-pill pj-pill--lav">Aguardando validação</span>}
+          <span className="pj-pill">{st.label}</span>
+          <span className="pj-chevron" aria-hidden="true">›</span>
+        </button>
+        {ctx.canWrite && !encerrada && (
+          <button
+            type="button"
+            className="pj-tarefa__adicionar-subtarefa"
+            aria-label={`Adicionar subtarefa à tarefa ${m.descricao}`}
+            aria-expanded={aberta && criandoSubtarefa}
+            onClick={() => { if (!aberta) alternar(); setCriandoSubtarefa(true); }}
+          >+ Subtarefa</button>
+        )}
+      </div>
 
       {aberta && (
         <div className="pj-tarefa__det">
           <div className="pj-tarefa__colunas">
             <section>
-              <h4>Subtarefas</h4>
+              <h4>Subtarefas · {subsFeitas}/{m.subtarefas.length} concluídas</h4>
               {!m.subtarefas.length && (
                 <p className="pj-vazio-mini">
                   {ctx.canWrite
-                    ? "Nenhuma subtarefa. Inclua o próximo passo na árvore de cadastro."
+                    ? "Nenhuma subtarefa ainda. Use + Subtarefa nesta tarefa para incluir o próximo passo."
                     : "Nenhuma subtarefa — a tarefa é entregue de uma vez."}
                 </p>
               )}
               <ul className="pj-subs">
                 {m.subtarefas.map((s) => (
                   <li key={s.id} className={s.concluida ? "is-done" : ""}>
-                    {ctx.canWrite ? (
+                    {ctx.canWrite && (ctx.administrador || !s.responsavelUserId || s.responsavelUserId === ctx.usuarioId) ? (
                       <SubtarefaToggle token={ctx.token} subtarefaId={s.id} concluida={s.concluida} canWrite />
                     ) : (
                       <span className="pj-subs__dot" aria-label={s.concluida ? "Feita" : "Pendente"}>{s.concluida ? "✓" : ""}</span>
                     )}
                     <span className="pj-subs__nome">{s.descricao}</span>
                     {s.prazo && <small>Prazo: {fmt(s.prazo)}</small>}
-                    {ctx.canWrite ? (
-                      <ResponsavelEditor
+                    {ctx.canWrite && (ctx.administrador || !s.responsavelUserId || s.responsavelUserId === ctx.usuarioId) ? (
+                      <EditarResponsavel
                         token={ctx.token}
                         endpoint={`/iniciativas/subtarefas/${s.id}`}
-                        value={s.responsavel}
-                        equipe={ctx.equipe}
-                        listId="equipe-projeto"
-                        canWrite
+                        atualId={s.responsavelUserId}
+                        pessoas={ctx.responsaveis}
+                        rotulo="Responsável pela subtarefa"
                       />
                     ) : (
                       s.responsavel && <small>{s.responsavel}</small>
@@ -122,6 +137,11 @@ function TarefaLinha({ m, ctx, aberta, alternar }: { m: ProjetoDocMarco; ctx: Ct
                   </li>
                 ))}
               </ul>
+              {ctx.canWrite && !encerrada && criandoSubtarefa && (
+                <div className="pj-nova-subtarefa">
+                  <CadastroTarefaProjeto token={ctx.token} iniciativaId={ctx.iniciativaId} marcoId={m.id} tarefaDescricao={m.descricao} responsaveis={ctx.responsaveis} onFechar={() => setCriandoSubtarefa(false)} />
+                </div>
+              )}
             </section>
 
             <section>
@@ -184,18 +204,17 @@ function TarefaLinha({ m, ctx, aberta, alternar }: { m: ProjetoDocMarco; ctx: Ct
 
           {ctx.canWrite && (
             <div className="pj-acoes pj-acoes--consultor">
-              <TarefaAcoes token={ctx.token} marcoId={m.id} concluidoEm={m.concluidoEm} canWrite />
-              <ItemTextoEditor token={ctx.token} endpoint={`/iniciativas/marcos/${m.id}`} value={m.descricao} canWrite label="Renomear" />
-              <ResponsavelEditor
+              <TarefaAcoes token={ctx.token} marcoId={m.id} concluidoEm={m.concluidoEm} canWrite={podeEditarTarefa} />
+              <ItemTextoEditor token={ctx.token} endpoint={`/iniciativas/marcos/${m.id}`} value={m.descricao} canWrite={podeEditarTarefa} label="Renomear" />
+              {podeEditarTarefa && <EditarResponsavel
                 token={ctx.token}
                 endpoint={`/iniciativas/marcos/${m.id}`}
-                value={m.responsavel}
-                equipe={ctx.equipe}
-                listId="equipe-projeto"
-                canWrite
-              />
+                atualId={m.responsavelUserId}
+                pessoas={ctx.responsaveis}
+                rotulo="Responsável pela tarefa"
+              />}
               <ReprogramarTarefa
-                canWrite={!encerrada}
+                canWrite={!encerrada && podeEditarTarefa}
                 token={ctx.token}
                 marcoId={m.id}
                 prazo={m.prazoVigente}
@@ -216,11 +235,16 @@ export function ProjetoPastas({
   canWrite,
   canSubmitEvidence,
   token,
-  equipe,
+  responsaveis = [],
+  usuarioId = "",
+  administrador = false,
   iniciativaId,
-  metaEstrategica,
-  permiteMetaPlano,
   onVerEvidencias,
+  filtroSelecionado,
+  onSelecionarFiltro,
+  buscaExterna,
+  onBuscaChange,
+  scrollRequest = 0,
 }: {
   marcos: ProjetoDocMarco[];
   evidencias: EvidenciaItem[];
@@ -228,12 +252,19 @@ export function ProjetoPastas({
   canWrite: boolean;
   canSubmitEvidence: boolean;
   token: string;
-  equipe: string[];
+  responsaveis?: ResponsavelOpcao[];
+  usuarioId?: string;
+  administrador?: boolean;
   iniciativaId: string;
   secretariaId: string;
   metaEstrategica?: ProjetoDocData["metaEstrategica"];
   permiteMetaPlano: boolean;
   onVerEvidencias: (marcoId: string) => void;
+  filtroSelecionado?: Filtro;
+  onSelecionarFiltro?: (filtro: Filtro) => void;
+  buscaExterna?: string;
+  onBuscaChange?: (busca: string) => void;
+  scrollRequest?: number;
 }) {
   const todas = marcos;
   const aguardandoSet = useMemo(() => new Set(aguardando), [aguardando]);
@@ -246,15 +277,24 @@ export function ProjetoPastas({
     return map;
   }, [evidencias]);
 
-  const [filtro, setFiltro] = useState<Filtro>("TODAS");
-  const [busca, setBusca] = useState("");
+  const [filtroLocal, setFiltroLocal] = useState<Filtro>("TODAS");
+  const [buscaLocal, setBuscaLocal] = useState("");
+  const [criandoTarefa, setCriandoTarefa] = useState(false);
+  const filtro = filtroSelecionado ?? filtroLocal;
+  const busca = buscaExterna ?? buscaLocal;
   const [tarefaAberta, setTarefaAberta] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (scrollRequest > 0) document.getElementById("pj-lista-tarefas")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [scrollRequest]);
 
   const ctx: Ctx = {
     canWrite,
     canSubmitEvidence,
     token,
-    equipe,
+    responsaveis,
+    usuarioId,
+    administrador,
     iniciativaId,
     aguardando: aguardandoSet,
     evidPorMarco,
@@ -276,22 +316,11 @@ export function ProjetoPastas({
   const filtrando = filtro !== "TODAS" || !!busca.trim();
 
   return (
-    <div className="pj-pastas">
-      {canWrite && (
-        <ArvoreCadastro
-          token={token}
-          iniciativaId={iniciativaId}
-          metaEstrategica={metaEstrategica}
-          permiteMetaPlano={permiteMetaPlano}
-          marcos={marcos}
-          equipe={equipe}
-        />
-      )}
+    <div className="pj-pastas" id="pj-lista-tarefas">
       <div className="pj-toolbar">
         <div className="pj-filtros" role="group" aria-label="Filtrar tarefas">
           {FILTROS.map((f) => {
             const n = contagem(f.id);
-            if (f.id !== "TODAS" && !n) return null;
             return (
               <button
                 key={f.id}
@@ -299,7 +328,7 @@ export function ProjetoPastas({
                 aria-pressed={filtro === f.id}
                 className="pj-filtro"
                 style={f.cor ? { ["--c" as string]: f.cor } : undefined}
-                onClick={() => setFiltro(f.id)}
+                onClick={() => { setFiltroLocal(f.id); onSelecionarFiltro?.(f.id); }}
               >
                 {f.cor && <i aria-hidden="true" />}
                 {f.label} <b>{n}</b>
@@ -308,16 +337,18 @@ export function ProjetoPastas({
           })}
         </div>
         <div className="pj-toolbar__dir">
+          {canWrite && <button type="button" className="ev-btn" aria-expanded={criandoTarefa} onClick={() => setCriandoTarefa((valor) => !valor)}>+ Nova tarefa</button>}
           <input
             type="search"
             className="pj-busca"
             placeholder="Buscar tarefa ou pessoa…"
             aria-label="Buscar tarefa"
             value={busca}
-            onChange={(e) => setBusca(e.target.value)}
+            onChange={(e) => { setBuscaLocal(e.target.value); onBuscaChange?.(e.target.value); }}
           />
         </div>
       </div>
+      {criandoTarefa && <CadastroTarefaProjeto token={token} iniciativaId={iniciativaId} responsaveis={responsaveis} onFechar={() => setCriandoTarefa(false)} />}
 
       {!todas.length && (
         <div className="pj-vazio">
@@ -325,7 +356,7 @@ export function ProjetoPastas({
           <strong>Este projeto ainda não tem tarefas</strong>
           <p>
             {canWrite
-              ? "Use a árvore acima para criar tarefas."
+              ? "Use Nova tarefa para cadastrar a primeira entrega deste projeto."
               : "A consultoria vai organizar as tarefas deste projeto. Você será avisado quando houver algo atribuído a você."}
           </p>
         </div>

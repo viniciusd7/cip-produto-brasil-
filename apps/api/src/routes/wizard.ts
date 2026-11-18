@@ -7,6 +7,9 @@ import {
   MODELO_ACAO_DIARIA,
   MODELO_PLANO_GOVERNO,
   adicionarImpedimentosComuns,
+  adicionarImpedimentosPersonalizados,
+  CODIGO_IMPEDIMENTO_PERSONALIZADO,
+  LIMITE_IMPEDIMENTOS_PERSONALIZADOS,
   usaFluxoEstruturante,
   parseCondicaoResposta,
   visibleQuestions,
@@ -112,6 +115,19 @@ const previewBaseSchema = z.object({
     .max(1)
     .optional(),
   respostas: respostasSchema.default([]),
+  impedimentosPersonalizados: z.array(z.object({
+    codigo: z.string().regex(CODIGO_IMPEDIMENTO_PERSONALIZADO),
+    nome: z.string().trim().min(3).max(200),
+    tipo: z.enum(["IMPEDIMENTO", "PRE_REQUISITO"]),
+    descricao: z.string().trim().max(2000),
+    bloqueante: z.boolean(),
+  })).max(LIMITE_IMPEDIMENTOS_PERSONALIZADOS).superRefine((itens, ctx) => {
+    const codigos = new Set<string>();
+    itens.forEach((item, index) => {
+      if (codigos.has(item.codigo)) ctx.addIssue({ code: "custom", path: [index, "codigo"], message: "Cada item deve ter um código único" });
+      codigos.add(item.codigo);
+    });
+  }).default([]),
   estruturaOverride: z.array(treeNodeSchema).optional(),
 });
 
@@ -262,6 +278,7 @@ wizardRouter.post(
         modelo = await loadModeloSnapshot(row.id);
       }
       modelo = adicionarImpedimentosComuns(modelo);
+      modelo = adicionarImpedimentosPersonalizados(modelo, body.impedimentosPersonalizados);
 
       const result = evaluateWizard({
         modelo,
@@ -394,6 +411,7 @@ wizardRouter.post(
         modeloSnap = await loadModeloSnapshot(row.id);
       }
       modeloSnap = adicionarImpedimentosComuns(modeloSnap);
+      modeloSnap = adicionarImpedimentosPersonalizados(modeloSnap, body.impedimentosPersonalizados);
 
       const respostasPorCodigo = new Map(
         body.respostas.map((resposta) => [resposta.perguntaCodigo, resposta.valor]),

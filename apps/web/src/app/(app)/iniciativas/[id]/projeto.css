@@ -53,7 +53,7 @@
 .pj-tag--rose { background: rgba(255, 89, 130, 0.18); color: #ffb3c6; }
 .pj-hero__meta, .pj-hero__linha { margin: 0; color: var(--cip-muted); display: flex; flex-wrap: wrap; gap: 6px 16px; }
 .pj-hero__meta b, .pj-hero__linha b { color: var(--cip-ink); }
-.pj-hero__nums { display: grid; grid-template-columns: repeat(5, minmax(72px, 1fr)); gap: 8px; }
+.pj-hero__nums { display: grid; grid-template-columns: repeat(3, minmax(72px, 1fr)); gap: 8px; min-width: 320px; }
 .pj-num {
   --c: #7c9cff;
   border-radius: 14px;
@@ -61,9 +61,15 @@
   text-align: center;
   background: color-mix(in srgb, var(--c) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--c) 35%, transparent);
+  color: var(--cip-ink);
+  font: inherit;
+  cursor: pointer;
 }
 .pj-num b { display: block; font-size: 1.5rem; color: var(--c); line-height: 1.1; }
 .pj-num small { color: var(--cip-muted); font-size: 0.72rem; }
+.pj-num:hover, .pj-num[aria-pressed="true"] { border-color: var(--c); background: color-mix(in srgb, var(--c) 22%, var(--cip-surface)); }
+.pj-num:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
+.pj-hero__evid-pendentes { grid-column: 1 / -1; justify-self: end; border: 0; background: none; color: var(--cip-blue); font: inherit; font-size: 0.78rem; cursor: pointer; }
 
 .pj-alerta {
   margin: 0;
@@ -205,8 +211,10 @@
 }
 .pj-tarefa::before { content: ""; position: absolute; left: -16px; top: 22px; width: 14px; height: 1px; background: var(--cip-border); }
 .pj-tarefa.is-open { border-color: color-mix(in srgb, var(--c) 45%, transparent); }
+.pj-tarefa__cabecalho { display: flex; align-items: center; gap: 8px; padding-right: 10px; }
 .pj-tarefa__linha {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   gap: 12px;
@@ -219,6 +227,20 @@
   text-align: left;
   cursor: pointer;
 }
+.pj-tarefa__adicionar-subtarefa {
+  flex: none;
+  border: 1px solid color-mix(in srgb, var(--cip-blue) 48%, var(--cip-border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--cip-blue) 12%, var(--cip-bg-elevated));
+  color: var(--cip-blue);
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.pj-tarefa__adicionar-subtarefa:hover,
+.pj-tarefa__adicionar-subtarefa:focus-visible { background: color-mix(in srgb, var(--cip-blue) 24%, var(--cip-bg-elevated)); }
 .pj-tarefa__check {
   width: 20px;
   height: 20px;
@@ -530,96 +552,48 @@
 }
 @media (max-width: 760px) {
   .pj-hero { grid-template-columns: 1fr; justify-items: start; }
-  .pj-hero__nums { grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+  .pj-hero__nums { grid-template-columns: repeat(3, minmax(0, 1fr)); min-width: 0; width: 100%; }
   .pj-pasta__cab { grid-template-columns: auto minmax(0, 1fr) auto; }
   .pj-pasta__nums, .pj-pasta__pct { grid-column: 2 / -1; }
   .pj-tarefa__linha { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .pj-tarefa__cabecalho { flex-wrap: wrap; padding-bottom: 8px; }
+  .pj-tarefa__linha { flex-basis: 100%; }
+  .pj-tarefa__adicionar-subtarefa { margin-left: 14px; }
   .pj-tarefa__linha .pj-pill { grid-column: 2; justify-self: start; }
   .pj-tarefa__det { padding-left: 14px; }
   .pj-tarefa__colunas { grid-template-columns: 1fr; }
   .ev-tipos, .ev-resumo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pj-busca { min-width: 0; width: 100%; }
   .pj-meta-est dl { grid-template-columns: 1fr; }
-  .cadastro-arvore__corpo { grid-template-columns: 1fr; }
 }
 
-.cadastro-arvore {
+.pj-cadastro-compacto {
   display: grid;
-  gap: 14px;
-  margin-bottom: 18px;
+  gap: 12px;
   padding: 16px;
   border: 1px solid var(--cip-border);
-  border-radius: 16px;
+  border-radius: 12px;
   background: var(--cip-surface);
 }
-.cadastro-arvore__head {
+.pj-cadastro-compacto__head {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
-  align-items: end;
-}
-.cadastro-arvore__head p {
-  margin: 0;
-  color: var(--cip-muted);
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.cadastro-arvore__head h2 { margin: 2px 0 0; font-size: 1.15rem; }
-.cadastro-arvore__head small { color: var(--cip-muted); }
-.cadastro-arvore__corpo {
-  display: grid;
-  grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1.1fr);
-  gap: 16px;
+  gap: 10px;
   align-items: start;
 }
-.cadastro-arvore__nos,
-.cadastro-arvore__nos ul {
+.pj-cadastro-compacto__head div { display: grid; gap: 3px; }
+.pj-cadastro-compacto__head small { color: var(--cip-muted); }
+.pj-cadastro-compacto__campos {
   display: grid;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  grid-template-columns: minmax(220px, 2fr) repeat(2, minmax(150px, 1fr));
+  gap: 10px;
 }
-.cadastro-arvore__nos ul {
-  margin-left: 14px;
-  padding-left: 10px;
-  border-left: 1px solid var(--cip-border);
-}
-.cadastro-arvore__nos button,
-.cadastro-arvore__folha,
-.cadastro-arvore__grupo {
-  display: grid;
-  gap: 2px;
-  width: 100%;
-  padding: 8px 10px;
-  border-radius: 10px;
-  text-align: left;
-}
-.cadastro-arvore__nos button {
-  border: 1px solid transparent;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-.cadastro-arvore__nos button[aria-current="true"] {
-  border-color: var(--cip-border);
-  background: color-mix(in srgb, var(--cip-blue) 12%, transparent);
-}
-.cadastro-arvore__nos button span,
-.cadastro-arvore__grupo {
-  color: var(--cip-muted);
-  font-size: 12px;
-}
-.cadastro-arvore__folha {
-  color: var(--cip-ink);
-  font-size: 13px;
-}
-.cadastro-arvore__form select,
-.cadastro-arvore__form input {
-  width: 100%;
-}
+.pj-cadastro-compacto__campos label { display: grid; gap: 5px; min-width: 0; font-size: 0.8rem; color: var(--cip-muted); }
+.pj-cadastro-compacto__campos input, .pj-cadastro-compacto__campos select { width: 100%; min-width: 0; }
+.pj-cadastro-compacto > .cip-btn { justify-self: start; }
+.pj-nova-subtarefa { display: grid; gap: 8px; justify-items: start; margin-top: 8px; }
+.pj-nova-subtarefa .pj-cadastro-compacto { width: 100%; }
+@media (max-width: 900px) { .pj-cadastro-compacto__campos { grid-template-columns: 1fr; } }
 .cadastro-arvore__erro {
   margin: 0;
   color: var(--cip-rose, #d94362);

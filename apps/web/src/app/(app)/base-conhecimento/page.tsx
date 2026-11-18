@@ -11,7 +11,9 @@ export default async function BaseConhecimentoPage() {
       <PageHeader
         eyebrow="Documentos da prefeitura"
         title="Base de conhecimento"
-        description="Anexe o Plano de Governo obrigatório e, se desejar, outros documentos identificados automaticamente."
+        description={session?.user?.role === "analista"
+          ? "Envie documentos com título e descrição. Sua consulta exibe apenas o Plano de Governo."
+          : "Anexe o Plano de Governo obrigatório e outros documentos, sempre com título e descrição do conteúdo."}
       />
       <ConhecimentoForm
         token={session?.accessToken || ""}

@@ -1136,7 +1136,6 @@ iniciativasRouter.post(
         marco.iniciativa.municipioId,
         "MarcoEntrega",
       );
-      assertMarcoExecutorAccess(req.user!, marco.responsavelUserId);
       const body = subtarefaSchema.parse(req.body);
       const responsavelUser = await resolverResponsavel(marco.iniciativa.municipioId, body.responsavelUserId);
       const row = await prisma.subtarefa.create({

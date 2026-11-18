@@ -11,6 +11,7 @@ import {
   canWriteRole,
 } from "@/lib/roles";
 import { ProjetoDocumento, type ProjetoDocData, type SecretariaRef } from "./projeto-documento";
+import type { ResponsavelOpcao } from "../../minha-pasta/tarefas-edicao";
 
 type DetailResponse = { data: ProjetoDocData & {
   descricao?: string | null;
@@ -52,27 +53,14 @@ export default async function IniciativaPage({
   const portfolioHref = focoSecretario ? "/minha-pasta/projetos" : "/carteira";
   const portfolioLabel = "Projetos";
 
-  // Equipe das pastas envolvidas (sugestões de responsável) e lista de secretarias
-  // para vincular correlacionadas.
-  const envolvidas = [
-    item.secretariaPrincipal.id,
-    ...item.secretarias.map((s) => s.secretaria.id),
-  ];
-  const [todasSecretarias, equipes] = await Promise.all([
+  const [todasSecretarias, responsaveis] = await Promise.all([
     apiFetch<{ data: SecretariaRef[] }>("/admin/secretarias", { token }).catch(() => ({
       data: [] as SecretariaRef[],
     })),
-    Promise.all(
-      envolvidas.map((id) =>
-        apiFetch<{ data: Array<{ nome: string }> }>(`/admin/secretarias/${id}/pessoas`, {
-          token,
-        }).catch(() => ({ data: [] as Array<{ nome: string }> })),
-      ),
-    ),
+    canWrite
+      ? apiFetch<{ data: ResponsavelOpcao[] }>("/planejamento/responsaveis", { token })
+      : Promise.resolve({ data: [] as ResponsavelOpcao[] }),
   ]);
-  const equipe = Array.from(
-    new Set(equipes.flatMap((e) => e.data.map((p) => p.nome))),
-  ).sort((a, b) => a.localeCompare(b, "pt-BR"));
 
   return (
     <div className="stack">
@@ -106,7 +94,9 @@ export default async function IniciativaPage({
           canSubmitEvidence={canSubmitEvidence}
           canValidate={canValidate}
           token={token}
-          equipe={equipe}
+          responsaveis={responsaveis.data}
+          usuarioId={session?.user?.id || ""}
+          administrador={session?.user?.role === "admin"}
           todasSecretarias={todasSecretarias.data || []}
           focoSecretario={focoSecretario}
         />

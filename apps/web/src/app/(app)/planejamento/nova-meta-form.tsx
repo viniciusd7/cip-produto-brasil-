@@ -59,7 +59,7 @@ export function NovaMetaForm({ planoId, planos = [], token, secretarias }: {
           <label>Alvo<input name="alvo" placeholder="Ex.: 200" /></label>
           <label>Unidade<input name="unidade" placeholder="Ex.: vagas" /></label>
         </div>
-        <p className="dashboard-muted">Após salvar, cadastre os indicadores no cartão da meta.</p>
+        <p className="dashboard-muted">Após salvar, abra a meta para cadastrar seus indicadores.</p>
         {erro && <p role="alert">{erro}</p>}
         <div className="chip-row">
           <Button type="submit" disabled={salvando}>{salvando ? "Salvando…" : "Salvar meta"}</Button>

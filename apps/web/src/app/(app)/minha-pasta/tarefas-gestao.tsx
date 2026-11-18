@@ -6,6 +6,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button } from "@cip/ui";
 import { API_URL, apiFetch } from "@/lib/api";
+import { AlternarSubtarefa, EditarPrazo, EditarResponsavel, type ResponsavelOpcao } from "./tarefas-edicao";
 
 export type TarefaGestaoItem = {
   id: string;
@@ -13,9 +14,10 @@ export type TarefaGestaoItem = {
   descricao: string;
   status: string;
   responsavel: string | null;
+  responsavelUserId?: string | null;
   prazo: string | null;
   meta: string | null;
-  subtarefas: { total: number; concluidas: number };
+  subtarefas: { total: number; concluidas: number; itens?: Array<{ id: string; descricao: string; responsavel: string | null; responsavelUserId?: string | null; prazo: string | null; concluida: boolean }> };
   iniciativaId: string;
   iniciativaCodigo: string;
   iniciativaNome: string;
@@ -204,7 +206,9 @@ function tarefasParaFiltro(tarefa: TarefaGestaoItem, filtro: Filtro) {
   return tarefa.status === "CONCLUIDO";
 }
 
-function TarefaCard({ tarefa, token, gerenciar = false, podeEditar = false }: { tarefa: TarefaGestaoItem; token: string; gerenciar?: boolean; podeEditar?: boolean }) {
+type PermissaoEdicao = { podeEditar: boolean; usuarioId: string; administrador: boolean; responsaveis: ResponsavelOpcao[] };
+
+function TarefaCard({ tarefa, token, gerenciar = false, podeEditar = false, usuarioId = "", administrador = false, responsaveis = [] }: { tarefa: TarefaGestaoItem; token: string; gerenciar?: boolean } & PermissaoEdicao) {
   const [painel, setPainel] = useState<Painel>(null);
   const tone =
     tarefa.status === "VENCIDO"
@@ -215,6 +219,7 @@ function TarefaCard({ tarefa, token, gerenciar = false, podeEditar = false }: { 
           ? "info"
           : "warning";
   const aberta = !encerrada(tarefa);
+  const podeAtribuir = podeEditar && (administrador || !tarefa.responsavelUserId || tarefa.responsavelUserId === usuarioId);
 
   return (
     <article className="gestao-tarefa">
@@ -247,12 +252,34 @@ function TarefaCard({ tarefa, token, gerenciar = false, podeEditar = false }: { 
       <div className="gestao-tarefa__details">
         <span className="gestao-tarefa__detail-label">Responsável</span>
         <strong>{tarefa.responsavel || "A definir"}</strong>
+        {gerenciar && aberta && podeAtribuir && <EditarResponsavel token={token} endpoint={`/iniciativas/marcos/${tarefa.id}`} atualId={tarefa.responsavelUserId} pessoas={responsaveis} rotulo="Responsável pela tarefa" />}
       </div>
       <div className="gestao-tarefa__details">
         <span className="gestao-tarefa__detail-label">Prazo</span>
         <strong>{dataCurta(tarefa.prazo)}</strong>
+        {gerenciar && aberta && podeEditar && <EditarPrazo token={token} marcoId={tarefa.id} prazo={tarefa.prazo} />}
       </div>
-      {gerenciar && tarefa.status !== "ENCERRADO_SEM_SOLUCAO" && <TarefaAcoes token={token} marcoId={tarefa.id} concluidoEm={tarefa.status === "CONCLUIDO" ? "concluida" : null} canWrite={podeEditar} />}
+      {gerenciar && !!tarefa.subtarefas.itens?.length && (
+        <div className="gestao-tarefa__subtarefas">
+          <strong>Subtarefas</strong>
+          <ul>
+            {tarefa.subtarefas.itens.map((subtarefa) => (
+              <li key={subtarefa.id}>
+                {podeEditar && (administrador || !subtarefa.responsavelUserId || subtarefa.responsavelUserId === usuarioId)
+                  ? <AlternarSubtarefa token={token} id={subtarefa.id} concluida={subtarefa.concluida} />
+                  : <span aria-label={subtarefa.concluida ? "Concluída" : "Em aberto"}>{subtarefa.concluida ? "✓" : "○"}</span>}
+                <span className="tarefa-subtarefa__conteudo">
+                  <strong>{subtarefa.descricao}</strong>
+                  <small>{subtarefa.concluida ? "Concluída" : "Em aberto"} · {subtarefa.responsavel || "Sem responsável"} · Prazo: {dataCurta(subtarefa.prazo)}</small>
+                  {podeEditar && (administrador || !subtarefa.responsavelUserId || subtarefa.responsavelUserId === usuarioId) &&
+                    <EditarResponsavel token={token} endpoint={`/iniciativas/subtarefas/${subtarefa.id}`} atualId={subtarefa.responsavelUserId} pessoas={responsaveis} rotulo="Responsável pela subtarefa" />}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {gerenciar && tarefa.status !== "ENCERRADO_SEM_SOLUCAO" && <TarefaAcoes token={token} marcoId={tarefa.id} concluidoEm={tarefa.status === "CONCLUIDO" ? "concluida" : null} canWrite={podeAtribuir} />}
       {aberta && !gerenciar && (
         <div className="gestao-tarefa__acoes">
           {!tarefa.aguardandoValidacao && (
@@ -273,7 +300,7 @@ function TarefaCard({ tarefa, token, gerenciar = false, podeEditar = false }: { 
   );
 }
 
-function LinhaTarefa({ tarefa, token, podeEditar }: { tarefa: TarefaGestaoItem; token: string; podeEditar: boolean }) {
+function LinhaTarefa({ tarefa, token, ...permissao }: { tarefa: TarefaGestaoItem; token: string } & PermissaoEdicao) {
   const percentual = tarefa.subtarefas.total
     ? Math.round(tarefa.subtarefas.concluidas / tarefa.subtarefas.total * 100)
     : tarefa.status === "CONCLUIDO" ? 100 : 0;
@@ -291,7 +318,7 @@ function LinhaTarefa({ tarefa, token, podeEditar }: { tarefa: TarefaGestaoItem; 
         <span className="tarefa-linha__progresso"><span>{percentual}%</span><progress aria-label={`Progresso de ${tarefa.descricao}`} value={percentual} max={100} /></span>
       </summary>
       <div className="tarefa-linha__detalhe">
-        <TarefaCard tarefa={tarefa} token={token} gerenciar podeEditar={podeEditar} />
+        <TarefaCard tarefa={tarefa} token={token} gerenciar {...permissao} />
       </div>
     </details>
   );
@@ -302,11 +329,17 @@ export function TarefasGestao({
   token,
   modo = "SECRETARIA",
   podeEditar = false,
+  usuarioId = "",
+  administrador = false,
+  responsaveis = [],
 }: {
   tarefas: TarefaGestaoItem[];
   token: string;
   modo?: "SECRETARIA" | "PROJETOS";
   podeEditar?: boolean;
+  usuarioId?: string;
+  administrador?: boolean;
+  responsaveis?: ResponsavelOpcao[];
 }) {
   const [filtro, setFiltro] = useState<Filtro>(modo === "PROJETOS" ? "TODAS" : "ABERTAS");
   const [visualizacao, setVisualizacao] = useState<Visualizacao>("LISTA");
@@ -433,13 +466,13 @@ export function TarefasGestao({
             return (
               <details className="tarefas-grupo" key={coluna.id} open>
                 <summary><span className={`tarefas-grupo__status tarefas-grupo__status--${coluna.tone}`}>{coluna.titulo}</span><span>{itens.length}</span></summary>
-                {itens.map((tarefa) => <LinhaTarefa key={tarefa.id} tarefa={tarefa} token={token} podeEditar={podeEditar} />)}
+                {itens.map((tarefa) => <LinhaTarefa key={tarefa.id} tarefa={tarefa} token={token} podeEditar={podeEditar} usuarioId={usuarioId} administrador={administrador} responsaveis={responsaveis} />)}
               </details>
             );
           })}
         </div> : <div className="gestao-tarefas__list">
           {filtradas.map((tarefa) => (
-            <TarefaCard key={tarefa.id} tarefa={tarefa} token={token} />
+            <TarefaCard key={tarefa.id} tarefa={tarefa} token={token} podeEditar={false} usuarioId="" administrador={false} responsaveis={[]} />
           ))}
         </div>
       ) : (
@@ -457,7 +490,7 @@ export function TarefasGestao({
                 </h3>
                 <div className="gestao-tarefas__column-list">
                   {itens.map((tarefa) => (
-                    <TarefaCard key={tarefa.id} tarefa={tarefa} token={token} gerenciar={modo === "PROJETOS"} podeEditar={podeEditar} />
+                    <TarefaCard key={tarefa.id} tarefa={tarefa} token={token} gerenciar={modo === "PROJETOS"} podeEditar={podeEditar} usuarioId={usuarioId} administrador={administrador} responsaveis={responsaveis} />
                   ))}
                   {!itens.length && (
                     <p className="dashboard-muted">Nenhuma tarefa</p>

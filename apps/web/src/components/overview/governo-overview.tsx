@@ -73,7 +73,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
   const { governo, porSecretaria, agenda, projetosEstruturantes, pendencias, tarefasPedemAcao, estrategia } = payload.data;
   const copy = overviewCopy(role);
   const [detalhe, setDetalhe] = useState(false);
-  const [mayorTab, setMayorTab] = useState<"resultados" | "secretarias" | "projetos" | "atencao">("resultados");
+  const [mayorTab, setMayorTab] = useState<"resultados" | "secretarias" | "projetos" | "atencao">("atencao");
   const [tab, setTab] = useState("compare");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("");
@@ -238,10 +238,10 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
 
       {role === "prefeito" ? <div className={s.prefeitoTabs} role="tablist" aria-label="Visão geral do prefeito">
         {([
+          { id: "atencao", titulo: "Acompanhamento", detalhe: "Entregas e atenção" },
           { id: "resultados", titulo: "Resultados", detalhe: `${estrategia?.metas.length ?? 0} metas estratégicas` },
           { id: "secretarias", titulo: "Situação das secretarias", detalhe: `${porSecretaria.length} pastas` },
           { id: "projetos", titulo: "Projetos", detalhe: `${governo.totalProjetos} projetos` },
-          { id: "atencao", titulo: "Acompanhamento", detalhe: "Entregas e atenção" },
         ] as const).map((item) => <button key={item.id} id={`aba-${item.id}`} type="button" role="tab" aria-selected={mayorTab === item.id} aria-controls={mayorTab === item.id ? `painel-${item.id}` : undefined} onClick={() => setMayorTab(item.id)}><strong>{item.titulo}</strong><span>{item.detalhe}</span></button>)}
       </div> : <nav className={s.overviewShortcuts} aria-label="Seções da Visão geral">
         {sectionLinks.map((item, index) => (

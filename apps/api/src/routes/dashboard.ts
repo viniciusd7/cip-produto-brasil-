@@ -632,7 +632,7 @@ dashboardRouter.get("/agenda", async (req, res, next) => {
         },
         marcos: {
           include: {
-            subtarefas: { select: { id: true, concluida: true } },
+            subtarefas: { select: { id: true, descricao: true, responsavel: true, responsavelUserId: true, prazo: true, concluida: true }, orderBy: { createdAt: "asc" } },
           },
           orderBy: [{ ordem: "asc" }, { prazoVigente: "asc" }],
         },
@@ -683,6 +683,14 @@ dashboardRouter.get("/agenda", async (req, res, next) => {
           total: marco.subtarefas.length,
           concluidas: marco.subtarefas.filter((subtarefa) => subtarefa.concluida)
             .length,
+          itens: marco.subtarefas.map((subtarefa) => ({
+            id: subtarefa.id,
+            descricao: subtarefa.descricao,
+            responsavel: subtarefa.responsavel,
+            responsavelUserId: subtarefa.responsavelUserId,
+            prazo: subtarefa.prazo?.toISOString() ?? null,
+            concluida: subtarefa.concluida,
+          })),
         },
         iniciativaId: iniciativa.id,
         iniciativaCodigo: iniciativa.codigo,

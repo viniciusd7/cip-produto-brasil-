@@ -3,7 +3,15 @@ export function prepararDocumento(form: FormData) {
   if (!(arquivo instanceof File) || !arquivo.name) {
     throw new Error("Selecione um arquivo PDF, DOC ou DOCX.");
   }
-  const nome = arquivo.name.replace(/\.(pdf|docx?)$/i, "").trim();
-  form.set("titulo", nome.length >= 3 ? nome : "Documento");
+  const titulo = String(form.get("titulo") ?? "").trim();
+  const descricao = String(form.get("observacao") ?? "").trim();
+  if (titulo.length < 3) {
+    throw new Error("Informe um título com pelo menos 3 caracteres.");
+  }
+  if (descricao.length < 3) {
+    throw new Error("Descreva do que trata o documento com pelo menos 3 caracteres.");
+  }
+  form.set("titulo", titulo);
+  form.set("observacao", descricao);
   return form;
 }

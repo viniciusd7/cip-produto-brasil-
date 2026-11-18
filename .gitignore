@@ -62,5 +62,6 @@ graphify-out/**/cache/
 # Misc
 .turbo
 .vercel
+supabase/.temp/
 uploads
 tmp

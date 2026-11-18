@@ -1,14 +1,11 @@
 "use client";
 
-import Link from "next/link";
-import { VincularProjeto } from "./vincular-projeto";
-import { NovaMetaForm } from "./nova-meta-form";
-
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, Button, Card } from "@cip/ui";
+import { Button } from "@cip/ui";
 import { apiFetch } from "@/lib/api";
 import { secretariaLabel } from "@/lib/secretaria-label";
+import { NovaMetaForm } from "./nova-meta-form";
 
 export type Indicador = {
   id: string;
@@ -41,13 +38,6 @@ export type Meta = {
 export type Plano = { id: string; nome: string; periodo?: string | null; descricao?: string | null; metas: Meta[] };
 export type Secretaria = { id: string; nome: string; sigla?: string | null };
 export type Responsavel = { id: string; name: string; roleCode: string; secretaria?: { id: string; nome: string; sigla?: string | null } | null };
-export type Sugestao = {
-  id: string;
-  entidadeId: string;
-  campo: "INDICADOR" | "TAREFA";
-  fonte?: string | null;
-  proposta: { tipo: "INDICADOR"; nome: string; unidade: string; periodicidade: string; polaridade: string; fonte: string; formula?: string } | null;
-};
 
 const PAPEL: Record<string, string> = { gestor: "Secretário", analista: "Consultor", prefeito: "Prefeito" };
 const PERIODICIDADES = ["MENSAL", "BIMESTRAL", "TRIMESTRAL", "QUADRIMESTRAL", "SEMESTRAL", "ANUAL"];
@@ -66,52 +56,95 @@ type Ctx = {
   token: string;
   secretarias: Secretaria[];
   responsaveis: Responsavel[];
-  sugestoes: Sugestao[];
   podeEditar: boolean;
 };
 
 export function PlanoEstrutura({ planos, ...ctx }: Ctx & { planos: Plano[] }) {
+  const [busca, setBusca] = useState("");
+  const [abertaId, setAbertaId] = useState<string | null>(null);
+  const [secretariaId, setSecretariaId] = useState("");
+  const secretarias = Array.from(new Map(planos.flatMap((plano) => plano.metas.flatMap((meta) => {
+    const id = meta.secretariaId || meta.secretaria?.id;
+    return id && meta.secretaria ? [[id, { ...meta.secretaria, id }] as const] : [];
+  }))).values()).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  const normalizar = (texto: string) => texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+  const termo = normalizar(busca.trim());
+  const filtrados = planos.map((plano) => ({ ...plano, metas: plano.metas.filter((meta) =>
+    (!secretariaId || (meta.secretariaId || meta.secretaria?.id) === secretariaId) &&
+    (!termo || normalizar([meta.codigo, meta.nome, meta.secretaria?.nome, meta.secretaria?.sigla, ...meta.indicadores.map((ind) => ind.nome)].filter(Boolean).join(" ")).includes(termo)),
+  ) }));
+  const total = filtrados.reduce((soma, plano) => soma + plano.metas.length, 0);
+  const filtrando = Boolean(busca.trim() || secretariaId);
+
   return (
     <>
-      {planos.map((plano) => (
-        <PlanoCard key={plano.id} plano={plano} {...ctx} />
+      <div className="gp-toolbar">
+      {planos.some((plano) => plano.metas.length > 0) && <div className="gp-filtros" role="search" aria-label="Filtrar metas estratégicas">
+        <label htmlFor="busca-metas">Buscar meta ou indicador
+          <input id="busca-metas" type="search" value={busca} onChange={(event) => setBusca(event.target.value)} placeholder="Nome da meta, código ou indicador" />
+        </label>
+        <label htmlFor="filtro-secretaria">Secretaria
+          <select id="filtro-secretaria" value={secretariaId} onChange={(event) => setSecretariaId(event.target.value)}>
+            <option value="">Todas as secretarias</option>
+            {secretarias.map((secretaria) => <option key={secretaria.id} value={secretaria.id}>{secretaria.nome}</option>)}
+          </select>
+        </label>
+        {filtrando && <Button variant="ghost" onClick={() => { setBusca(""); setSecretariaId(""); }}>Limpar filtros</Button>}
+      </div>}
+      {ctx.podeEditar && planos.length > 0 && <div className="gp-cadastro"><NovaMetaForm planos={planos} token={ctx.token} secretarias={ctx.secretarias} /></div>}
+      </div>
+      {filtrando && <p className="dashboard-muted" role="status">{total} {total === 1 ? "meta encontrada" : "metas encontradas"}.</p>}
+      {filtrados.filter((plano) => !filtrando || plano.metas.length > 0).map((plano) => (
+        <section key={plano.id} className="gp-plano" aria-labelledby={`plano-${plano.id}`}>
+          <header className="gp-plano__head">
+            <h2 id={`plano-${plano.id}`}>{plano.nome}</h2>
+          </header>
+          {plano.metas.length > 0 ? <table className="gp-tabela">
+            <caption className="gp-sr-only">Metas e indicadores de {plano.nome}</caption>
+            <colgroup><col className="gp-col-meta" /><col className="gp-col-secretaria" /><col className="gp-col-indicador" /><col /><col /><col className="gp-col-acao" /></colgroup>
+            <thead><tr><th scope="col">Meta estratégica</th><th scope="col">Secretaria</th><th scope="col">Indicador</th><th scope="col">Atual</th><th scope="col">Alvo</th><th scope="col"><span className="gp-sr-only">Detalhes</span></th></tr></thead>
+            {plano.metas.map((meta) => <MetaLinha key={meta.id} meta={meta} aberta={abertaId === meta.id} onToggle={() => setAbertaId((atual) => atual === meta.id ? null : meta.id)} {...ctx} />)}
+          </table> : <p className="dashboard-muted">Nenhuma meta cadastrada.{ctx.podeEditar ? " Use “Nova meta estratégica” para começar." : ""}</p>}
+
+        </section>
       ))}
     </>
   );
 }
 
-function PlanoCard({ plano, ...ctx }: Ctx & { plano: Plano }) {
-  const semIndicador = plano.metas.filter((m) => m.indicadores.length === 0).length;
+function valorIndicador(valor: string | null | undefined, unidade?: string | null) {
+  return valor != null && valor !== "" ? `${valor}${unidade ? ` ${unidade}` : ""}` : "—";
+}
+
+function MetaLinha({ meta, aberta, onToggle, ...ctx }: Ctx & { meta: Meta; aberta: boolean; onToggle: () => void }) {
+  const indicadores = meta.indicadores.length ? meta.indicadores : [null];
   return (
-    <Card
-      title={plano.nome}
-      subtitle={[
-        plano.periodo,
-        `${plano.metas.length} meta(s) estratégica(s)`,
-        semIndicador ? `${semIndicador} sem indicador` : null,
-      ]
-        .filter(Boolean)
-        .join(" · ")}
-    >
-      {plano.descricao && <p className="dashboard-muted" style={{ marginTop: 0 }}>{plano.descricao}</p>}
-      {ctx.podeEditar && <p className="dashboard-muted">Cadastre as metas deste plano e seus indicadores. Depois, vincule os projetos às metas.</p>}
-      {ctx.podeEditar && <NovaMetaForm planoId={plano.id} token={ctx.token} secretarias={ctx.secretarias} />}
-      <div className="gp-metas">
-        {plano.metas.map((meta) => (
-          <MetaCard key={meta.id} meta={meta} {...ctx} />
-        ))}
-        {!plano.metas.length && <p className="dashboard-muted">Este plano ainda não possui metas estratégicas.</p>}
-      </div>
-    </Card>
+    <tbody className={`gp-meta-grupo${aberta ? " gp-meta-grupo--aberta" : ""}`}>
+      {indicadores.map((indicador, index) => <tr className="gp-resumo" key={indicador?.id || meta.id}>
+        {index === 0 && <>
+          <th scope="rowgroup" rowSpan={indicadores.length} className="gp-meta-nome">
+            <button type="button" onClick={onToggle} aria-expanded={aberta} aria-controls={`detalhes-${meta.id}`}>{meta.nome}</button>
+            {meta.codigo && <span className="gp-meta-codigo">{meta.codigo}</span>}
+          </th>
+          <td rowSpan={indicadores.length} className="gp-meta-secretaria">{meta.secretaria?.nome || "Secretaria a definir"}</td>
+        </>}
+        <td className="gp-resumo-indicador">{indicador?.nome || <span className="gp-sem-indicador">Sem indicador cadastrado</span>}{indicador?.unidade && <span className="gp-resumo-unidade">Unidade: {indicador.unidade}</span>}</td>
+        <td className="gp-valor" data-label="Atual">{valorIndicador(indicador?.valorAtual)}</td>
+        <td className="gp-valor" data-label="Alvo">{valorIndicador(indicador?.alvo)}</td>
+        {index === 0 && <td rowSpan={indicadores.length} className="gp-abrir"><button type="button" aria-label={`${aberta ? "Fechar" : "Abrir"} meta: ${meta.nome}`} aria-expanded={aberta} aria-controls={`detalhes-${meta.id}`} onClick={onToggle}>{aberta ? "Fechar" : "Abrir"}<span aria-hidden="true">{aberta ? "⌃" : "⌄"}</span></button></td>}
+      </tr>)}
+      <tr className="gp-detalhe-linha" hidden={!aberta} id={`detalhes-${meta.id}`}>
+        <td colSpan={6}>{aberta && <MetaDetalhes meta={meta} {...ctx} />}</td>
+      </tr>
+    </tbody>
   );
 }
 
-function MetaCard({ meta, token, secretarias, responsaveis, sugestoes, podeEditar }: Ctx & { meta: Meta }) {
+function MetaDetalhes({ meta, token, secretarias, responsaveis, podeEditar }: Ctx & { meta: Meta }) {
   const router = useRouter();
   const [novoIndicador, setNovoIndicador] = useState(false);
   const [erro, setErro] = useState("");
   const [ocupado, setOcupado] = useState(false);
-  const minhas = sugestoes.filter((s) => s.entidadeId === meta.id && s.campo === "INDICADOR" && s.proposta);
 
   async function executar(fn: () => Promise<unknown>) {
     setOcupado(true);
@@ -132,113 +165,29 @@ function MetaCard({ meta, token, secretarias, responsaveis, sugestoes, podeEdita
   return (
     <article className="gp-meta">
       <header className="gp-meta__head">
-        <div className="chip-row">
-          <Badge tone="info">{meta.codigo || "META"}</Badge>
-          <Badge tone="neutral">{meta.secretaria?.sigla || meta.secretaria?.nome || "Sem secretaria"}</Badge>
+        <div>
+          {meta.codigo && <span className="gp-meta__codigo">{meta.codigo}</span>}
+          <h3 className="gp-meta__title">{meta.nome}</h3>
+          <p className="gp-meta__secretaria">{meta.secretaria ? secretariaLabel(meta.secretaria) : "Secretaria a definir"}</p>
         </div>
-        <Badge tone={meta.iniciativas ? "success" : "warning"}>
-          {meta.iniciativas} projeto{meta.iniciativas === 1 ? "" : "s"}
-        </Badge>
       </header>
-      <h3 className="gp-meta__title">{meta.nome}</h3>
-      {podeEditar && <div className="chip-row">
-        <Link className="cip-btn cip-btn--secondary" href={`/minha-pasta/novo?metaId=${encodeURIComponent(meta.id)}${meta.secretariaId ? `&secretariaId=${encodeURIComponent(meta.secretariaId)}` : ""}`}>Criar projeto nesta meta</Link>
-        <VincularProjeto metaId={meta.id} token={token} />
-      </div>}
-      {meta.descricao && <p className="dashboard-muted" style={{ margin: 0 }}>{meta.descricao}</p>}
-
-      <div className="gp-meta__fields">
-        {podeEditar ? (
-          <>
-            <div>
-              <label htmlFor={`msec-${meta.id}`}>Secretaria</label>
-              <select
-                id={`msec-${meta.id}`}
-                defaultValue={meta.secretariaId || meta.secretaria?.id || ""}
-                disabled={ocupado}
-                onChange={(e) => e.target.value && void patchMeta({ secretariaId: e.target.value })}
-              >
-                <option value="">A definir</option>
-                {secretarias.map((s) => <option key={s.id} value={s.id}>{secretariaLabel(s)}</option>)}
-              </select>
-            </div>
-            <div>
-              <label htmlFor={`mresp-${meta.id}`}>Responsável</label>
-              <select
-                id={`mresp-${meta.id}`}
-                defaultValue={meta.responsavelUser?.id || ""}
-                disabled={ocupado}
-                onChange={(e) => void patchMeta({ responsavelUserId: e.target.value || null })}
-              >
-                <option value="">A definir</option>
-                {responsaveis.map((r) => <option key={r.id} value={r.id}>{opcaoResponsavel(r)}</option>)}
-              </select>
-            </div>
-          </>
-        ) : (
-          <span className="dashboard-muted">Responsável: {meta.responsavelUser?.name || "a definir"}</span>
-        )}
-      </div>
 
       <section className="gp-meta__section" aria-label={`Indicadores da meta ${meta.nome}`}>
         <div className="gp-meta__section-head">
-          <strong>Indicadores ({meta.indicadores.length})</strong>
-          {podeEditar && (
-            <div className="chip-row">
-              <Button
-                variant="ghost"
-                disabled={ocupado}
-                onClick={() => void executar(() => apiFetch(`/planejamento/metas/${meta.id}/sugestoes`, { token, method: "POST" }))}
-              >
-                ✨ Sugerir com IA
-              </Button>
-              {!novoIndicador && <Button variant="secondary" onClick={() => setNovoIndicador(true)}>+ Indicador</Button>}
-            </div>
-          )}
+          <h4>Indicadores ({meta.indicadores.length})</h4>
+          {podeEditar && <Button variant="secondary" onClick={() => setNovoIndicador((aberto) => !aberto)} aria-expanded={novoIndicador} aria-controls={`novo-indicador-${meta.id}`}>{novoIndicador ? "Cancelar indicador" : "+ Indicador"}</Button>}
         </div>
-        {meta.indicadores.length === 0 && !minhas.length && (
+        {meta.indicadores.length === 0 && (
           <p className="dashboard-muted" style={{ margin: 0 }}>
-            {meta.indicador ? `Indicador descrito no plano: ${meta.indicador}${meta.alvo ? ` (alvo ${meta.alvo})` : ""}. Cadastre-o para medir.` : "Sem indicador — a meta ainda não é mensurável."}
+            {meta.indicador ? `Indicador descrito no plano: ${meta.indicador}${meta.alvo ? ` (alvo ${meta.alvo})` : ""}. Cadastre-o para medir.` : "Nenhum indicador cadastrado."}
           </p>
         )}
         {meta.indicadores.map((ind) => (
           <IndicadorItem key={ind.id} ind={ind} token={token} podeEditar={podeEditar} onAcao={executar} ocupado={ocupado} />
         ))}
 
-        {minhas.length > 0 && (
-          <div className="gp-sugestoes">
-            <span className="gp-sugestoes__label">Sugestões da IA — revise antes de aceitar</span>
-            {minhas.map((s) => (
-              <div key={s.id} className="gp-sugestao">
-                <div>
-                  <strong>{s.proposta!.nome}</strong>
-                  <span className="dashboard-muted">
-                    {[s.proposta!.unidade, s.proposta!.periodicidade.toLowerCase(), s.proposta!.polaridade === "MENOR_MELHOR" ? "quanto menor, melhor" : "quanto maior, melhor", s.proposta!.fonte].join(" · ")}
-                  </span>
-                </div>
-                <div className="chip-row">
-                  <Button
-                    disabled={ocupado || meta.iniciativas === 0}
-                    onClick={() => void executar(() => apiFetch(`/planejamento/sugestoes/${s.id}/decidir`, { token, method: "POST", body: JSON.stringify({ aceitar: true }) }))}
-                  >
-                    Aceitar
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    disabled={ocupado}
-                    onClick={() => void executar(() => apiFetch(`/planejamento/sugestoes/${s.id}/decidir`, { token, method: "POST", body: JSON.stringify({ aceitar: false }) }))}
-                  >
-                    Descartar
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {podeEditar && meta.iniciativas === 0 && <p className="dashboard-muted">Vincule esta meta a um projeto antes de adicionar indicadores ou aceitar sugestões.</p>}
         {novoIndicador && (
-          <NovoIndicadorForm
+          <div id={`novo-indicador-${meta.id}`}><NovoIndicadorForm
             metaId={meta.id}
             token={token}
             responsaveis={responsaveis}
@@ -247,9 +196,48 @@ function MetaCard({ meta, token, secretarias, responsaveis, sugestoes, podeEdita
               setNovoIndicador(false);
               router.refresh();
             }}
-          />
+          /></div>
         )}
       </section>
+      <details className="gp-detalhes">
+        <summary>Detalhes da meta</summary>
+        {meta.descricao && <p className="dashboard-muted">{meta.descricao}</p>}
+        <div className="gp-meta__fields">
+          {podeEditar ? (
+            <>
+              <div>
+                <label htmlFor={`msec-${meta.id}`}>Secretaria</label>
+                <select
+                  id={`msec-${meta.id}`}
+                  defaultValue={meta.secretariaId || meta.secretaria?.id || ""}
+                  disabled={ocupado}
+                  onChange={(e) => e.target.value && void patchMeta({ secretariaId: e.target.value })}
+                >
+                  <option value="">A definir</option>
+                  {secretarias.map((s) => <option key={s.id} value={s.id}>{secretariaLabel(s)}</option>)}
+                </select>
+              </div>
+              <div>
+                <label htmlFor={`mresp-${meta.id}`}>Responsável</label>
+                <select
+                  id={`mresp-${meta.id}`}
+                  defaultValue={meta.responsavelUser?.id || ""}
+                  disabled={ocupado}
+                  onChange={(e) => void patchMeta({ responsavelUserId: e.target.value || null })}
+                >
+                  <option value="">A definir</option>
+                  {responsaveis.map((r) => <option key={r.id} value={r.id}>{opcaoResponsavel(r)}</option>)}
+                </select>
+              </div>
+            </>
+          ) : (
+            <span className="dashboard-muted">Responsável: {meta.responsavelUser?.name || "a definir"}</span>
+          )}
+        </div>
+
+
+      </details>
+
       {erro && <p role="alert" className="gp-erro">{erro}</p>}
     </article>
   );
@@ -290,47 +278,50 @@ function IndicadorItem({
   }
 
   return (
-    <div className="projeto-indicador-chip">
+    <div className="gp-indicador">
       <div className="projeto-indicador-chip__head">
         <strong>{ind.nome}</strong>
       </div>
       <div className="gp-ind__metrics">
-        <span><small>Base</small>{ind.valorBase ? `${ind.valorBase}${un}` : "—"}</span>
         <span><small>Atual</small>{ind.valorAtual ? `${ind.valorAtual}${un}` : "—"}</span>
         <span><small>Alvo</small>{ind.alvo ? `${ind.alvo}${un}` : "—"}</span>
       </div>
-      <span className="dashboard-muted" style={{ fontSize: 12 }}>
-        {[ind.periodicidade && ind.periodicidade.toLowerCase(), ind.fonte, ind.polaridade === "MENOR_MELHOR" && "quanto menor, melhor", `Responsável: ${ind.responsavelUser?.name || "a definir"}`]
-          .filter(Boolean)
-          .join(" · ")}
-      </span>
-      {podeEditar && !medir && (
-        <div className="chip-row">
-          <Button variant="secondary" onClick={() => setMedir(true)}>Registrar medição</Button>
-          <Button
-            variant="ghost"
-            disabled={ocupado}
-            onClick={() => {
-              if (window.confirm(`Remover o indicador "${ind.nome}"?`)) {
-                void onAcao(() => apiFetch(`/planejamento/indicadores/${ind.id}`, { token, method: "DELETE" }));
-              }
-            }}
-          >
-            Remover
-          </Button>
-        </div>
-      )}
-      {medir && (
-        <form onSubmit={registrar} className="gp-form gp-form--inline">
-          <div><label htmlFor={`val-${ind.id}`}>Valor apurado{un}</label><input id={`val-${ind.id}`} name="valorRealizado" required inputMode="decimal" placeholder="Ex.: 58,4" /></div>
-          <div><label htmlFor={`dt-${ind.id}`}>Data de corte</label><input id={`dt-${ind.id}`} name="dataCorte" type="date" defaultValue={new Date().toISOString().slice(0, 10)} /></div>
-          <div className="gp-form__wide"><label htmlFor={`obs-${ind.id}`}>Observação</label><input id={`obs-${ind.id}`} name="observacao" placeholder="Fonte do dado, ressalvas" /></div>
+      <details className="gp-detalhes">
+        <summary>{podeEditar ? "Detalhes e medição" : "Detalhes do indicador"}</summary>
+        <p className="dashboard-muted">Valor base: {ind.valorBase ? `${ind.valorBase}${un}` : "A definir"}</p>
+        <p className="dashboard-muted">
+          {[ind.periodicidade && ind.periodicidade.toLowerCase(), ind.fonte, ind.polaridade === "MENOR_MELHOR" && "quanto menor, melhor", `Responsável: ${ind.responsavelUser?.name || "a definir"}`]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+        {podeEditar && !medir && (
           <div className="chip-row">
-            <Button type="submit" disabled={ocupado}>Salvar</Button>
-            <Button type="button" variant="ghost" onClick={() => setMedir(false)}>Cancelar</Button>
+            <Button variant="secondary" onClick={() => setMedir(true)}>Registrar medição</Button>
+            <Button
+              variant="ghost"
+              disabled={ocupado}
+              onClick={() => {
+                if (window.confirm(`Remover o indicador "${ind.nome}"?`)) {
+                  void onAcao(() => apiFetch(`/planejamento/indicadores/${ind.id}`, { token, method: "DELETE" }));
+                }
+              }}
+            >
+              Remover
+            </Button>
           </div>
-        </form>
-      )}
+        )}
+        {medir && (
+          <form onSubmit={registrar} className="gp-form gp-form--inline">
+            <div><label htmlFor={`val-${ind.id}`}>Valor apurado{un}</label><input id={`val-${ind.id}`} name="valorRealizado" required inputMode="decimal" placeholder="Ex.: 58,4" /></div>
+            <div><label htmlFor={`dt-${ind.id}`}>Data de corte</label><input id={`dt-${ind.id}`} name="dataCorte" type="date" defaultValue={new Date().toISOString().slice(0, 10)} /></div>
+            <div className="gp-form__wide"><label htmlFor={`obs-${ind.id}`}>Observação</label><input id={`obs-${ind.id}`} name="observacao" placeholder="Fonte do dado, ressalvas" /></div>
+            <div className="chip-row">
+              <Button type="submit" disabled={ocupado}>Salvar</Button>
+              <Button type="button" variant="ghost" onClick={() => setMedir(false)}>Cancelar</Button>
+            </div>
+          </form>
+        )}
+      </details>
     </div>
   );
 }

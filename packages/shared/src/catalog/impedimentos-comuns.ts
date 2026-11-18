@@ -7,6 +7,43 @@ export const GRUPO_IMPEDIMENTOS = {
   ordem: 0,
 } as const;
 
+export type ImpedimentoPersonalizado = {
+  codigo: string;
+  nome: string;
+  tipo: "IMPEDIMENTO" | "PRE_REQUISITO";
+  descricao: string;
+  bloqueante: boolean;
+};
+
+// Identidade estável por item: nomes iguais em projetos diferentes não colidem.
+export const CODIGO_IMPEDIMENTO_PERSONALIZADO = /^imp_personalizado_[a-zA-Z0-9_-]{1,80}$/;
+export const LIMITE_IMPEDIMENTOS_PERSONALIZADOS = 100;
+
+export function adicionarImpedimentosPersonalizados(
+  modelo: ModeloSnapshot,
+  itens: ImpedimentoPersonalizado[],
+): ModeloSnapshot {
+  const perguntas = itens.map((item, indice): ModeloPerguntaDef => ({
+    codigo: item.codigo,
+    texto: item.nome.trim(),
+    rotulo: item.nome.trim(),
+    pergunta: `Este ${item.tipo === "PRE_REQUISITO" ? "pré-requisito" : "impedimento"} se aplica ao projeto?`,
+    ajuda: item.descricao.trim() || "Informe a situação, a próxima providência e quem acompanha este item.",
+    tipoResposta: "CONDICAO_FECHADA",
+    impacto: item.bloqueante ? "BLOQUEANTE" : "CONDICIONAL",
+    obrigatoria: true,
+    ordem: modelo.perguntas.length + indice + 1,
+    grupo: GRUPO_IMPEDIMENTOS.id,
+    etapa: GRUPO_IMPEDIMENTOS.ordem,
+    metadados: { impedimento: true },
+    favoraveis: ["atendida", "nao_se_aplica"],
+    espera: `Aguardando: ${item.nome.trim()}`,
+    efeitos: [EFEITO_PRIORIDADE_APLICAVEL],
+  }));
+  const codigos = new Set(itens.map((item) => item.codigo));
+  return { ...modelo, perguntas: [...modelo.perguntas.filter((p) => !codigos.has(p.codigo)), ...perguntas] };
+}
+
 const EFEITO_PRIORIDADE_APLICAVEL: NonNullable<
   ModeloPerguntaDef["efeitos"]
 >[number] = {

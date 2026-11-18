@@ -26,6 +26,7 @@ type Doc = {
   id: string;
   tipo: string;
   titulo: string;
+  observacao?: string | null;
   vigencia?: string | null;
   statusConferencia: string;
   arquivoNome?: string | null;
@@ -50,6 +51,7 @@ export function ConhecimentoForm({
   const [docs, setDocs] = useState<Doc[] | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [sucesso, setSucesso] = useState("");
   const [tipoDocumento, setTipoDocumento] =
     useState<"PLANO_GOVERNO" | "AUTO">("PLANO_GOVERNO");
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -83,6 +85,7 @@ export function ConhecimentoForm({
     e.preventDefault();
     setSaving(true);
     setError("");
+    setSucesso("");
     const formElement = e.currentTarget;
     const form = new FormData(formElement);
     try {
@@ -99,6 +102,7 @@ export function ConhecimentoForm({
       }
       formElement.reset();
       setTipoDocumento("PLANO_GOVERNO");
+      setSucesso("Documento enviado com sucesso.");
       await load();
       router.refresh();
     } catch (err) {
@@ -266,6 +270,7 @@ export function ConhecimentoForm({
                 {d.vigencia ? ` (${d.vigencia})` : ""}
                 {" · "}{d.statusConferencia === "PENDENTE" ? "Aguardando conferência" : d.statusConferencia === "CONFERIDO" ? "Conferido" : d.statusConferencia === "DESATUALIZADO" ? "Desatualizado" : d.statusConferencia}
                 {d.arquivoNome ? <><br />Arquivo: {d.arquivoNome}</> : ""}
+                {d.observacao && <span style={{ display: "block", whiteSpace: "pre-wrap", marginTop: 4 }}>{d.observacao}</span>}
               </span>
               <span className="chip-row">
                 {podeConferir && isKnowledgeDocumentType(d.tipo) && (
@@ -319,7 +324,29 @@ export function ConhecimentoForm({
             {textoExtraido}
           </pre>
         )}
+        {sucesso && <p role="status">{sucesso}</p>}
         {podeAnexar ? <form onSubmit={submitDoc} className="stack" style={{ marginTop: 16 }}>
+          <div>
+            <label htmlFor="tituloConhecimento">Título do documento (obrigatório)</label>
+            <input
+              id="tituloConhecimento"
+              name="titulo"
+              required
+              minLength={3}
+              placeholder="Ex.: Diagnóstico da educação municipal"
+            />
+          </div>
+          <div>
+            <label htmlFor="descricaoConhecimento">Descrição: do que trata o documento (obrigatória)</label>
+            <textarea
+              id="descricaoConhecimento"
+              name="observacao"
+              required
+              minLength={3}
+              rows={3}
+              placeholder="Ex.: Apresenta a situação das escolas e as principais necessidades da rede municipal."
+            />
+          </div>
           <div>
             <label htmlFor="tipo">Documento a anexar</label>
             <select

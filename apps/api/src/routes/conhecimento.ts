@@ -1,13 +1,13 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import multer from "multer";
 import { z } from "zod";
-import { prisma } from "@cip/db";
+import { prisma, type Prisma } from "@cip/db";
 import {
   isKnowledgeDocumentRequired,
   KNOWLEDGE_DOCUMENT_TYPES,
 } from "@cip/shared";
 import { HttpError } from "../middleware/error";
-import { requireAuth, requirePermission } from "../middleware/auth";
+import { requireAuth, requirePermission, type AuthUser } from "../middleware/auth";
 import { writeAudit } from "../services/audit";
 import { classifyKnowledgeText } from "../services/conhecimento-classificacao";
 import {
@@ -24,6 +24,13 @@ import {
 export const conhecimentoRouter = Router();
 conhecimentoRouter.use(requireAuth);
 const MAX_KNOWLEDGE_UPLOAD_BYTES = 4 * 1024 * 1024;
+
+function documentosVisiveis(user: AuthUser): Prisma.DocumentoConhecimentoWhereInput {
+  return {
+    municipioId: user.municipioId,
+    ...(user.role === "analista" ? { tipo: "PLANO_GOVERNO" } : {}),
+  };
+}
 
 const documentoPublicSelect = {
   id: true,
@@ -84,9 +91,8 @@ conhecimentoRouter.get(
   requirePermission("iniciativa:read"),
   async (req, res, next) => {
     try {
-      const municipioId = req.user!.municipioId;
       const docs = await prisma.documentoConhecimento.findMany({
-        where: { municipioId },
+        where: documentosVisiveis(req.user!),
         orderBy: [{ tipo: "asc" }, { updatedAt: "desc" }],
         select: documentoPublicSelect,
       });
@@ -104,7 +110,7 @@ conhecimentoRouter.get(
 
 const docSchema = z.object({
   tipo: z.enum(KNOWLEDGE_DOCUMENT_TYPES),
-  titulo: z.string().min(3),
+  titulo: z.string({ required_error: "Informe o título do documento." }).trim().min(3, "O título deve ter pelo menos 3 caracteres."),
   vigencia: z.string().optional(),
   versao: z.string().optional(),
   fonte: z.string().optional(),
@@ -113,7 +119,7 @@ const docSchema = z.object({
     .enum(["PENDENTE", "CONFERIDO", "DESATUALIZADO"])
     .optional(),
   arquivoUrl: z.string().url().optional().nullable(),
-  observacao: z.string().optional(),
+  observacao: z.string({ required_error: "Descreva do que trata o documento." }).trim().min(3, "A descrição deve ter pelo menos 3 caracteres."),
 });
 
 const createDocSchema = docSchema.extend({
@@ -209,7 +215,7 @@ conhecimentoRouter.get(
   async (req, res, next) => {
     try {
       const doc = await prisma.documentoConhecimento.findFirst({
-        where: { id: req.params.id, municipioId: req.user!.municipioId },
+        where: { ...documentosVisiveis(req.user!), id: req.params.id },
         select: { storageKey: true, arquivoNome: true },
       });
       if (!doc) throw new HttpError(404, "NOT_FOUND", "Documento não encontrado");
@@ -238,7 +244,7 @@ conhecimentoRouter.get(
   async (req, res, next) => {
     try {
       const doc = await prisma.documentoConhecimento.findFirst({
-        where: { id: req.params.id, municipioId: req.user!.municipioId },
+        where: { ...documentosVisiveis(req.user!), id: req.params.id },
         select: { conteudoExtraido: true },
       });
       if (!doc) throw new HttpError(404, "NOT_FOUND", "Documento não encontrado");
@@ -263,7 +269,7 @@ conhecimentoRouter.patch(
     try {
       const body = docSchema.partial().parse(req.body);
       const existing = await prisma.documentoConhecimento.findFirst({
-        where: { id: req.params.id, municipioId: req.user!.municipioId },
+        where: { ...documentosVisiveis(req.user!), id: req.params.id },
         select: documentoPublicSelect,
       });
       if (!existing) throw new HttpError(404, "NOT_FOUND", "Documento não encontrado");

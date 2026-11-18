@@ -12,7 +12,7 @@ export function canWriteRole(role?: string | null) {
 }
 
 export function canUploadKnowledgeRole(role?: string | null) {
-  return ["admin", "prefeito", "gestor", "analista"].includes(normalizeRole(role));
+  return ["admin", "prefeito", "gestor", "analista", "leitura"].includes(role || "");
 }
 
 export function canSubmitEvidenceRole(role?: string | null) {
@@ -116,7 +116,7 @@ const ALL_NAV: NavItem[] = [
   { href: "/painel", label: "Visão geral" },
   { href: "/minha-pasta", label: "Minha secretaria" },
   { href: "/secretarias", label: "Secretarias" },
-  { href: "/planejamento", label: "Metas estratégicas" },
+  { href: "/planejamento", label: "Metas e indicadores" },
   { href: "/carteira", label: "Projetos", children: PROJETOS_CARTEIRA },
   { href: "/acoes", label: "Tarefas" },
   { href: "/validacoes", label: "Aprovações" },

@@ -79,16 +79,23 @@ async function setup(t: TestContext, role: RoleCode = "admin") {
     );
   });
   stub(t, prisma.documentoConhecimento, "findMany", async ({ where }: {
-    where: { municipioId: string };
+    where: { municipioId: string; tipo?: string };
   }) =>
-    documentos.filter((doc) => doc.municipioId === where.municipioId).map((documento, index) => ({
+    documentos.filter((doc) => doc.municipioId === where.municipioId && (!where.tipo || doc.tipo === where.tipo)).map((documento, index) => ({
       id: `documento-${index + 1}`,
       ...documento,
     })),
   );
   stub(t, prisma.documentoConhecimento, "findFirst", async ({ where }: {
-    where: { municipioId: string };
-  }) => where.municipioId !== "municipio" ? null : ({
+    where: { id: string; municipioId: string; tipo?: string };
+  }) => {
+    if (where.municipioId !== "municipio") return null;
+    const document = documentos.find((doc, index) => where.id === `documento-${index + 1}`);
+    if (document) {
+      return where.tipo && document.tipo !== where.tipo ? null : { id: where.id, ...document };
+    }
+    if (where.id !== "documento-sem-arquivo" || (where.tipo && where.tipo !== "PPA")) return null;
+    return {
     id: "documento-sem-arquivo",
     municipioId: "municipio",
     tipo: "PPA",
@@ -103,7 +110,8 @@ async function setup(t: TestContext, role: RoleCode = "admin") {
     observacao: null,
     createdAt: new Date(),
     updatedAt: new Date(),
-  }));
+    };
+  });
   stub(t, prisma.auditLog, "create", async () => ({}));
 
   const app = express();
@@ -135,14 +143,16 @@ async function setup(t: TestContext, role: RoleCode = "admin") {
 
   async function createDocument(tipo: string, options: {
     file?: { bytes: Uint8Array; name: string; mime: string };
-    fields?: Record<string, string>;
+    fields?: Record<string, string | null>;
     authorization?: string | null;
   } = {}) {
     const form = new FormData();
     form.set("tipo", tipo);
     form.set("titulo", `Documento ${tipo}`);
+    form.set("observacao", "Descrição do conteúdo do documento.");
     for (const [key, value] of Object.entries(options.fields ?? {})) {
-      form.set(key, value);
+      if (value === null) form.delete(key);
+      else form.set(key, value);
     }
     if (options.file) {
       form.set("arquivo", new Blob([new Uint8Array(options.file.bytes)], {
@@ -235,6 +245,76 @@ test("documentos opcionais cadastrados não geram alertas de pendência", async 
 function pdfFile(text: string, name = "documento.pdf") {
   return { bytes: createPdf(text), name, mime: knowledgeFiles.PDF_MIME };
 }
+
+test("todos os tipos exigem título e descrição antes de armazenar o arquivo", async (t) => {
+  const ctx = await setup(t);
+  for (const tipo of ["AUTO", "PLANO_GOVERNO", "PPA", "LDO", "LOA", "DIAGNOSTICO", "OUTRO"]) {
+    for (const campo of ["titulo", "observacao"]) {
+      for (const valor of [null, "", "   ", "ab"]) {
+        const response = await ctx.createDocument(tipo, {
+          file: pdfFile("Plano Plurianual"),
+          fields: { [campo]: valor },
+        });
+        assert.equal(response.status, 400, `${tipo}/${campo}/${valor}`);
+        assert.equal(response.json.error.code, "VALIDATION_ERROR");
+      }
+    }
+  }
+  assert.equal(ctx.savedFiles.length, 0);
+  assert.equal(ctx.documentos.length, 0);
+  const created = await ctx.createDocument("AUTO", {
+    file: pdfFile("Plano Plurianual"),
+    fields: { titulo: "  Investimentos municipais  ", observacao: "  Prioridades do município.  " },
+  });
+  assert.equal(created.status, 201);
+  assert.equal(created.json.data.titulo, "Investimentos municipais");
+  assert.equal(created.json.data.observacao, "Prioridades do município.");
+});
+
+for (const role of ["admin", "prefeito", "gestor", "analista", "leitura"] as const) {
+  test(`${role}: consulta respeita visibilidade dos documentos`, async (t) => {
+    const ctx = await setup(t, role);
+    const tipos = ["PLANO_GOVERNO", "PPA", "LDO", "LOA", "DIAGNOSTICO", "OUTRO"];
+    for (const tipo of tipos) {
+      ctx.documentos.push({
+        municipioId: "municipio", tipo, titulo: `Documento ${tipo}`,
+        observacao: `Conteúdo ${tipo}`, arquivoNome: `${tipo}.pdf`,
+        storageKey: "local:conhecimento/arquivo", conteudoExtraido: `Texto ${tipo}`,
+      });
+    }
+    stub(t, localStorage, "read", async () => Buffer.from("arquivo"));
+    const listed = await ctx.listDocuments();
+    assert.equal(listed.status, 200);
+    assert.deepEqual(listed.json.data.map((doc: { tipo: string }) => doc.tipo),
+      role === "analista" ? ["PLANO_GOVERNO"] : tipos);
+    for (const [index, tipo] of tipos.entries()) {
+      for (const suffix of ["arquivo", "conteudo"]) {
+        const response = await fetch(`${ctx.baseUrl}/conhecimento/documentos/documento-${index + 1}/${suffix}`, {
+          headers: { Authorization: `Bearer ${ctx.token}` },
+        });
+        const oculto = role === "analista" && tipo !== "PLANO_GOVERNO";
+        assert.equal(response.status, oculto ? 404 : 200, `${tipo}/${suffix}`);
+        if (oculto) assert.equal((await response.json()).error.code, "NOT_FOUND");
+        else if (suffix === "conteudo") assert.equal((await response.json()).data.texto, `Texto ${tipo}`);
+        else assert.equal(await response.text(), "arquivo");
+      }
+    }
+  });
+}
+
+test("consultor pode enviar documento adicional, mas não consultá-lo nem alterá-lo depois", async (t) => {
+  const ctx = await setup(t, "analista");
+  const uploaded = await ctx.createDocument("AUTO", { file: pdfFile("Plano Plurianual") });
+  assert.equal(uploaded.status, 201);
+  assert.equal(uploaded.json.data.tipo, "PPA");
+  assert.deepEqual((await ctx.listDocuments()).json.data, []);
+  const response = await fetch(`${ctx.baseUrl}/conhecimento/documentos/documento-1`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${ctx.token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ tipo: "PLANO_GOVERNO" }),
+  });
+  assert.equal(response.status, 404);
+});
 
 test("AUTO exige arquivo real mesmo com URL ou texto informados", async (t) => {
   const ctx = await setup(t);
@@ -345,18 +425,18 @@ test("AUTO e tipos explícitos rejeitam bytes, MIME e formatos inválidos antes 
   assert.equal(ctx.savedFiles.length, 0);
 });
 
-test("AUTO preserva autenticação e permissão de upload", async (t) => {
+test("perfil leitura pode enviar documentos, preservando a autenticação", async (t) => {
   const ctx = await setup(t, "leitura");
   const unauthorized = await ctx.createDocument("AUTO", {
     file: pdfFile("Plano Plurianual"), authorization: null,
   });
   assert.equal(unauthorized.status, 401);
-  const forbidden = await ctx.createDocument("AUTO", {
+  const uploaded = await ctx.createDocument("AUTO", {
     file: pdfFile("Plano Plurianual"),
   });
-  assert.equal(forbidden.status, 403);
-  assert.equal(ctx.savedFiles.length, 0);
-  assert.equal(ctx.documentos.length, 0);
+  assert.equal(uploaded.status, 201);
+  assert.equal(ctx.savedFiles.length, 1);
+  assert.equal(ctx.documentos.length, 1);
 });
 
 test("gestor pode classificar mas não conferir documento automaticamente", async (t) => {

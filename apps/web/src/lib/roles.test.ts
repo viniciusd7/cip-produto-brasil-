@@ -23,11 +23,12 @@ describe("navegação sem a área de implantação", () => {
       }
     });
 
-    it("permite anexos sem alterar o perfil somente leitura", () => {
-      for (const role of ["admin", "analista", "prefeito", "gestor"]) {
+    it("permite anexos a todos os perfis municipais", () => {
+      for (const role of ["admin", "analista", "prefeito", "gestor", "leitura"]) {
         assert.equal(canUploadKnowledgeRole(role), true, role);
       }
-      assert.equal(canUploadKnowledgeRole("leitura"), false);
+      assert.equal(canUploadKnowledgeRole(undefined), false);
+      assert.equal(canUploadKnowledgeRole("invalido"), false);
     });
   });
 
@@ -45,6 +46,6 @@ describe("navegação sem a área de implantação", () => {
       assert.deepEqual(numeric.map((item) => item.icon), numeric.map((_, i) => String(i + 1).padStart(2, "0")), role);
     }
     assert.deepEqual(getNavForRole("analista").slice(0, 5).map((item) => item.label),
-      ["Visão geral", "Secretarias", "Metas estratégicas", "Projetos", "Tarefas"]);
+      ["Visão geral", "Secretarias", "Metas e indicadores", "Projetos", "Tarefas"]);
   });
 });

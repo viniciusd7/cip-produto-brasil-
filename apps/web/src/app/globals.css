@@ -4656,3 +4656,20 @@ html { scrollbar-gutter: stable; }
 .tarefas-recorte-box { margin-bottom: 12px; }
 .tarefas-recorte-box > summary { width: fit-content; padding: 8px 12px; border: 1px solid var(--cip-border); border-radius: 8px; color: #c5bcde; font-size: 13px; cursor: pointer; min-height: 40px; }
 .tarefas-recorte-box[open] > summary { margin-bottom: 12px; }
+.tarefa-criacao__tipo { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0; padding: 0; border: 0; }
+.tarefa-criacao__tipo legend { margin-bottom: 8px; font-weight: 600; }
+.tarefa-criacao__tipo label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.tarefa-criacao__tipo input { width: auto; accent-color: #b9a0ff; }
+.gestao-tarefa__subtarefas { grid-column: 1 / -1; border-top: 1px solid var(--cip-border); padding-top: 12px; }
+.gestao-tarefa__subtarefas ul { display: grid; gap: 10px; list-style: none; margin: 10px 0 0; padding: 0; }
+.gestao-tarefa__subtarefas li { display: flex; align-items: flex-start; gap: 10px; }
+.gestao-tarefa__subtarefas li > span:first-child { color: #b9a0ff; }
+.gestao-tarefa__subtarefas li > span:last-child { display: grid; gap: 3px; }
+.gestao-tarefa__subtarefas small { color: var(--cip-muted); }
+.tarefa-subtarefa__conteudo { display: grid; gap: 4px; min-width: 0; }
+.tarefa-subtarefa__controle { display: grid; justify-items: center; }
+.tarefa-edicao { min-width: 0; }
+.tarefa-edicao__form { display: grid; gap: 8px; min-width: min(100%, 260px); padding-top: 8px; }
+.tarefa-edicao__form label { display: grid; gap: 5px; font-size: 12px; color: var(--cip-muted); }
+.tarefa-edicao__form select, .tarefa-edicao__form input, .tarefa-edicao__form textarea { width: 100%; min-width: 0; }
+.tarefa-edicao__form .cip-btn { width: fit-content; }

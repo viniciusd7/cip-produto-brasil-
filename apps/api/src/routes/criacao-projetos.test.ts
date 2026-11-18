@@ -579,3 +579,53 @@ for (const classificacaoPrincipal of ["ESTRUTURANTE", "PRIORITARIO", "PLANO_GOVE
     assert.equal(ctx.iniciativas.length, 0);
   });
 }
+
+const itemPersonalizado = {
+  codigo: "imp_personalizado_teste",
+  nome: "Liberação de acesso ao local",
+  tipo: "PRE_REQUISITO",
+  descricao: "Confirmar acesso com a equipe responsável",
+  bloqueante: true,
+};
+
+for (const classificacao of CLASSIFICACAO_PROJETO) {
+  test(`itens personalizados participam da previa e sao persistidos em ${classificacao}`, async (t) => {
+    const ctx = await setup(t);
+    const body = {
+      ...wizard,
+      classificacaoPrincipal: classificacao,
+      impedimentosPersonalizados: [itemPersonalizado, { ...itemPersonalizado, codigo: "imp_personalizado_outro", nome: "Equipe disponível", bloqueante: false, tipo: "IMPEDIMENTO" }],
+      respostas: [...impedimentosRespondidos,
+        { perguntaCodigo: itemPersonalizado.codigo, valor: { codigo: itemPersonalizado.codigo, aplicabilidade: "sim", situacao: "pendente", proximoPasso: "Solicitar liberação", responsavel: "Equipe local" } },
+        { perguntaCodigo: "imp_personalizado_outro", valor: "atendida" },
+      ],
+    };
+    const preview = await ctx.request("/iniciativas/wizard/preview", body);
+    assert.equal(preview.status, 200, JSON.stringify(preview.json));
+    assert.equal(preview.json.data.cicloInicial, "AGUARDANDO_PRE_REQUISITO");
+    assert.ok(preview.json.data.bloqueios.some((b: { perguntaCodigo: string }) => b.perguntaCodigo === itemPersonalizado.codigo));
+    const confirmacao = await ctx.request("/iniciativas/wizard/confirmar", body);
+    assert.equal(confirmacao.status, 201, JSON.stringify(confirmacao.json));
+    const snapshot = ctx.iniciativas[0].modeloSnapshot as unknown as { perguntas: Array<{ codigo: string; impacto: string }> };
+    assert.equal(snapshot.perguntas.find((p) => p.codigo === itemPersonalizado.codigo)?.impacto, "BLOQUEANTE");
+    assert.equal(ctx.respostas.find((r) => r.perguntaCodigo === itemPersonalizado.codigo)?.perguntaTexto, itemPersonalizado.nome);
+    assert.ok(ctx.respostas.some((r) => r.perguntaCodigo === "imp_personalizado_outro"));
+    const atendido = await ctx.request("/iniciativas/wizard/preview", { ...body, respostas: [...impedimentosRespondidos, { perguntaCodigo: itemPersonalizado.codigo, valor: "atendida" }, { perguntaCodigo: "imp_personalizado_outro", valor: "pendente" }] });
+    assert.equal(atendido.status, 200);
+    assert.ok(!atendido.json.data.bloqueios.some((b: { perguntaCodigo: string }) => b.perguntaCodigo.startsWith("imp_personalizado_")));
+  });
+}
+
+test("itens personalizados rejeitam nomes vazios, codigos duplicados e alteracao de itens padrao", async (t) => {
+  const ctx = await setup(t);
+  for (const itens of [[{ ...itemPersonalizado, nome: " " }], [itemPersonalizado, itemPersonalizado], [{ ...itemPersonalizado, codigo: "orcamento_recursos" }]]) {
+    for (const path of ["preview", "confirmar"]) {
+      const response = await ctx.request(`/iniciativas/wizard/${path}`, { ...wizard, impedimentosPersonalizados: itens });
+      assert.equal(response.status, 400, JSON.stringify(response.json));
+    }
+  }
+  const semResposta = await ctx.request("/iniciativas/wizard/confirmar", { ...wizard, impedimentosPersonalizados: [itemPersonalizado] });
+  assert.equal(semResposta.status, 422);
+  assert.equal(semResposta.json.error.code, "IMPEDIMENTO_NAO_RESPONDIDO");
+  assert.equal(ctx.transacoes.length, 0);
+});

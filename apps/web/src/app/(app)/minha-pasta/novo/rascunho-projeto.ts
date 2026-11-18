@@ -1,5 +1,6 @@
 import type { CondicaoValorState } from "@/components/condicao-card";
 import type { EscopoNo } from "./escopo-editor";
+import { CODIGO_IMPEDIMENTO_PERSONALIZADO, LIMITE_IMPEDIMENTOS_PERSONALIZADOS, type ImpedimentoPersonalizado } from "@cip/shared";
 
 const CAMPOS_TEXTO = [
   "secretariaId", "responsavelPessoaId", "novoNome", "novoCargo",
@@ -13,6 +14,7 @@ export type RascunhoProjeto = Record<(typeof CAMPOS_TEXTO)[number], string> & {
   respostas: Record<string, CondicaoValorState>;
   secretariasCorrelatas: string[];
   escopo: EscopoNo[];
+  impedimentosPersonalizados?: ImpedimentoPersonalizado[];
 };
 
 function objeto(valor: unknown): valor is Record<string, unknown> {
@@ -49,7 +51,17 @@ function dadosValidos(valor: unknown): valor is RascunhoProjeto {
     typeof valor.step === "number" && Number.isInteger(valor.step) && valor.step >= 0 &&
     Array.isArray(valor.secretariasCorrelatas) && valor.secretariasCorrelatas.every((id: unknown) => typeof id === "string") &&
     objeto(valor.respostas) && Object.values(valor.respostas).every(respostaValida) &&
-    escopoValido(valor.escopo);
+    escopoValido(valor.escopo) &&
+    (valor.impedimentosPersonalizados === undefined || (
+      Array.isArray(valor.impedimentosPersonalizados) &&
+      valor.impedimentosPersonalizados.length <= LIMITE_IMPEDIMENTOS_PERSONALIZADOS &&
+      valor.impedimentosPersonalizados.every((item: unknown) => objeto(item) &&
+        typeof item.codigo === "string" && CODIGO_IMPEDIMENTO_PERSONALIZADO.test(item.codigo) &&
+        typeof item.nome === "string" && item.nome.length <= 200 &&
+        ["IMPEDIMENTO", "PRE_REQUISITO"].includes(String(item.tipo)) &&
+        typeof item.descricao === "string" && item.descricao.length <= 2000 && typeof item.bloqueante === "boolean") &&
+      new Set(valor.impedimentosPersonalizados.map((item) => item.codigo)).size === valor.impedimentosPersonalizados.length
+    ));
 }
 
 export function chaveRascunho(usuarioId: string, municipioId: string, classificacao: string) {
@@ -73,6 +85,6 @@ export function salvarRascunho(storage: Pick<Storage, "setItem">, chave: string,
   storage.setItem(chave, JSON.stringify({
     versao: 1,
     atualizadoEm: new Date().toISOString(),
-    dados: { ...campos, step: dados.step, respostas: dados.respostas, secretariasCorrelatas: dados.secretariasCorrelatas, escopo: dados.escopo },
+    dados: { ...campos, step: dados.step, respostas: dados.respostas, secretariasCorrelatas: dados.secretariasCorrelatas, escopo: dados.escopo, impedimentosPersonalizados: dados.impedimentosPersonalizados },
   }));
 }

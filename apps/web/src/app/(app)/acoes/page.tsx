@@ -7,23 +7,27 @@ import { AcaoForm } from "./acao-form";
 import { TarefasGestao, type TarefaGestaoItem } from "../minha-pasta/tarefas-gestao";
 
 type Projeto = { id: string; codigo: string; nome: string };
+type Responsavel = { id: string; name: string; secretaria?: { nome: string; sigla?: string | null } | null };
 
 export default async function AcoesPage() {
   const session = await getServerSession(authOptions);
   const token = session?.accessToken || "";
-  const [agenda, projetos] = await Promise.all([
+  const podeEditar = canWriteRole(session?.user?.role);
+  const [agenda, projetos, responsaveis] = await Promise.all([
     apiFetch<{ data: { tarefas: TarefaGestaoItem[] } }>("/dashboard/agenda", { token }),
     apiFetch<{ data: Projeto[] }>("/iniciativas", { token }),
+    podeEditar
+      ? apiFetch<{ data: Responsavel[] }>("/planejamento/responsaveis", { token })
+      : Promise.resolve({ data: [] as Responsavel[] }),
   ]);
-  const podeEditar = canWriteRole(session?.user?.role);
   return (
     <div className="stack">
-      <PageHeader title="Gerenciador de tarefas" description="Acompanhe a execução dos projetos por secretaria, responsável e prazo." />
+      <PageHeader title="Gerenciador de tarefas" description="Crie tarefas e subtarefas, atribua responsáveis e acompanhe os prazos dos projetos." />
       {podeEditar && <details className="more-block">
-        <summary>+ Nova tarefa</summary>
-        <AcaoForm token={token} iniciativas={projetos.data.map((projeto) => ({ id: projeto.id, label: `${projeto.codigo} · ${projeto.nome}` }))} />
+        <summary>+ Criar tarefa ou subtarefa</summary>
+        <AcaoForm token={token} iniciativas={projetos.data.map((projeto) => ({ id: projeto.id, label: `${projeto.codigo} · ${projeto.nome}` }))} tarefas={agenda.data.tarefas} responsaveis={responsaveis.data} usuarioId={session?.user?.id || ""} administrador={session?.user?.role === "admin"} />
       </details>}
-      <TarefasGestao tarefas={agenda.data.tarefas} token={token} modo="PROJETOS" podeEditar={podeEditar} />
+      <TarefasGestao tarefas={agenda.data.tarefas} token={token} modo="PROJETOS" podeEditar={podeEditar} usuarioId={session?.user?.id || ""} administrador={session?.user?.role === "admin"} responsaveis={responsaveis.data} />
     </div>
   );
 }

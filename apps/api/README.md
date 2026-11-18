@@ -21,16 +21,19 @@
 ## Criacao com classificacao automatica
 
 `POST /conhecimento/documentos` recebe `multipart/form-data`, autenticado com
-Bearer token e permissao `conhecimento:upload`, em um municipio ativo.
+Bearer token e permissao `conhecimento:upload`, em um municipio ativo. Todos os
+perfis municipais possuem essa permissao, inclusive `leitura`.
 
 - `tipo`: `AUTO` ou um tipo explicito existente (`PLANO_GOVERNO`, `PPA`, `LDO`,
   `LOA`, `DIAGNOSTICO`, `OUTRO`).
-- `titulo`: obrigatorio, com pelo menos 3 caracteres; pode ser o nome do arquivo.
-  Nao participa da classificacao.
+- `titulo`: obrigatorio, informado pelo usuario, com pelo menos 3 caracteres
+  apos remover espacos nas extremidades. Nao participa da classificacao.
+- `observacao`: descricao obrigatoria do conteudo, com pelo menos 3 caracteres
+  apos remover espacos nas extremidades. Retornada e exibida junto ao documento.
 - `arquivo`: obrigatorio para `AUTO` e `PLANO_GOVERNO`. Um unico PDF, DOC ou DOCX,
   com extensao, MIME e bytes validos, de ate 4 MiB.
 - Metadados opcionais preservados: `vigencia`, `versao`, `fonte`, `responsavel`,
-  `observacao`, `arquivoUrl` e `statusConferencia`. URL nao substitui arquivo.
+  `arquivoUrl` e `statusConferencia`. URL nao substitui arquivo.
   Conferencia diferente de `PENDENTE` continua exigindo `iniciativa:write`.
 
 O arquivo e validado e seu texto e extraido antes da classificacao e do
@@ -41,6 +44,13 @@ armazenamento continuam privados. O municipio vem da sessao, nunca do formulario
 
 Tipos explicitos nao sao reclassificados. Para os demais tipos explicitos,
 anexo continua opcional. `PATCH /conhecimento/documentos/:id` nao aceita `AUTO`.
+Nos patches, titulo e descricao sao opcionais, mas quando enviados devem atender
+a validacao. Documentos antigos sem descricao continuam disponiveis.
+
+O consultor (`analista`) pode enviar qualquer tipo, mas consulta apenas
+`PLANO_GOVERNO`: listagem, download, texto extraido e busca para edicao aplicam o
+mesmo filtro de tipo e municipio. Acesso direto a outro documento retorna `404`.
+Demais perfis mantem a consulta aos documentos do municipio ativo.
 
 Erros relevantes: `400 VALIDATION_ERROR` para campos invalidos,
 `400 INVALID_MULTIPART` para arquivos/campos de upload inesperados,
