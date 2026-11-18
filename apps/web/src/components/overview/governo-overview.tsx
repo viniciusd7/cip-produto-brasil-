@@ -239,7 +239,7 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
       {role === "prefeito" ? <div className={s.prefeitoTabs} role="tablist" aria-label="Visão geral do prefeito">
         {([
           { id: "atencao", titulo: "Acompanhamento", detalhe: "Entregas e atenção" },
-          { id: "resultados", titulo: "Resultados", detalhe: `${estrategia?.metas.length ?? 0} metas estratégicas` },
+          { id: "resultados", titulo: "Metas e indicadores", detalhe: `${estrategia?.metas.length ?? 0} metas do governo` },
           { id: "secretarias", titulo: "Situação das secretarias", detalhe: `${porSecretaria.length} pastas` },
           { id: "projetos", titulo: "Projetos", detalhe: `${governo.totalProjetos} projetos` },
         ] as const).map((item) => <button key={item.id} id={`aba-${item.id}`} type="button" role="tab" aria-selected={mayorTab === item.id} aria-controls={mayorTab === item.id ? `painel-${item.id}` : undefined} onClick={() => setMayorTab(item.id)}><strong>{item.titulo}</strong><span>{item.detalhe}</span></button>)}

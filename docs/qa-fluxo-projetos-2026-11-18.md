@@ -136,3 +136,31 @@ testes de indicadores cobrem valores informados, zero, ausência de dados,
 unidades, texto livre, frequência, metas de redução e identificação do objetivo.
 Nenhum banco foi alterado pela verificação visual; as limitações de homologação
 integrada e de baseline visual descritas acima continuam aplicáveis.
+
+## Visão de metas e indicadores do prefeito
+
+A aba Resultados do painel do prefeito passou a se chamar Metas e indicadores.
+A consulta apresenta uma meta por bloco, com a secretaria responsável, o
+resultado registrado, o valor previsto para a data da medição, a data de
+referência e a fonte. A medição anterior e os indicadores associados podem ser
+abertos sob demanda. Os projetos vinculados possuem links para sua aba de metas.
+
+Foram adicionados busca por meta, secretaria, projeto ou indicador e filtros por
+existência de medição. Valores apenas cadastrados em indicadores permanecem
+identificados separadamente de uma medição datada da meta. Não há classificação
+automática a partir do desvio, percentual presumido nem troca de ausência por
+zero. O mesmo componente atende a visão da secretaria; blocos de resultados de
+projetos sem dados deixam de aparecer.
+
+No navegador, o painel completo foi montado com dados fictícios para conferir
+a troca de aba, os filtros, a busca sem acentos, a combinação sem resultados e a
+limpeza dos filtros. Foram verificados a medição anterior, a abertura dos
+indicadores, os destinos dos links e o contexto de secretaria. As larguras de
+375, 768 e 1440 px não apresentaram overflow horizontal. No celular, as duas
+colunas de valores mantiveram o alinhamento vertical. Console sem erros ou avisos.
+
+Validação no checkout: build web, tipos, lint dos componentes alterados e 77
+testes web aprovados. Quatro novos testes do painel cobrem zero, unidades,
+indicadores de redução, ausência de medição, contexto da secretaria e estado
+vazio. Permanecem as limitações de dados simulados e de comparação visual sem
+baseline desta execução.
