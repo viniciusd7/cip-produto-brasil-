@@ -5,7 +5,7 @@ import { AvisosBadge } from "./avisos-badge";
 import { NotificacoesBadge } from "./notificacoes-badge";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { BrandLogo } from "@/components/brand-logo";
 import { TenantSwitcher } from "@/components/tenant-switcher";
 import { s as overview } from "@/components/overview/ov";
@@ -17,6 +17,18 @@ import {
   type NavItem,
 } from "@/lib/roles";
 import { VoltarBar } from "@/components/voltar-bar";
+import { MobileNav } from "@/components/mobile-nav";
+import { getMobileNavForRole } from "@/lib/mobile-navigation";
+import { InstallApp } from "@/components/pwa";
+
+const mobileQuery = "(max-width: 900px)";
+function subscribeMobile(callback: () => void) {
+  const media = window.matchMedia(mobileQuery);
+  media.addEventListener("change", callback);
+  return () => media.removeEventListener("change", callback);
+}
+const mobileSnapshot = () => window.matchMedia(mobileQuery).matches;
+const desktopSnapshot = () => false;
 
 function navItemActive(pathname: string, item: NavItem, nav: NavItem[]) {
   if (item.children?.length) {
@@ -48,8 +60,10 @@ export function AppShell({
   const pathname = usePathname();
   const { data } = useSession();
   const [open, setOpen] = useState(false);
-  const menuToggleRef = useRef<HTMLButtonElement>(null);
+  const openerRef = useRef<HTMLButtonElement | null>(null);
   const railRef = useRef<HTMLElement>(null);
+  const isMobile = useSyncExternalStore(subscribeMobile, mobileSnapshot, desktopSnapshot);
+  const drawerOpen = open && isMobile;
   const role = data?.user?.role || initialRole;
   const isCentralCip = Boolean(
     (data?.user?.isPlatformAdmin ?? initialIsPlatformAdmin) &&
@@ -75,6 +89,12 @@ export function AppShell({
   const userName = data?.user?.name || initialName;
   const municipioNome = data?.user?.municipioNome || initialMunicipio;
   const onPainel = pathname === "/painel";
+  const mobileNav = getMobileNavForRole(role).filter((item) => visibleNav.some((visible) => visible.href === item.href));
+
+  function openMenu(button: HTMLButtonElement) {
+    openerRef.current = button;
+    setOpen(true);
+  }
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => setOpen(false));
@@ -82,24 +102,34 @@ export function AppShell({
   }, [pathname]);
 
   useEffect(() => {
-    document.body.style.overflow = open ? "hidden" : "";
+    if (!drawerOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow = previous;
     };
-  }, [open]);
+  }, [drawerOpen]);
 
   useEffect(() => {
-    if (!open) return;
+    if (isMobile) return;
+    const frame = requestAnimationFrame(() => setOpen(false));
+    return () => cancelAnimationFrame(frame);
+  }, [isMobile]);
+
+  useEffect(() => {
+    if (!drawerOpen) return;
 
     const rail = railRef.current;
     if (!rail) return;
+    const opener = openerRef.current;
+    const openingPath = window.location.pathname;
 
     const focusable = () =>
       Array.from(
         rail.querySelectorAll<HTMLElement>(
           'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])',
         ),
-      ).filter((el) => !el.hasAttribute("disabled") && el.tabIndex !== -1);
+      ).filter((el) => !el.hasAttribute("disabled") && el.tabIndex !== -1 && el.getClientRects().length > 0);
 
     const getEnds = () => {
       const nodes = focusable();
@@ -107,13 +137,12 @@ export function AppShell({
     };
 
     const { first } = getEnds();
-    requestAnimationFrame(() => first?.focus());
+    const frame = requestAnimationFrame(() => first?.focus());
 
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.preventDefault();
         setOpen(false);
-        menuToggleRef.current?.focus();
         return;
       }
       if (e.key !== "Tab") return;
@@ -131,34 +160,34 @@ export function AppShell({
     }
 
     document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open]);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("keydown", onKeyDown);
+      requestAnimationFrame(() => {
+        if (window.location.pathname !== openingPath) {
+          document.getElementById("app-content")?.focus({ preventScroll: true });
+        } else if (opener?.getClientRects().length) {
+          opener.focus({ preventScroll: true });
+        }
+      });
+    };
+  }, [drawerOpen]);
 
   return (
     <div
-      className={`app-shell ${overview.shell}${onPainel ? " shell-painel" : ""}${open ? " nav-open" : ""}`}
+      className={`app-shell ${overview.shell}${onPainel ? " shell-painel" : ""}${drawerOpen ? " nav-open" : ""}`}
     >
-      <header className="app-topbar">
+      <a className="skip-link" href="#app-content">Ir para o conteúdo</a>
+      <header className="app-topbar" inert={drawerOpen}>
         <div className="app-topbar__brand">
           <BrandLogo variant="mark" />
-          <span>Governo em perspectiva</span>
+          <div className="app-topbar__context"><strong>{municipioNome || "CIP"}</strong><span>{getRoleLabel(role)}</span></div>
         </div>
         <div className="app-topbar__actions">
           {!isCentralCip && role !== "leitura" && <NotificacoesBadge token={data?.accessToken} />}
           {!isCentralCip && ["gestor", "analista", "admin"].includes(role || "") && (
             <AvisosBadge token={data?.accessToken} compact />
           )}
-          <button
-            ref={menuToggleRef}
-            type="button"
-            className="menu-toggle"
-            aria-label={open ? "Fechar menu" : "Abrir menu"}
-            aria-expanded={open}
-            aria-controls="app-rail-menu"
-            onClick={() => setOpen((v) => !v)}
-          >
-            {open ? "✕" : "☰"}
-          </button>
         </div>
       </header>
 
@@ -168,7 +197,7 @@ export function AppShell({
         aria-label="Fechar menu"
         tabIndex={-1}
         onClick={() => setOpen(false)}
-        aria-hidden={!open}
+        aria-hidden="true"
       />
 
       <aside
@@ -176,7 +205,11 @@ export function AppShell({
         id="app-rail-menu"
         className="app-rail"
         aria-label="Menu lateral"
+        role={drawerOpen ? "dialog" : undefined}
+        aria-modal={drawerOpen ? true : undefined}
+        inert={isMobile && !drawerOpen}
       >
+        <div className="app-drawer-heading"><strong>Menu</strong><button type="button" onClick={() => setOpen(false)} aria-label="Fechar menu">✕</button></div>
         <div className="brand-block">
           <BrandLogo priority />
           <div className="brand-kicker">Centro de Inteligência Pública</div>
@@ -253,6 +286,7 @@ export function AppShell({
                 key={item.href}
                 href={item.href}
                 className={active ? "active" : ""}
+                aria-current={active ? "page" : undefined}
               >
                 <span className="nav-icon" aria-hidden="true">
                   {item.icon}
@@ -262,6 +296,8 @@ export function AppShell({
             );
           })}
         </nav>
+
+        <InstallApp />
 
         <div className="app-user">
           <div className="user-avatar">
@@ -282,7 +318,7 @@ export function AppShell({
         </div>
       </aside>
 
-      <main className="app-main" aria-hidden={open ? true : undefined}>
+      <main id="app-content" className="app-main" tabIndex={-1} inert={drawerOpen}>
         <VoltarBar home={isCentralCip ? "/equipe" : getHomeForRole(role)} />
         {children}
         <footer className="app-cip-footer">
@@ -299,6 +335,7 @@ export function AppShell({
           </a>
         </footer>
       </main>
+      <MobileNav items={mobileNav} pathname={pathname} open={drawerOpen} onOpen={openMenu} />
     </div>
   );
 }

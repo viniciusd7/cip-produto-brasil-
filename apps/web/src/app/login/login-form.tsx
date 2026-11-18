@@ -5,6 +5,7 @@ import { signIn, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Button } from "@cip/ui";
 import { BrandLogo } from "@/components/brand-logo";
+import { InstallApp } from "@/components/pwa";
 import { getHomeForRole } from "@/lib/roles";
 import { API_URL } from "@/lib/api";
 
@@ -373,6 +374,7 @@ export function LoginForm({
           </p>
         )}
 
+        <InstallApp />
         <p className="login-cip-mark">
           Produto do{" "}
           <a

@@ -1,7 +1,11 @@
-const API_URL =
+const SERVER_API_URL =
   process.env.API_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
   "http://localhost:4000";
+
+// Browser requests follow the application's origin, including local phone tests.
+// Server-side requests keep using the API's internal address.
+const API_URL = "/api/backend";
 
 export class ApiError extends Error {
   status: number;
@@ -25,7 +29,8 @@ export async function apiFetch<T>(
     headers.set("Authorization", `Bearer ${options.token}`);
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
+  const baseUrl = typeof window === "undefined" ? SERVER_API_URL : API_URL;
+  const res = await fetch(`${baseUrl}${path}`, {
     ...options,
     headers,
     cache: "no-store",

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#151722">
+  <title>CIP · Sem conexão</title>
+  <style>
+    *{box-sizing:border-box}html{color-scheme:dark}body{margin:0;min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:24px;background:#10121b;color:#f1f3fc;font:18px/1.6 system-ui,sans-serif}main{max-width:420px}span{color:#7c9cff;font-weight:700;letter-spacing:.12em}h1{font-size:32px;line-height:1.2;margin:24px 0 16px}p{color:#bfc7da}button{min-height:48px;border:0;border-radius:10px;padding:12px 20px;background:#7c9cff;color:#10121b;font:600 16px system-ui;cursor:pointer}button:focus-visible{outline:3px solid #fff;outline-offset:4px}small{display:block;margin-top:24px;color:#929bb4;font-size:14px}
+  </style>
+</head>
+<body>
+  <main>
+    <span>CIP</span>
+    <h1>Vamos reconectar?</h1>
+    <p>Não foi possível acessar a plataforma. Verifique sua conexão e tente novamente.</p>
+    <button type="button" id="retry">Tentar novamente</button>
+    <small>Você precisa de conexão para consultar os dados e enviar alterações.</small>
+  </main>
+  <script>document.getElementById("retry").addEventListener("click", function () { window.location.reload(); });</script>
+</body>
+</html>

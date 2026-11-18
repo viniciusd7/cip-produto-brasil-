@@ -2,11 +2,13 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { gestaoUrl, isGestaoHost, isLocalSameOriginHost } from "@/lib/hosts";
 
-const PUBLIC = ["/login"];
+const PUBLIC = ["/login", "/manifest.webmanifest", "/offline.html"];
 
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const host = req.headers.get("host") || "";
+  // PWA resources carry no session data and must work on both application hosts.
+  if (pathname === "/manifest.webmanifest" || pathname === "/offline.html") return NextResponse.next();
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
   const localSameOrigin = isLocalSameOriginHost(host);
 

@@ -4,7 +4,7 @@
  * - <domínio>: ambiente das prefeituras (consultor, prefeito, secretários).
  * Defina GESTAO_HOST para fixar o host do console; sem ele, vale o prefixo "gestao.".
  *
- * Em localhost puro (sem subdomain), o console fica em /gestao no mesmo host —
+ * Em localhost ou IP privado da rede, o console fica em /gestao no mesmo host —
  * cookies de sessão não cruzam localhost ↔ gestao.localhost.
  */
 export function isGestaoHost(host?: string | null) {
@@ -18,11 +18,16 @@ export function isGestaoHost(host?: string | null) {
 export function isLocalSameOriginHost(host?: string | null) {
   if (!host) return false;
   const h = host.toLowerCase().split(":")[0];
-  return h === "localhost" || h === "127.0.0.1";
+  if (h === "localhost" || h === "127.0.0.1") return true;
+  const octets = h.split(".").map(Number);
+  if (!/^\d+\.\d+\.\d+\.\d+$/.test(h) || octets.some((value) => value > 255)) return false;
+  return octets[0] === 10 ||
+    (octets[0] === 192 && octets[1] === 168) ||
+    (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31);
 }
 
 function proto(host: string) {
-  return /^(localhost|127\.|[^.]+\.localhost)/.test(host) ? "http" : "https";
+  return isLocalSameOriginHost(host) || /^(localhost|127\.|[^.]+\.localhost)/.test(host) ? "http" : "https";
 }
 
 export function gestaoUrl(host: string) {
