@@ -46,7 +46,7 @@ export function PrefeitoProjetos({ projetos }: { projetos: Projeto[] }) {
         <div>
           <p className="gl-kicker">Carteira do município</p>
           <h2>Projetos do governo</h2>
-          <p>Abra um projeto para consultar metas, entregas e providências.</p>
+          <p>Abra um projeto para acompanhar tarefas, entregas e providências.</p>
         </div>
         <Link href="/carteira" className="gl-link">Ver carteira completa →</Link>
       </div>
@@ -75,7 +75,7 @@ export function PrefeitoProjetos({ projetos }: { projetos: Projeto[] }) {
                 <h3>{projeto.nome}</h3>
                 <p>{projeto.secretaria}</p>
                 <div className="prefeito-projects__progress"><span>Entregas concluídas</span><strong>{projeto.concluidas} de {projeto.totalTarefas}</strong><div role="img" aria-label={`${percentual}% das tarefas concluídas`}><i style={{ width: `${percentual}%` }} /></div></div>
-                <div className="prefeito-projects__facts"><span>{projeto.estruturante ? "Estruturante" : CICLO[projeto.ciclo] || projeto.ciclo}</span><span>{projeto.atrasadas} atrasadas</span><span>{projeto.pendencias} providências</span></div>
+                <div className="prefeito-projects__facts"><span>{projeto.estruturante ? "Estruturante" : CICLO[projeto.ciclo] || projeto.ciclo}</span><span>{projeto.atrasadas} em atraso</span><span>{projeto.pendencias} {projeto.pendencias === 1 ? "providência" : "providências"}</span></div>
                 <Link href={`/iniciativas/${projeto.id}`} className="prefeito-projects__open">Abrir projeto →</Link>
               </article>
             );

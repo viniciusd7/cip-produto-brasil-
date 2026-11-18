@@ -85,16 +85,16 @@ export function secretariaRecommendation(p: SecretariaOverview, role?: string | 
     if (!p.projetos) return "Vincular o primeiro projeto a esta secretaria.";
     if (!p.tarefasTotal) return "Registrar as primeiras tarefas dos projetos.";
     if (p.classificacao === "DADOS_DEFASADOS") return "Conferir as entregas e atualizar a carteira.";
-    if (p.criticas) return `Analisar ${p.criticas} tarefas críticas com os responsáveis.`;
-    if (p.semPrazo) return `Pactuar datas para ${p.semPrazo} tarefas sem prazo.`;
-    if (p.atrasadas) return `Registrar causa e providência para ${p.atrasadas} tarefas atrasadas.`;
+    if (p.criticas) return `Analisar ${p.criticas} ${p.criticas === 1 ? "tarefa crítica" : "tarefas críticas"} com os responsáveis.`;
+    if (p.semPrazo) return `Pactuar datas para ${p.semPrazo} ${p.semPrazo === 1 ? "tarefa" : "tarefas"} sem prazo.`;
+    if (p.atrasadas) return `Registrar causa e providência para ${p.atrasadas} ${p.atrasadas === 1 ? "tarefa atrasada" : "tarefas atrasadas"}.`;
     return "Manter o acompanhamento e conferir as evidências registradas.";
   }
   if (!p.projetos) return "Solicitar o cadastro dos projetos desta secretaria.";
   if (!p.tarefasTotal) return "Solicitar o registro das entregas dos projetos.";
   if (p.classificacao === "DADOS_DEFASADOS") return "Pedir uma posição atualizada sobre as entregas.";
-  if (p.criticas) return `Pedir providências para ${p.criticas} tarefas críticas.`;
-  if (p.semPrazo) return `Pedir datas para ${p.semPrazo} tarefas sem prazo.`;
-  if (p.atrasadas) return `Pedir causa e prazo de solução para ${p.atrasadas} tarefas atrasadas.`;
+  if (p.criticas) return `Pedir providências para ${p.criticas} ${p.criticas === 1 ? "tarefa crítica" : "tarefas críticas"}.`;
+  if (p.semPrazo) return `Pedir datas para ${p.semPrazo} ${p.semPrazo === 1 ? "tarefa" : "tarefas"} sem prazo.`;
+  if (p.atrasadas) return `Pedir causa e prazo de solução para ${p.atrasadas} ${p.atrasadas === 1 ? "tarefa atrasada" : "tarefas atrasadas"}.`;
   return "Acompanhar as próximas entregas registradas.";
 }

@@ -6,6 +6,7 @@ import { GovernoOverview } from "@/components/overview/governo-overview";
 import type { OverviewResponse } from "@/components/overview/types";
 import { redirect } from "next/navigation";
 import "@/components/overview/overview-painel.css";
+import "@/components/overview/governo-overview.css";
 
 export default async function PainelPage({
   searchParams,

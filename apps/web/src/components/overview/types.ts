@@ -21,6 +21,7 @@ export type SecretariaOverview = {
 
 export type OverviewResponse = {
   data: {
+    kpis?: { pendenciasAbertas: number };
     governo: {
       totalProjetos: number;
       projetosComAtraso: number;
