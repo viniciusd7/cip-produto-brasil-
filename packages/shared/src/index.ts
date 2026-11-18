@@ -11,3 +11,4 @@ export * from "./catalog/plano-governo";
 export * from "./catalog/acao-diaria";
 export * from "./catalog/impedimentos-comuns";
 export * from "./modelos/triagem-acao-diaria";
+export * from "./secretaria-indicators";

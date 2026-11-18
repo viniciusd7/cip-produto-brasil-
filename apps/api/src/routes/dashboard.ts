@@ -9,6 +9,7 @@ import {
 import { prazoStatus } from "../services/prazo";
 import { HttpError } from "../middleware/error";
 import {
+  avaliarSecretaria,
   classificarSecretaria,
   derivarGravidade,
   GRAVIDADE_METODO_VERSAO,
@@ -160,7 +161,7 @@ dashboardRouter.get("/resumo", async (req, res, next) => {
       const dias = last
         ? Math.floor((now.getTime() - last.getTime()) / (1000 * 60 * 60 * 24))
         : null;
-      const classificacao = classificarSecretaria({
+      const avaliacao = avaliarSecretaria({
         diasSemAtualizacao: dias,
         pctAtrasoAbertas: pctAtr,
         indicePonderado: idx,
@@ -200,7 +201,8 @@ dashboardRouter.get("/resumo", async (req, res, next) => {
         maiorAtrasoDias,
         atualizadoEm: last?.toISOString() ?? null,
         diasSemAtualizacao: dias,
-        classificacao,
+        classificacao: avaliacao.classificacao,
+        motivosClassificacao: avaliacao.motivos,
         pendencias: inis.reduce((acc, i) => acc + i.impedimentos.length, 0),
       };
     });

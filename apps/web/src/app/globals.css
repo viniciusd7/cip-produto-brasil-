@@ -1229,6 +1229,7 @@ label {
 
 .secretaria-card__top {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 10px;
   align-items: flex-start;
@@ -1269,6 +1270,84 @@ label {
   color: var(--cip-blue);
   font-size: 13px;
   font-weight: 700;
+}
+
+.secretaria-methodology {
+  border: 1px solid var(--cip-border);
+  border-radius: 16px;
+  background: var(--cip-surface);
+  padding: 16px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.secretaria-methodology summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.secretaria-methodology summary:focus-visible,
+.secretaria-card:focus-visible {
+  outline: 2px solid var(--cip-blue);
+  outline-offset: 4px;
+}
+
+.secretaria-methodology__content {
+  display: grid;
+  gap: 16px;
+  padding-top: 16px;
+  max-width: 80ch;
+  color: var(--cip-muted);
+}
+
+.secretaria-methodology__content p,
+.secretaria-methodology__rules,
+.secretaria-methodology__rules dd {
+  margin: 0;
+}
+
+.secretaria-methodology__rules {
+  display: grid;
+  gap: 12px;
+}
+
+.secretaria-methodology__rules dt,
+.secretaria-card__reason > strong {
+  color: var(--cip-ink);
+  font-weight: 600;
+}
+
+.secretaria-card__reason {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.secretaria-card__indicators {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--cip-border);
+  font-size: 12px;
+}
+
+.secretaria-card__indicators dt {
+  color: var(--cip-muted);
+}
+
+.secretaria-card__indicators dd {
+  margin: 2px 0 0;
+  color: var(--cip-ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.secretaria-card .secretaria-card__updated {
+  margin: 0;
+  font-size: 11px;
 }
 
 .text-link {

@@ -1,16 +1,12 @@
 import type { PrazoMarco } from "@cip/shared";
+import { METODOLOGIA_SECRETARIAS } from "@cip/shared";
 
 export type Gravidade = "LEVE" | "MODERADA" | "GRAVE" | "CRITICA";
 
-const WEIGHT: Record<Gravidade, number> = {
-  LEVE: 0.25,
-  MODERADA: 0.5,
-  GRAVE: 0.75,
-  CRITICA: 1,
-};
+const WEIGHT = METODOLOGIA_SECRETARIAS.pesosGravidade;
 
 /** Índice ponderado = soma(pesos dos atrasos) / tarefas abertas. Versão metodológica v1. */
-export const GRAVIDADE_METODO_VERSAO = "v1-2026-10";
+export const GRAVIDADE_METODO_VERSAO = METODOLOGIA_SECRETARIAS.versao;
 
 export function pesoGravidade(g?: string | null) {
   if (!g) return WEIGHT.MODERADA;
@@ -61,20 +57,43 @@ export type ClassificacaoSecretaria =
   | "ROTINA"
   | "DADOS_DEFASADOS";
 
-export function classificarSecretaria(params: {
+type IndicadoresSecretaria = {
   diasSemAtualizacao: number | null;
   pctAtrasoAbertas: number;
   indicePonderado: number;
   pctSemPrazoAbertas: number;
-}): ClassificacaoSecretaria {
-  if (params.diasSemAtualizacao != null && params.diasSemAtualizacao > 30) {
-    return "DADOS_DEFASADOS";
+};
+
+export function avaliarSecretaria(params: IndicadoresSecretaria): {
+  classificacao: ClassificacaoSecretaria;
+  motivos: string[];
+} {
+  const regras = METODOLOGIA_SECRETARIAS;
+  const percentual = (valor: number) => `${valor.toLocaleString("pt-BR")}%`;
+  if (params.diasSemAtualizacao != null && params.diasSemAtualizacao > regras.diasSemAtualizacao) {
+    return {
+      classificacao: "DADOS_DEFASADOS",
+      motivos: [`${params.diasSemAtualizacao} dias sem atualização dos projetos, acima do limite de ${regras.diasSemAtualizacao} dias. Validar os dados antes de decidir.`],
+    };
   }
-  if (params.pctAtrasoAbertas >= 50 || params.indicePonderado >= 35) {
-    return "INTERVENCAO";
+  const motivos: string[] = [];
+  if (params.pctAtrasoAbertas >= regras.intervencao.pctAtraso) {
+    motivos.push(`${percentual(params.pctAtrasoAbertas)} das tarefas abertas estão atrasadas (limite: ${regras.intervencao.pctAtraso}%).`);
   }
-  if (params.pctAtrasoAbertas >= 35 || params.pctSemPrazoAbertas >= 25) {
-    return "ACOMPANHAMENTO";
+  if (params.indicePonderado >= regras.intervencao.indicePonderado) {
+    motivos.push(`Índice ponderado de atraso de ${percentual(params.indicePonderado)} (limite: ${regras.intervencao.indicePonderado}%).`);
   }
-  return "ROTINA";
+  if (motivos.length) return { classificacao: "INTERVENCAO", motivos };
+  if (params.pctAtrasoAbertas >= regras.acompanhamento.pctAtraso) {
+    motivos.push(`${percentual(params.pctAtrasoAbertas)} das tarefas abertas estão atrasadas (limite: ${regras.acompanhamento.pctAtraso}%).`);
+  }
+  if (params.pctSemPrazoAbertas >= regras.acompanhamento.pctSemPrazo) {
+    motivos.push(`${percentual(params.pctSemPrazoAbertas)} das tarefas abertas estão sem prazo (limite: ${regras.acompanhamento.pctSemPrazo}%).`);
+  }
+  if (motivos.length) return { classificacao: "ACOMPANHAMENTO", motivos };
+  return { classificacao: "ROTINA", motivos: ["Os indicadores estão abaixo dos limites de alerta."] };
+}
+
+export function classificarSecretaria(params: IndicadoresSecretaria): ClassificacaoSecretaria {
+  return avaliarSecretaria(params).classificacao;
 }
