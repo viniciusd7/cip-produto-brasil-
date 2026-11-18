@@ -58,7 +58,7 @@ function dadosValidos(valor: unknown): valor is RascunhoProjeto {
       valor.impedimentosPersonalizados.every((item: unknown) => objeto(item) &&
         typeof item.codigo === "string" && CODIGO_IMPEDIMENTO_PERSONALIZADO.test(item.codigo) &&
         typeof item.nome === "string" && item.nome.length <= 200 &&
-        ["IMPEDIMENTO", "PRE_REQUISITO"].includes(String(item.tipo)) &&
+        (item.tipo === "IMPEDIMENTO" || item.tipo === "PRE_REQUISITO") &&
         typeof item.descricao === "string" && item.descricao.length <= 2000 && typeof item.bloqueante === "boolean") &&
       new Set(valor.impedimentosPersonalizados.map((item) => item.codigo)).size === valor.impedimentosPersonalizados.length
     ));

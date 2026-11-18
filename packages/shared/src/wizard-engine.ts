@@ -67,6 +67,7 @@ export type ModeloPerguntaDef = {
     seNao?: string;
     sePendente?: string;
     impedimento?: boolean;
+    tipoCondicionante?: "IMPEDIMENTO" | "PRE_REQUISITO";
   } | null;
   /** Campos abertos exibidos quando a condição se aplica. */
   camposFollowUp?: Array<{

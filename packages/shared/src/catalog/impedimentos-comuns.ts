@@ -2,7 +2,7 @@ import type { ModeloSnapshot, ModeloPerguntaDef } from "../wizard-engine";
 
 export const GRUPO_IMPEDIMENTOS = {
   id: "impedimentos",
-  nome: "Impedimentos e pré-requisitos",
+  nome: "Modelagem",
   ajuda: "Identifique cedo o que pode exigir providência para este projeto.",
   ordem: 0,
 } as const;
@@ -35,7 +35,7 @@ export function adicionarImpedimentosPersonalizados(
     ordem: modelo.perguntas.length + indice + 1,
     grupo: GRUPO_IMPEDIMENTOS.id,
     etapa: GRUPO_IMPEDIMENTOS.ordem,
-    metadados: { impedimento: true },
+    metadados: { impedimento: true, tipoCondicionante: item.tipo },
     favoraveis: ["atendida", "nao_se_aplica"],
     espera: `Aguardando: ${item.nome.trim()}`,
     efeitos: [EFEITO_PRIORIDADE_APLICAVEL],

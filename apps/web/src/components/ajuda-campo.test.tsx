@@ -26,10 +26,9 @@ test("a ajuda contempla campos de tarefas e subtarefas", () => {
       listId="equipe"
     />,
   );
-  for (const campo of ["Tarefa", "Prazo", "Subtarefa", "Prazo da subtarefa"]) {
+  for (const campo of ["Nome da tarefa", "Responsável pela tarefa", "Prazo da tarefa", "Nome da subtarefa", "Responsável pela subtarefa", "Prazo da subtarefa"]) {
     assert.ok(html.includes(`aria-label="Ajuda sobre ${campo}"`), campo);
   }
-  assert.equal((html.match(/aria-label="Ajuda sobre Quem faz\?"/g) || []).length, 2);
 });
 
 test("ajuda das condições inclui situação e detalhes sem alterar outras telas", () => {
@@ -48,7 +47,7 @@ test("ajuda das condições inclui situação e detalhes sem alterar outras tela
     onChange: () => {},
   };
   const html = renderToStaticMarkup(<CondicaoCard {...props} mostrarAjuda />);
-  for (const campo of ["Licitação", "Situação do item", "Fundamento", "Próxima providência", "Quem acompanha", "Objeto"]) {
+  for (const campo of ["Licitação", "Situação do item", "Fundamento", "Próxima providência", "Responsável pelo acompanhamento", "Objeto"]) {
     assert.ok(html.includes(`aria-label="Ajuda sobre ${campo}"`), campo);
   }
   assert.ok(html.includes("Informe o objeto."));

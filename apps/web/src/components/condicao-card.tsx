@@ -333,13 +333,13 @@ export function CondicaoCard({
                     />
                   </label>
                   </CampoComAjuda>
-                  <CampoComAjuda mostrar={mostrarAjuda} campo="Quem acompanha" ajuda="Informe a pessoa ou área que acompanhará a providência.">
+                  <CampoComAjuda mostrar={mostrarAjuda} campo="Responsável pelo acompanhamento" ajuda="Informe a pessoa ou área responsável pelo acompanhamento da próxima providência.">
                   <label className="condicao-card__field">
-                    <span>Quem acompanha</span>
+                    <span>Responsável pelo acompanhamento</span>
                     <input
                       value={parsed.responsavel || ""}
                       onChange={(e) => patchMeta({ responsavel: e.target.value })}
-                      placeholder="Pessoa ou área competente"
+                      placeholder="Nome da pessoa ou área responsável"
                     />
                   </label>
                   </CampoComAjuda>

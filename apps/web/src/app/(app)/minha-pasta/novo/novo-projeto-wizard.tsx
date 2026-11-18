@@ -181,6 +181,8 @@ export function NovoProjetoWizard({
 }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
+  const cabecalhoRef = useRef<HTMLElement>(null);
+  const passoAnteriorRef = useRef(step);
   const classificacao = initialClassification;
   const classificacoes: Classificacao[] = [classificacao];
   const [modeloCarregado, setModeloCarregado] = useState<{
@@ -221,6 +223,9 @@ export function NovoProjetoWizard({
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [ultimoPassoGerado, setUltimoPassoGerado] = useState("");
   const [saving, setSaving] = useState(false);
+  const [advancing, setAdvancing] = useState(false);
+  const operacaoEmCursoRef = useRef(false);
+  const busy = saving || advancing;
   const [error, setError] = useState("");
   const rascunhoKey = chaveRascunho(usuarioId, municipioId, initialClassification);
   const [rascunhoPronto, setRascunhoPronto] = useState(false);
@@ -237,6 +242,22 @@ export function NovoProjetoWizard({
       ? STEPS_PLANO
       : STEPS_ACAO;
   const totalPassos = steps.length;
+
+  useEffect(() => {
+    if (!rascunhoPronto || passoAnteriorRef.current === step) return;
+    passoAnteriorRef.current = step;
+
+    const frame = window.requestAnimationFrame(() => {
+      const cabecalho = cabecalhoRef.current;
+      if (!cabecalho) return;
+      cabecalho.focus({ preventScroll: true });
+      cabecalho.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+        block: "start",
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [step, rascunhoPronto]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -471,7 +492,7 @@ export function NovoProjetoWizard({
     // secretariaId já está representado em envolvidasKey.
   }, [rascunhoPronto, envolvidasKey, secretariaId, token, tentativaEquipe]);
 
-  async function runPreview() {
+  async function runPreview(atualizarEscopo = true) {
     const res = await fetch(`${API_URL}/iniciativas/wizard/preview`, {
       method: "POST",
       headers: {
@@ -499,6 +520,8 @@ export function NovoProjetoWizard({
       etapaAtual: json.data.etapaAtual ?? null,
       avisos: json.data.avisos || [],
     });
+    // A prévia deve respeitar as remoções e edições feitas no passo Tarefas.
+    if (!atualizarEscopo) return;
     const estruturaModelo = normalizarEscopo((json.data.estrutura || []) as NoApi[]);
     const proximoPasso = classificacao === "ACAO_DIARIA"
       ? respostas.acao_providencia
@@ -546,18 +569,24 @@ export function NovoProjetoWizard({
     if (pessoasLoading) return "Aguarde o carregamento das equipes.";
     if (erroEquipe) return "Não foi possível carregar as equipes. Tente novamente antes de continuar.";
     if (registrandoNovo) {
-      if (!novoNome.trim() || !novoCargo.trim()) {
-        return "Informe nome e cargo do novo responsável";
+      if (novoNome.trim().length < 2 || novoCargo.trim().length < 2) {
+        return "Informe o nome e o cargo do responsável pelo projeto com pelo menos 2 caracteres em cada campo";
+      }
+      if (novoEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(novoEmail.trim())) {
+        return "Informe um e-mail válido para o responsável pelo projeto";
       }
       return null;
     }
     if (!responsavelPessoaId) {
-      return "Selecione ou cadastre o responsável do projeto";
+      return "Selecione ou cadastre o responsável pelo projeto";
     }
     return null;
   }
 
   async function next() {
+    if (operacaoEmCursoRef.current || concluido.current) return;
+    operacaoEmCursoRef.current = true;
+    setAdvancing(true);
     setError("");
     try {
       const label = steps[step];
@@ -572,7 +601,15 @@ export function NovoProjetoWizard({
           return;
         }
         if (!nome.trim() || !secretariaId) {
-          setError("Informe nome e secretaria");
+          setError("Informe o nome do projeto e selecione a secretaria principal");
+          return;
+        }
+        if (nome.trim().length < 3) {
+          setError("Informe o nome do projeto com pelo menos 3 caracteres");
+          return;
+        }
+        if (codigo.trim() && codigo.trim().length < 2) {
+          setError("Informe o código do projeto com pelo menos 2 caracteres ou deixe vazio para gerar automaticamente");
           return;
         }
         if (!descricao.trim() || (classificacao !== "ACAO_DIARIA" && !entrega.trim())) {
@@ -609,12 +646,19 @@ export function NovoProjetoWizard({
         }
       }
       const nextLabel = steps[step + 1];
+      if (label === "Tarefas") {
+        if (!escopo.length) throw new Error("Inclua ao menos uma tarefa antes de continuar");
+        if (escopoComNomeVazio(escopo)) throw new Error("Dê nome a todas as tarefas e subtarefas antes de continuar");
+      }
       if (nextLabel === "Tarefas" || nextLabel === "Prévia") {
-        await runPreview();
+        await runPreview(nextLabel === "Tarefas");
       }
       setStep((s) => s + 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro");
+    } finally {
+      operacaoEmCursoRef.current = false;
+      setAdvancing(false);
     }
   }
 
@@ -635,11 +679,13 @@ export function NovoProjetoWizard({
   }
 
   async function confirm() {
+    if (operacaoEmCursoRef.current || concluido.current) return;
     if (metaId === "__nova__" ? novaMetaNome.trim().length < 3 || (planoId === "__novo__" && novoPlanoNome.trim().length < 3) : !metaId) {
       setError("Selecione uma meta estratégica ou preencha os dados da nova meta na etapa de identificação.");
       setStep(0);
       return;
     }
+    operacaoEmCursoRef.current = true;
     setSaving(true);
     setError("");
     try {
@@ -702,7 +748,11 @@ export function NovoProjetoWizard({
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro");
-      setSaving(false);
+    } finally {
+      if (!concluido.current) {
+        operacaoEmCursoRef.current = false;
+        setSaving(false);
+      }
     }
   }
 
@@ -750,7 +800,7 @@ export function NovoProjetoWizard({
   const totalItens = contarItens(escopo);
 
   function irPara(indice: number) {
-    if (saving || indice < 0 || indice > step) return;
+    if (operacaoEmCursoRef.current || busy || indice < 0 || indice > step) return;
     setError("");
     setStep(indice);
   }
@@ -762,12 +812,17 @@ export function NovoProjetoWizard({
       <div>
         <p role={rascunhoErro ? "alert" : "status"}>{rascunhoErro || rascunhoMensagem}</p>
         <p className="dashboard-muted">Um rascunho por tipo, usuário e prefeitura. Disponível somente neste navegador; não é sincronizado entre dispositivos.</p>
-        <Button type="button" variant="ghost" disabled={saving} onClick={descartarRascunho}>Descartar rascunho e recomeçar</Button>
+        <Button type="button" variant="ghost" disabled={busy} onClick={descartarRascunho}>Descartar rascunho e recomeçar</Button>
       </div>
       {estruturante && !modeloPadrao && (
         <p role="alert">Modelo estruturante não encontrado nesta prefeitura. Peça ao administrador para ativar o modelo CIP antes de concluir o cadastro. Seu rascunho pode ser mantido neste navegador.</p>
       )}
-      <header className="wizard-head">
+      <header
+        ref={cabecalhoRef}
+        className="wizard-head"
+        tabIndex={-1}
+        aria-label={`Etapa ${step + 1} de ${totalPassos}: ${steps[step]}`}
+      >
         <p className="section-kicker">
           {classificacao === "PLANO_GOVERNO"
             ? "Plano de governo"
@@ -783,7 +838,7 @@ export function NovoProjetoWizard({
             type="button"
             className="wizard-step-back"
             aria-label="Etapa anterior"
-            disabled={step === 0 || saving}
+            disabled={step === 0 || busy}
             onClick={() => irPara(step - 1)}
           >
             <span aria-hidden="true">←</span>
@@ -798,7 +853,7 @@ export function NovoProjetoWizard({
                     <button
                       type="button"
                       aria-current={atual ? "step" : undefined}
-                      disabled={saving}
+                      disabled={busy}
                       onClick={() => irPara(i)}
                     >
                       <span>{i + 1}</span>
@@ -817,6 +872,7 @@ export function NovoProjetoWizard({
         </div>
       </header>
 
+      <fieldset className="wizard-fields stack" disabled={busy} aria-label={steps[step]} aria-busy={busy}>
       {steps[step] === "Identidade" && (
         <Card title="Identidade do projeto">
           <div className="stack">
@@ -852,7 +908,7 @@ export function NovoProjetoWizard({
               </select>
             </div>
             <div>
-              <RotuloComAjuda htmlFor="projeto-nome" campo="Nome" ajuda="Dê um nome claro e breve que identifique o projeto." />
+              <RotuloComAjuda htmlFor="projeto-nome" campo="Nome do projeto" ajuda="Dê um nome claro e breve que identifique o projeto." />
               <input id="projeto-nome" value={nome} onChange={(e) => setNome(e.target.value)} required />
             </div>
             <div>
@@ -862,7 +918,7 @@ export function NovoProjetoWizard({
               </div>
               <p className="dashboard-muted" style={{ margin: "4px 0 8px", fontSize: 12 }}>
                 Pastas que participam da entrega (ex.: planejamento, administração/recursos, obras).
-                O responsável e as tarefas podem ser de qualquer uma delas.
+                O responsável pelo projeto e os responsáveis pelas tarefas podem ser de qualquer uma delas.
               </p>
               <div className="chip-row" role="group" aria-labelledby="projeto-secretarias-label">
                 {secretarias
@@ -892,7 +948,7 @@ export function NovoProjetoWizard({
             </div>
             <div className="form-grid form-grid--2">
               <div>
-                <RotuloComAjuda htmlFor="projeto-codigo" campo="Código" ajuda="Identificador opcional do projeto. Se ficar vazio, será gerado automaticamente." />
+                <RotuloComAjuda htmlFor="projeto-codigo" campo="Código do projeto" ajuda="Identificador opcional do projeto. Se ficar vazio, será gerado automaticamente." />
                 <input
                   id="projeto-codigo"
                   value={codigo}
@@ -901,7 +957,7 @@ export function NovoProjetoWizard({
                 />
               </div>
               <div>
-                <RotuloComAjuda htmlFor="projeto-responsavel" campo="Responsável do projeto" ajuda="Selecione quem coordena o projeto ou cadastre uma pessoa na secretaria principal." />
+                <RotuloComAjuda htmlFor="projeto-responsavel" campo="Responsável pelo projeto" ajuda="Selecione a pessoa que coordena o projeto ou cadastre um novo responsável na secretaria principal." />
                 <select
                   id="projeto-responsavel"
                   value={responsavelPessoaId}
@@ -909,7 +965,7 @@ export function NovoProjetoWizard({
                   disabled={pessoasLoading || Boolean(erroEquipe)}
                 >
                   <option value="">
-                    {pessoasLoading ? "Carregando equipes..." : "Selecione o responsável"}
+                    {pessoasLoading ? "Carregando equipes..." : "Selecione o responsável pelo projeto"}
                   </option>
                   {envolvidasIds.map((id) => {
                     const rows = equipePorSecretaria[id] || [];
@@ -926,7 +982,7 @@ export function NovoProjetoWizard({
                       </optgroup>
                     );
                   })}
-                  <option value={NOVO_VALOR}>Registrar novo na pasta principal…</option>
+                  <option value={NOVO_VALOR}>Cadastrar novo responsável na secretaria principal…</option>
                 </select>
               </div>
             </div>
@@ -943,7 +999,7 @@ export function NovoProjetoWizard({
             )}
             {!pessoasLoading && !erroEquipe && equipeNomes.length === 0 && (
               <p className="dashboard-muted">
-                Nenhuma equipe cadastrada nas pastas envolvidas. Registre o responsável abaixo.
+                Nenhuma equipe cadastrada nas secretarias envolvidas. Cadastre o responsável pelo projeto abaixo.
               </p>
             )}
             {registrandoNovo && (
@@ -959,7 +1015,7 @@ export function NovoProjetoWizard({
                   />
                 </div>
                 <div>
-                  <RotuloComAjuda htmlFor="projeto-novo-cargo" campo="Cargo" ajuda="Informe o cargo ou função da pessoa responsável." />
+                  <RotuloComAjuda htmlFor="projeto-novo-cargo" campo="Cargo do responsável" ajuda="Informe o cargo ou função da pessoa responsável pelo projeto." />
                   <input
                     id="projeto-novo-cargo"
                     value={novoCargo}
@@ -969,7 +1025,7 @@ export function NovoProjetoWizard({
                   />
                 </div>
                 <div>
-                  <RotuloComAjuda htmlFor="projeto-novo-telefone" campo="Telefone" ajuda="Telefone de contato do responsável, se disponível. É opcional." />
+                  <RotuloComAjuda htmlFor="projeto-novo-telefone" campo="Telefone do responsável" ajuda="Telefone de contato do responsável pelo projeto, se disponível. É opcional." />
                   <input
                     id="projeto-novo-telefone"
                     value={novoTelefone}
@@ -978,7 +1034,7 @@ export function NovoProjetoWizard({
                   />
                 </div>
                 <div>
-                  <RotuloComAjuda htmlFor="projeto-novo-email" campo="E-mail" ajuda="E-mail de contato do responsável, se disponível. É opcional." />
+                  <RotuloComAjuda htmlFor="projeto-novo-email" campo="E-mail do responsável" ajuda="E-mail de contato do responsável pelo projeto, se disponível. É opcional." />
                   <input
                     id="projeto-novo-email"
                     type="email"
@@ -995,7 +1051,7 @@ export function NovoProjetoWizard({
                   ? "Problema público *"
                   : classificacao === "PLANO_GOVERNO"
                     ? "Compromisso do plano e resultado esperado *"
-                    : "O que precisa ser feito e onde? *"}
+                    : "Necessidade e local da ação *"}
                 ajuda={estruturante
                   ? "Descreva o problema, quem é afetado e onde ele acontece."
                   : classificacao === "PLANO_GOVERNO"
@@ -1017,7 +1073,7 @@ export function NovoProjetoWizard({
             {classificacao !== "ACAO_DIARIA" && (
               <>
                 <div>
-                  <RotuloComAjuda htmlFor="projeto-entrega" campo={estruturante ? "O que será entregue e para quem *" : "Entrega concreta deste ciclo *"} ajuda="Descreva o produto ou serviço concreto que será entregue e, quando aplicável, quem o receberá." />
+                  <RotuloComAjuda htmlFor="projeto-entrega" campo={estruturante ? "Entrega prevista e público beneficiado *" : "Entrega prevista neste ciclo *"} ajuda="Descreva o produto ou serviço concreto que será entregue e, quando aplicável, quem o receberá." />
                   <textarea
                     id="projeto-entrega"
                     rows={3}
@@ -1036,7 +1092,7 @@ export function NovoProjetoWizard({
                   />
                 </div>}
                 {estruturante && <div>
-                  <RotuloComAjuda htmlFor="projeto-fora-escopo" campo="O que fica fora deste projeto" ajuda="Registre entregas ou atividades que não fazem parte deste projeto, para evitar dúvidas. É opcional." />
+                  <RotuloComAjuda htmlFor="projeto-fora-escopo" campo="Fora do escopo do projeto" ajuda="Registre entregas ou atividades que não fazem parte deste projeto, para evitar dúvidas. É opcional." />
                   <textarea
                     id="projeto-fora-escopo"
                     rows={2}
@@ -1049,7 +1105,7 @@ export function NovoProjetoWizard({
             )}
             {exigeMeta && (
               <div>
-                <RotuloComAjuda htmlFor="projeto-meta" campo="A qual meta estratégica este projeto pertence?" ajuda="Todo projeto precisa pertencer a uma meta estratégica. Selecione uma meta cadastrada ou crie uma nova para vincular ao projeto." />
+                <RotuloComAjuda htmlFor="projeto-meta" campo="Meta estratégica do projeto" ajuda="Todo projeto precisa pertencer a uma meta estratégica. Selecione uma meta cadastrada ou crie uma nova para vincular ao projeto." />
                 <select
                   id="projeto-meta"
                   value={metaId}
@@ -1065,9 +1121,9 @@ export function NovoProjetoWizard({
                   ))}
                 </select>
                 {metaId === "__nova__" && <div className="stack" style={{ marginTop: 12 }}>
-                  <div><RotuloComAjuda htmlFor="projeto-nova-meta" campo="Nome da nova meta" ajuda="Descreva o resultado estratégico que se pretende alcançar no plano de governo." /><input id="projeto-nova-meta" value={novaMetaNome} onChange={(e) => setNovaMetaNome(e.target.value)} placeholder="Ex.: ampliar em 200 as vagas em creches" /></div>
+                  <div><RotuloComAjuda htmlFor="projeto-nova-meta" campo="Nome da meta estratégica" ajuda="Descreva o resultado estratégico que se pretende alcançar no plano de governo." /><input id="projeto-nova-meta" value={novaMetaNome} onChange={(e) => setNovaMetaNome(e.target.value)} placeholder="Ex.: ampliar em 200 as vagas em creches" /></div>
                   <div><RotuloComAjuda htmlFor="projeto-plano" campo="Plano de governo" ajuda="Escolha o plano ao qual a nova meta pertence ou crie um plano." /><select id="projeto-plano" value={planoId} onChange={(e) => setPlanoId(e.target.value)}>{planos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}<option value="__novo__">+ Criar plano de governo</option></select></div>
-                  {planoId === "__novo__" && <div><RotuloComAjuda htmlFor="projeto-novo-plano" campo="Nome e período do plano" ajuda="Identifique o plano de governo e o período de gestão a que se refere." /><input id="projeto-novo-plano" value={novoPlanoNome} onChange={(e) => setNovoPlanoNome(e.target.value)} placeholder="Ex.: Plano de Governo 2025–2028" /></div>}
+                  {planoId === "__novo__" && <div><RotuloComAjuda htmlFor="projeto-novo-plano" campo="Nome e período do plano de governo" ajuda="Identifique o plano de governo e o período de gestão a que se refere." /><input id="projeto-novo-plano" value={novoPlanoNome} onChange={(e) => setNovoPlanoNome(e.target.value)} placeholder="Ex.: Plano de Governo 2025–2028" /></div>}
                   <p className="dashboard-muted">A meta será criada junto com o projeto ao confirmar.</p>
                 </div>}
               </div>
@@ -1241,6 +1297,27 @@ export function NovoProjetoWizard({
               </ul>
             ) : null}
 
+            {!!impedimentosPersonalizados.length && (
+              <div>
+                <p className="section-kicker">Impedimentos e pré-requisitos adicionados</p>
+                {impedimentosPersonalizados.map((item) => {
+                  const resposta = parseCondicaoResposta(item.codigo, respostas[item.codigo]);
+                  const situacao = resposta.aplicabilidade === "nao" ? "Não se aplica" : resposta.situacao === "atendida" ? "Atendido" : "Pendente";
+                  return (
+                    <div key={item.codigo} className="dashboard-list-item">
+                      <div>
+                        <strong>{item.nome}</strong>
+                        <p className="dashboard-muted">{item.tipo === "PRE_REQUISITO" ? "Pré-requisito" : "Impedimento"}{item.bloqueante ? " · Impede o avanço enquanto pendente" : ""}</p>
+                        {resposta.proximoPasso && <p>{resposta.proximoPasso}</p>}
+                        {resposta.responsavel && <p className="dashboard-muted">Responsável pelo acompanhamento: {resposta.responsavel}</p>}
+                      </div>
+                      <Badge tone={situacao === "Pendente" ? "warning" : "neutral"}>{situacao}</Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             <div>
               <p className="section-kicker">Tarefas e responsáveis</p>
               {escopo.length ? (
@@ -1257,23 +1334,25 @@ export function NovoProjetoWizard({
         </Card>
       )}
 
+      </fieldset>
+
       {error && <p role="alert" style={{ color: "var(--cip-danger)" }}>{error}</p>}
 
       <footer className="wizard-foot">
         <Button
           type="button"
           variant="ghost"
-          disabled={step === 0 || saving}
+          disabled={step === 0 || busy}
           onClick={() => irPara(step - 1)}
         >
           Voltar
         </Button>
         {steps[step] !== "Prévia" ? (
-          <Button type="button" onClick={next}>
-            Continuar
+          <Button type="button" onClick={next} disabled={busy}>
+            {advancing ? "Preparando..." : "Continuar"}
           </Button>
         ) : (
-          <Button type="button" onClick={confirm} disabled={saving}>
+          <Button type="button" onClick={confirm} disabled={busy}>
             {saving ? "Gravando..." : "Confirmar e abrir projeto"}
           </Button>
         )}

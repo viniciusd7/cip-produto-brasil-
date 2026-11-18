@@ -606,8 +606,10 @@ for (const classificacao of CLASSIFICACAO_PROJETO) {
     assert.ok(preview.json.data.bloqueios.some((b: { perguntaCodigo: string }) => b.perguntaCodigo === itemPersonalizado.codigo));
     const confirmacao = await ctx.request("/iniciativas/wizard/confirmar", body);
     assert.equal(confirmacao.status, 201, JSON.stringify(confirmacao.json));
-    const snapshot = ctx.iniciativas[0].modeloSnapshot as unknown as { perguntas: Array<{ codigo: string; impacto: string }> };
+    const snapshot = ctx.iniciativas[0].modeloSnapshot as unknown as { perguntas: Array<{ codigo: string; impacto: string; metadados?: { tipoCondicionante?: string } }> };
     assert.equal(snapshot.perguntas.find((p) => p.codigo === itemPersonalizado.codigo)?.impacto, "BLOQUEANTE");
+    assert.equal(snapshot.perguntas.find((p) => p.codigo === itemPersonalizado.codigo)?.metadados?.tipoCondicionante, "PRE_REQUISITO");
+    assert.equal(snapshot.perguntas.find((p) => p.codigo === "imp_personalizado_outro")?.metadados?.tipoCondicionante, "IMPEDIMENTO");
     assert.equal(ctx.respostas.find((r) => r.perguntaCodigo === itemPersonalizado.codigo)?.perguntaTexto, itemPersonalizado.nome);
     assert.ok(ctx.respostas.some((r) => r.perguntaCodigo === "imp_personalizado_outro"));
     const atendido = await ctx.request("/iniciativas/wizard/preview", { ...body, respostas: [...impedimentosRespondidos, { perguntaCodigo: itemPersonalizado.codigo, valor: "atendida" }, { perguntaCodigo: "imp_personalizado_outro", valor: "pendente" }] });
