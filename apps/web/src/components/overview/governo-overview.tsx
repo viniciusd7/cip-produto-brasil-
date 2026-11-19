@@ -4,6 +4,10 @@ import Link from "next/link";
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { overviewCopy, secretariaRecommendation } from "./audience";
 import { PrefeitoProjetos } from "./prefeito-projetos";
+import { GovernoPanorama } from "./governo-panorama";
+import { GovernoAnalises } from "./governo-analises";
+import { SecretariaSaude } from "./secretaria-saude";
+import { hasSecretariaStatus, secretariaStatus, secretariaStatuses as statuses, share } from "./overview-model";
 import type { OverviewResponse, SecretariaOverview } from "./types";
 
 type View = "resumo" | "secretarias" | "projetos";
@@ -22,24 +26,10 @@ function Icon({ name }: { name: IconName }) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
 
-const statuses: Record<string, { label: string; tone: string }> = {
-  INTERVENCAO: { label: "Precisa de atenção", tone: "rose" },
-  DADOS_DEFASADOS: { label: "Atualização pendente", tone: "amber" },
-  ACOMPANHAMENTO: { label: "Acompanhar de perto", tone: "amber" },
-  ROTINA: { label: "Em acompanhamento", tone: "green" },
-};
 const priority = ["INTERVENCAO", "DADOS_DEFASADOS", "ACOMPANHAMENTO", "ROTINA"];
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
 const formatNumber = (value: number) => value.toLocaleString("pt-BR");
-const share = (value: number, total: number) => total ? Math.min(100, Math.max(0, value / total * 100)) : 0;
-
-function secretariaStatus(secretaria: SecretariaOverview) {
-  if (!secretaria.projetos) return { label: "Sem projetos", tone: "muted" };
-  if (!secretaria.tarefasTotal) return { label: "Sem tarefas", tone: "muted" };
-  return statuses[secretaria.classificacao] ?? { label: "Em acompanhamento", tone: "blue" };
-}
-
-function SecretariaCard({ secretaria: p, role }: { secretaria: SecretariaOverview; role?: string }) {
+function SecretariaCard({ secretaria: p, role, showHealth = false }: { secretaria: SecretariaOverview; role?: string; showHealth?: boolean }) {
   const status = secretariaStatus(p);
   const progress = share(p.concluidas, p.tarefasTotal);
   return (
@@ -47,6 +37,7 @@ function SecretariaCard({ secretaria: p, role }: { secretaria: SecretariaOvervie
       <div className="gov-secretaria__top"><span className={`gov-status gov-tone-${status.tone}`}><i />{status.label}</span><span>{p.projetos} {p.projetos === 1 ? "projeto" : "projetos"}</span></div>
       <h3>{p.nome}</h3>
       <p className="gov-secretaria__owner">{p.titular?.nome || "Responsável não cadastrado"}</p>
+      {showHealth && <SecretariaSaude secretaria={p} />}
       <div className="gov-secretaria__progress"><span>Tarefas concluídas</span><strong>{p.concluidas} de {p.tarefasTotal}</strong></div>
       <div className="gov-progress" role="img" aria-label={`${Math.round(progress)}% das tarefas concluídas`}><span style={{ width: `${progress}%` }} /></div>
       <div className="gov-secretaria__facts"><span className={p.atrasadas ? "gov-tone-rose" : undefined}><b>{p.atrasadas}</b> em atraso</span><span className={p.semPrazo ? "gov-tone-amber" : undefined}><b>{p.semPrazo}</b> sem prazo</span>{p.criticas > 0 && <span className="gov-tone-rose"><b>{p.criticas}</b> {p.criticas === 1 ? "crítica" : "críticas"}</span>}</div>
@@ -63,6 +54,8 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("");
   const [sort, setSort] = useState("priority");
+  const [showHealth, setShowHealth] = useState(true);
+  const [attentionFilter, setAttentionFilter] = useState("");
   const tabsRef = useRef<HTMLElement>(null);
   const reference = payload.meta?.dataReferencia ? new Date(payload.meta.dataReferencia) : null;
   const validReference = reference && !Number.isNaN(reference.getTime()) ? reference : null;
@@ -82,13 +75,14 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
   );
   const visible = sortedSecretarias.filter((p) =>
     normalize(`${p.nome} ${p.sigla ?? ""} ${p.titular?.nome ?? ""}`).includes(normalize(query.trim())) &&
-    (!filter || (filter === "SEM_PRAZO" ? p.semPrazo > 0 : filter === "SEM_PROJETOS" ? !p.projetos : p.classificacao === filter)),
+    hasSecretariaStatus(p, filter),
   ).sort((a, b) => sort === "name" ? a.nome.localeCompare(b.nome, "pt-BR") : sort === "delay" ? b.atrasadas - a.atrasadas : 0);
   const attentionItems = [
-    ...(tarefasPedemAcao?.atrasadas ?? []).map((t) => ({ ...t, label: "Atrasada", tone: "rose" })),
-    ...(tarefasPedemAcao?.vencemEm15d ?? []).map((t) => ({ ...t, label: "Vence em até 15 dias", tone: "amber" })),
-    ...(tarefasPedemAcao?.semPrazo ?? []).map((t) => ({ ...t, label: "Sem prazo definido", tone: "muted" })),
+    ...(tarefasPedemAcao?.atrasadas ?? []).map((t) => ({ ...t, category: "atrasadas", label: "Atrasada", tone: "rose" })),
+    ...(tarefasPedemAcao?.vencemEm15d ?? []).map((t) => ({ ...t, category: "proximas", label: "Vence em até 15 dias", tone: "amber" })),
+    ...(tarefasPedemAcao?.semPrazo ?? []).map((t) => ({ ...t, category: "sem-prazo", label: "Sem prazo definido", tone: "muted" })),
   ].filter((item, index, items) => items.findIndex((other) => other.id === item.id) === index);
+  const visibleAttention = attentionItems.filter((item) => !attentionFilter || item.category === attentionFilter);
   const views: Array<{ id: View; label: string; count?: number }> = [
     { id: "resumo", label: "Resumo" },
     { id: "secretarias", label: "Secretarias", count: porSecretaria.length },
@@ -98,6 +92,11 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
   function changeView(next: View, focus = false) {
     setView(next);
     if (focus) tabsRef.current?.querySelector<HTMLButtonElement>(`#gov-tab-${next}`)?.focus();
+  }
+  function openSecretarias(nextFilter: string) {
+    setQuery("");
+    setFilter(nextFilter);
+    changeView("secretarias", true);
   }
   function onTabKey(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     let next: number | undefined;
@@ -127,6 +126,8 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
           <Link href="/pendencias" className={`gov-stat${governo.atrasadas ? " gov-stat--attention" : ""}`}><span className={`gov-stat__icon gov-tone-${governo.atrasadas ? "rose" : "green"}`}><Icon name="clock" /></span><span className="gov-stat__label">Tarefas atrasadas</span><strong>{formatNumber(governo.atrasadas)}</strong><span className="gov-stat__note">{governo.atrasadas ? "Precisam de acompanhamento" : "Nenhum atraso registrado"}<Icon name="arrow" /></span></Link>
         </div>
 
+        <GovernoPanorama data={payload.data} dataReferencia={payload.meta?.dataReferencia} onOpenSecretarias={openSecretarias} />
+
         <div className="gov-summary-grid">
           <section className="gov-panel gov-execution" aria-labelledby="gov-execution-title">
             <div className="gov-section-head"><div><h2 id="gov-execution-title">Como estão as tarefas</h2><p>Uma leitura simples do andamento dos projetos.</p></div><span className="gov-total">{formatNumber(governo.totalTarefas)} no total</span></div>
@@ -138,7 +139,8 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
 
           <section className="gov-panel gov-attention" aria-labelledby="gov-attention-title">
             <div className="gov-section-head"><div><h2 id="gov-attention-title">O que precisa de atenção</h2><p>Atrasos e próximos prazos para acompanhar.</p></div><Link href="/pendencias" className="gov-text-link">Ver agenda <Icon name="arrow" /></Link></div>
-            {attentionItems.length ? <><ul className="gov-attention-list">{attentionItems.slice(0, 5).map((item) => <li key={item.id}><Link href={`/iniciativas/${item.iniciativaId}?aba=andamento`}><span className={`gov-status gov-tone-${item.tone}`}><i />{item.label}</span><strong>{item.descricao}</strong><small>{item.secretaria} · {item.iniciativaNome}</small><span className="gov-attention-list__arrow"><Icon name="arrow" /></span></Link></li>)}</ul><p className="gov-attention__foot">Exibindo {Math.min(5, attentionItems.length)} tarefas prioritárias. Consulte a agenda para ver os demais itens.</p></> : <div className="gov-empty"><span className={`gov-empty__icon gov-tone-${governo.atrasadas || governo.semPrazo ? "amber" : "green"}`}><Icon name={governo.atrasadas || governo.semPrazo ? "clock" : "check"} /></span><h3>{governo.atrasadas || governo.semPrazo ? "Confira os pontos de atenção" : governo.totalTarefas ? "Nenhum alerta de tarefa nesta lista" : "O acompanhamento começa aqui"}</h3><p>{governo.atrasadas || governo.semPrazo ? `Há ${governo.atrasadas} tarefas atrasadas e ${governo.semPrazo} sem prazo. Consulte os detalhes na agenda.` : governo.totalTarefas ? "As tarefas atrasadas ou próximas do vencimento aparecerão aqui quando estiverem disponíveis." : copy.emptyTasks}</p><Link href={governo.totalTarefas ? "/pendencias" : "/carteira"} className="gov-text-link">{governo.totalTarefas ? "Abrir agenda" : "Ver projetos"}<Icon name="arrow" /></Link></div>}
+            <div className="gov-attention-filters" role="group" aria-label="Filtrar tarefas que pedem atenção">{[{id:"",label:"Todas"},{id:"atrasadas",label:"Atrasadas"},{id:"proximas",label:"Próximos prazos"},{id:"sem-prazo",label:"Sem prazo"}].map((item) => <button key={item.id} type="button" aria-pressed={attentionFilter === item.id} onClick={() => setAttentionFilter(item.id)}>{item.label}</button>)}</div>
+            {visibleAttention.length ? <><ul className="gov-attention-list">{visibleAttention.slice(0, 5).map((item) => <li key={item.id}><Link href={`/iniciativas/${item.iniciativaId}?aba=andamento`}><span className={`gov-status gov-tone-${item.tone}`}><i />{item.label}</span><strong>{item.descricao}</strong><small>{item.secretaria} · {item.iniciativaNome}</small><span className="gov-attention-list__arrow"><Icon name="arrow" /></span></Link></li>)}</ul><p className="gov-attention__foot">Exibindo {Math.min(5, visibleAttention.length)} tarefas prioritárias. Consulte a agenda para ver os demais itens.</p></> : attentionFilter ? <div className="gov-empty"><h3>Nenhuma tarefa nesta categoria</h3><p>Escolha outra categoria para consultar os itens disponíveis nesta base.</p><button type="button" className="gov-text-link" onClick={() => setAttentionFilter("")}>Mostrar todas</button></div> : <div className="gov-empty"><span className={`gov-empty__icon gov-tone-${governo.atrasadas || governo.semPrazo ? "amber" : "green"}`}><Icon name={governo.atrasadas || governo.semPrazo ? "clock" : "check"} /></span><h3>{governo.atrasadas || governo.semPrazo ? "Confira os pontos de atenção" : governo.totalTarefas ? "Nenhum alerta de tarefa nesta lista" : "O acompanhamento começa aqui"}</h3><p>{governo.atrasadas || governo.semPrazo ? `Há ${governo.atrasadas} tarefas atrasadas e ${governo.semPrazo} sem prazo. Consulte os detalhes na agenda.` : governo.totalTarefas ? "As tarefas atrasadas ou próximas do vencimento aparecerão aqui quando estiverem disponíveis." : copy.emptyTasks}</p><Link href={governo.totalTarefas ? "/pendencias" : "/carteira"} className="gov-text-link">{governo.totalTarefas ? "Abrir agenda" : "Ver projetos"}<Icon name="arrow" /></Link></div>}
           </section>
         </div>
 
@@ -149,16 +151,18 @@ export function GovernoOverview({ payload, municipio, role }: { payload: Overvie
           <button type="button" onClick={() => { setFilter("DADOS_DEFASADOS"); changeView("secretarias", true); }}><strong>{agenda.pastasDesatualizadas.length}</strong><span>secretarias sem atualização<small>Solicitar uma posição mais recente</small></span><Icon name="arrow" /></button>
         </section>
 
-        <section className="gov-secretarias-section" aria-labelledby="gov-priority-title"><div className="gov-section-head"><div><h2 id="gov-priority-title">Acompanhamento das secretarias</h2><p>As pastas que mais precisam de acompanhamento aparecem primeiro.</p></div><button type="button" className="gov-text-link" onClick={() => changeView("secretarias", true)}>Ver todas <Icon name="arrow" /></button></div>{sortedSecretarias.length ? <div className="gov-secretaria-grid">{sortedSecretarias.slice(0, 3).map((p) => <SecretariaCard key={p.id} secretaria={p} role={role} />)}</div> : <div className="gov-panel gov-empty"><h3>Nenhuma secretaria cadastrada</h3><p>{copy.secretariaEmpty}</p><Link href="/secretarias" className="gov-text-link">Abrir secretarias <Icon name="arrow" /></Link></div>}</section>
 
-        {projetosEstruturantes.length > 0 && <section className="gov-projects-section" aria-labelledby="gov-projects-title"><div className="gov-section-head"><div><h2 id="gov-projects-title">Projetos estruturantes</h2><p>Projetos destacados para o acompanhamento da prefeitura.</p></div><button type="button" className="gov-text-link" onClick={() => changeView("projetos", true)}>Ver projetos <Icon name="arrow" /></button></div><div className="gov-featured-projects">{projetosEstruturantes.slice(0, 3).map((p) => <Link key={p.id} href={`/iniciativas/${p.id}`}><span className="gov-project-icon"><Icon name="projects" /></span><div><h3>{p.nome}</h3><p>{p.secretaria}</p><span className={p.atrasadas ? "gov-tone-rose" : "gov-tone-muted"}>{p.atrasadas ? `${p.atrasadas} tarefas atrasadas` : "Sem atraso registrado"}</span></div><Icon name="arrow" /></Link>)}</div></section>}
+
+        {projetosEstruturantes.length > 0 && <section className="gov-projects-section" aria-labelledby="gov-projects-title"><div className="gov-section-head"><div><h2 id="gov-projects-title">Projetos estruturantes</h2><p>Projetos destacados para o acompanhamento da prefeitura.</p></div><button type="button" className="gov-text-link" onClick={() => changeView("projetos", true)}>Ver projetos <Icon name="arrow" /></button></div><div className="gov-featured-projects">{projetosEstruturantes.slice(0, 6).map((p) => <Link key={p.id} href={`/iniciativas/${p.id}`}><span className="gov-project-icon"><Icon name="projects" /></span><div><h3>{p.nome}</h3><p>{p.secretaria}</p><span className={p.atrasadas ? "gov-tone-rose" : "gov-tone-muted"}>{p.atrasadas ? `${p.atrasadas} tarefas atrasadas` : "Sem atraso registrado"}</span><small className="gov-featured-projects__facts">{`${p.marcos} ${p.marcos === 1 ? "tarefa" : "tarefas"} · ${p.pendencias} ${p.pendencias === 1 ? "pendência" : "pendências"}`}</small></div><Icon name="arrow" /></Link>)}</div></section>}
+        <GovernoAnalises data={payload.data} role={role} onFilter={openSecretarias} />
       </div>}
 
       {view === "secretarias" && <section id="gov-panel-secretarias" role="tabpanel" aria-labelledby="gov-tab-secretarias" tabIndex={0}>
         <div className="gov-section-head"><div><h2>Situação das secretarias</h2><p>Consulte os projetos, as tarefas e o que precisa de acompanhamento em cada pasta.</p></div><Link href="/secretarias" className="gov-text-link">Ver lista completa <Icon name="arrow" /></Link></div>
-        <div className="gov-filters"><div className="gov-search"><label htmlFor="gov-search">Buscar secretaria ou responsável</label><div><Icon name="search" /><input id="gov-search" type="search" placeholder="Nome da secretaria ou responsável" value={query} onChange={(event) => setQuery(event.target.value)} /></div></div><div><label htmlFor="gov-filter">Situação</label><select id="gov-filter" value={filter} onChange={(event) => setFilter(event.target.value)}><option value="">Todas as situações</option>{Object.entries(statuses).map(([key, status]) => <option key={key} value={key}>{status.label}</option>)}<option value="SEM_PRAZO">Com tarefas sem prazo</option><option value="SEM_PROJETOS">Sem projetos</option></select></div><div><label htmlFor="gov-sort">Ordenar por</label><select id="gov-sort" value={sort} onChange={(event) => setSort(event.target.value)}><option value="priority">Prioridade de acompanhamento</option><option value="name">Nome da secretaria</option><option value="delay">Mais tarefas atrasadas</option></select></div></div>
+        <div className="gov-filters"><div className="gov-search"><label htmlFor="gov-search">Buscar secretaria ou responsável</label><div><Icon name="search" /><input id="gov-search" type="search" placeholder="Nome da secretaria ou responsável" value={query} onChange={(event) => setQuery(event.target.value)} /></div></div><div><label htmlFor="gov-filter">Situação</label><select id="gov-filter" value={filter} onChange={(event) => setFilter(event.target.value)}><option value="">Todas as situações</option>{Object.entries(statuses).map(([key, status]) => <option key={key} value={key}>{status.label}</option>)}<option value="SEM_PRAZO">Com tarefas sem prazo</option><option value="SEM_PROJETOS">Sem projetos</option><option value="SEM_TAREFAS">Sem tarefas cadastradas</option></select></div><div><label htmlFor="gov-sort">Ordenar por</label><select id="gov-sort" value={sort} onChange={(event) => setSort(event.target.value)}><option value="priority">Prioridade de acompanhamento</option><option value="name">Nome da secretaria</option><option value="delay">Mais tarefas atrasadas</option></select></div></div>
+        <div className="gov-secretarias-toolbar"><p>O radar reúne execução, prazos e gravidade. Abra uma pasta para consultar os projetos.</p><div className="gov-view-switch" role="group" aria-label="Detalhamento das secretarias"><button type="button" aria-pressed={!showHealth} onClick={() => setShowHealth(false)}>Resumo</button><button type="button" aria-pressed={showHealth} onClick={() => setShowHealth(true)}>Análise visual</button></div></div>
         <p className="gov-result-count" aria-live="polite">{visible.length} de {porSecretaria.length} secretarias{(query || filter) && <button type="button" onClick={() => { setQuery(""); setFilter(""); }}>Limpar filtros</button>}</p>
-        {visible.length ? <div className="gov-secretaria-grid">{visible.map((p) => <SecretariaCard key={p.id} secretaria={p} role={role} />)}</div> : <div className="gov-panel gov-empty"><h3>{porSecretaria.length ? "Nenhuma secretaria encontrada" : "Nenhuma secretaria cadastrada"}</h3><p>{porSecretaria.length ? "Tente outro nome ou limpe os filtros para ver todas as secretarias." : copy.secretariaEmpty}</p>{porSecretaria.length ? <button type="button" className="gov-text-link" onClick={() => { setQuery(""); setFilter(""); }}>Limpar filtros</button> : <Link href="/secretarias" className="gov-text-link">Abrir secretarias <Icon name="arrow" /></Link>}</div>}
+        {visible.length ? <div className="gov-secretaria-grid">{visible.map((p) => <SecretariaCard key={p.id} secretaria={p} role={role} showHealth={showHealth} />)}</div> : <div className="gov-panel gov-empty"><h3>{porSecretaria.length ? "Nenhuma secretaria encontrada" : "Nenhuma secretaria cadastrada"}</h3><p>{porSecretaria.length ? "Tente outro nome ou limpe os filtros para ver todas as secretarias." : copy.secretariaEmpty}</p>{porSecretaria.length ? <button type="button" className="gov-text-link" onClick={() => { setQuery(""); setFilter(""); }}>Limpar filtros</button> : <Link href="/secretarias" className="gov-text-link">Abrir secretarias <Icon name="arrow" /></Link>}</div>}
       </section>}
 
       {view === "projetos" && <div id="gov-panel-projetos" role="tabpanel" aria-labelledby="gov-tab-projetos" tabIndex={0}><PrefeitoProjetos projetos={payload.data.projetosVisao ?? []} /></div>}
