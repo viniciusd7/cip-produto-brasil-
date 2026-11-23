@@ -1,3 +1,4 @@
+import { saveKnowledgeFile, readKnowledgeFile, deleteKnowledgeFile } from "../services/conhecimento-documentos";
 import { avisarSecretaria } from "../services/notifications";
 import { Router } from "express";
 import multer from "multer";
@@ -867,15 +868,11 @@ iniciativasRouter.post(
             "Arquivo não permitido. Use imagem, vídeo MP4/WEBM/MOV, PDF ou Word.",
           );
         }
-        const stored = await localStorage.save(
-          file.buffer,
-          file.originalname,
-          file.mimetype,
-        );
-        storedPath = stored.relativePath;
-        mimeType = stored.mimeType;
-        tamanhoBytes = stored.size;
-        arquivoNome = stored.originalName;
+        if (!file.buffer.length) throw new HttpError(422, "INVALID_FILE", "Selecione um arquivo com conteúdo");
+        storedPath = await saveKnowledgeFile(file.buffer, ini.municipioId, file.originalname, file.mimetype);
+        mimeType = file.mimetype;
+        tamanhoBytes = file.size;
+        arquivoNome = file.originalname;
         tipo = inferTipoFromMime(file.mimetype);
       } else if (body.urlOuArquivo) {
         tipo = "LINK";
@@ -900,6 +897,12 @@ iniciativasRouter.post(
       });
         await avisarSecretaria(ini.id, `Nova evidência: ${body.titulo}. Providência: verificar a entrega registrada por ${req.user!.name} e aprovar ou solicitar correção.`, "EVIDENCIA", req.user!.id, tx);
         return evidencia;
+      }).catch(async (error) => {
+        if (storedPath) {
+          try { await deleteKnowledgeFile(storedPath); }
+          catch { console.error("Falha ao remover arquivo de evidência sem registro"); }
+        }
+        throw error;
       });
 
       await writeAudit({
@@ -955,6 +958,15 @@ iniciativasRouter.get(
         throw new HttpError(404, "NO_FILE", "Esta evidência não tem arquivo local");
       }
 
+      if (evidencia.urlOuArquivo.startsWith("supabase:") || evidencia.urlOuArquivo.startsWith("local:")) {
+        const bytes = await readKnowledgeFile(evidencia.urlOuArquivo);
+        res.setHeader("Content-Type", evidencia.mimeType || "application/octet-stream");
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Cache-Control", "private, no-store");
+        res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(evidencia.arquivoNome || "evidencia")}"`);
+        res.send(bytes);
+        return;
+      }
       const abs = localStorage.absolutePath(evidencia.urlOuArquivo);
       if (!(await localStorage.exists(evidencia.urlOuArquivo))) {
         throw new HttpError(404, "FILE_MISSING", "Arquivo não encontrado no storage");

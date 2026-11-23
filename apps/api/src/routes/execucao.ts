@@ -139,7 +139,7 @@ async function carregarAlvo(entidadeTipo: "MARCO" | "SUBTAREFA", entidadeId: str
     iniciativa: sub.marco.iniciativa,
     marcoId: sub.marcoId,
     descricao: `${sub.marco.descricao} › ${sub.descricao}`,
-    concluida: sub.concluida,
+    concluida: Boolean(sub.concluida || sub.marco.concluidoEm || sub.marco.encerradoSemSolucaoEm),
   };
 }
 
@@ -154,10 +154,10 @@ execucaoRouter.post(
       if (alvo.concluida) throw new HttpError(422, "JA_CONCLUIDA", "Este item já está concluído");
       if (body.evidenciaId) {
         const evidencia = await prisma.evidencia.findFirst({
-          where: { id: body.evidenciaId, iniciativaId: alvo.iniciativa.id },
+          where: { id: body.evidenciaId, iniciativaId: alvo.iniciativa.id, OR: [{ marcoId: null }, { marcoId: alvo.marcoId }] },
           select: { id: true },
         });
-        if (!evidencia) throw new HttpError(422, "INVALID_EVIDENCIA", "A evidência não pertence a este projeto");
+        if (!evidencia) throw new HttpError(422, "INVALID_EVIDENCIA", "A evidência precisa pertencer a esta tarefa ou ser uma evidência geral do projeto");
       }
       const aberta = await prisma.solicitacaoValidacao.findFirst({
         where: { entidadeTipo: body.entidadeTipo, entidadeId: body.entidadeId, tipo: "CONCLUSAO", status: "ABERTA" },
@@ -173,6 +173,11 @@ execucaoRouter.post(
         evidenciaId: body.evidenciaId ?? null,
       };
       const sol = await prisma.$transaction(async (tx) => {
+        const pendente = await tx.solicitacaoValidacao.findFirst({
+          where: { entidadeTipo: body.entidadeTipo, entidadeId: body.entidadeId, tipo: "CONCLUSAO", status: "ABERTA" },
+          select: { id: true },
+        });
+        if (pendente) throw new HttpError(409, "VALIDACAO_ABERTA", "Já existe um pedido de conclusão aguardando o consultor");
         const created = await tx.solicitacaoValidacao.create({
           data: {
             municipioId: alvo.iniciativa.municipioId,
@@ -198,6 +203,11 @@ execucaoRouter.post(
           tx,
         );
         return created;
+      }, { isolationLevel: "Serializable" }).catch((error) => {
+        if (error && typeof error === "object" && "code" in error && error.code === "P2034") {
+          throw new HttpError(409, "VALIDACAO_ABERTA", "O pedido foi atualizado por outra pessoa. Atualize a página antes de tentar novamente.");
+        }
+        throw error;
       });
       await writeAudit({
         user: req.user,
@@ -305,6 +315,8 @@ execucaoRouter.post(
       if (sol.status !== "ABERTA") throw new HttpError(409, "JA_DECIDIDA", "Este pedido já foi decidido");
       const p = (sol.payload || {}) as Partial<PayloadConclusao>;
       const alvo = await carregarAlvo(sol.entidadeTipo as "MARCO" | "SUBTAREFA", sol.entidadeId);
+
+      if (body.resultado === "APROVADA" && alvo.concluida) throw new HttpError(409, "ALVO_ENCERRADO", "O item já foi concluído ou encerrado. Devolva o pedido para revisão.");
 
       if (body.resultado === "APROVADA") {
         const ini = await prisma.iniciativa.findUniqueOrThrow({

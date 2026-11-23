@@ -64,3 +64,9 @@ test("tarefa concluída oferece reabertura e preserva subtarefas sem ações de 
   assert.match(html, /Reabrir/);
   assert.doesNotMatch(html, /Reprogramar prazo|Concluir subtarefa|Reabrir subtarefa|Salvar responsável/);
 });
+
+test("secretário possui ações operacionais sem ações administrativas de tarefas", () => {
+ const html=renderToStaticMarkup(<AppRouterContext.Provider value={router}><TarefasGestao tarefas={[tarefa]} token="segredo" modo="SECRETARIA" /></AppRouterContext.Provider>);
+ assert.match(html,/Tarefas da secretaria/);assert.match(html,/Reprogramar/);assert.match(html,/Evidência|evidência/);assert.match(html,/Concluir/);
+ assert.doesNotMatch(html,/Atribuir responsável|Criar tarefa|Reabrir subtarefa|segredo/);
+});
