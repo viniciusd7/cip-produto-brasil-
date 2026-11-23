@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { apiFetch } from "@/lib/api";
+import { apiFetchForPage as apiFetch } from "@/lib/api-page";
 import { CenarioSecretaria, type CenarioSecretariaResponse } from "@/components/overview/cenario-secretaria";
 import { GovernoOverview } from "@/components/overview/governo-overview";
 import type { OverviewResponse } from "@/components/overview/types";

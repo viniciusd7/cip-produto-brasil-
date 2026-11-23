@@ -5,6 +5,7 @@ import {
   evaluateWizard,
   formatarDetalhes,
   MODELO_ACAO_DIARIA,
+  MODELO_ESTRUTURANTE,
   MODELO_PLANO_GOVERNO,
   adicionarImpedimentosComuns,
   adicionarImpedimentosPersonalizados,
@@ -276,6 +277,8 @@ wizardRouter.post(
         if (!row) throw new HttpError(404, "NOT_FOUND", "Modelo não encontrado");
         await assertMunicipioAccess(req.user!, row.municipioId, "Modelo");
         modelo = await loadModeloSnapshot(row.id);
+      } else if (usaFluxoEstruturante(body.classificacaoPrincipal)) {
+        modelo = MODELO_ESTRUTURANTE;
       }
       modelo = adicionarImpedimentosComuns(modelo);
       modelo = adicionarImpedimentosPersonalizados(modelo, body.impedimentosPersonalizados);
@@ -409,6 +412,8 @@ wizardRouter.post(
         await assertMunicipioAccess(req.user!, row.municipioId, "Modelo");
         modeloId = row.id;
         modeloSnap = await loadModeloSnapshot(row.id);
+      } else if (usaFluxoEstruturante(body.classificacaoPrincipal)) {
+        modeloSnap = MODELO_ESTRUTURANTE;
       }
       modeloSnap = adicionarImpedimentosComuns(modeloSnap);
       modeloSnap = adicionarImpedimentosPersonalizados(modeloSnap, body.impedimentosPersonalizados);

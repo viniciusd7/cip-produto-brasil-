@@ -344,7 +344,7 @@ export function NovoProjetoWizard({
   ).sort();
 
   const perguntasBase: ModeloPerguntaDef[] = estruturante
-    ? modeloPadrao?.codigo === "PROJETO_ESTRUTURANTE_PADRAO"
+    ? !modeloPadrao || modeloPadrao.codigo === "PROJETO_ESTRUTURANTE_PADRAO"
       ? PERGUNTAS_ESTRUTURANTE
       : modeloCarregado && modeloPadrao && modeloCarregado.id === modeloPadrao.id ? modeloCarregado.perguntas : []
     : classificacao === "PLANO_GOVERNO"
@@ -552,10 +552,6 @@ export function NovoProjetoWizard({
       const label = steps[step];
       if (label === GRUPO_IMPEDIMENTOS.nome || label === "Tarefas" || label === "Prévia") validarItensPersonalizados();
       if (label === "Identidade") {
-        if (estruturante && !modeloPadrao?.id) {
-          setError("Modelo padrão estruturante não encontrado. Peça ao admin para ativar o modelo CIP.");
-          return;
-        }
         if (modeloLoading || erroModelo) {
           setError(modeloLoading ? "Aguarde o carregamento do modelo." : "Não foi possível carregar o modelo. Tente novamente.");
           return;
@@ -783,9 +779,6 @@ export function NovoProjetoWizard({
         <p className="dashboard-muted">Um rascunho por tipo, usuário e prefeitura. Disponível somente neste navegador; não é sincronizado entre dispositivos.</p>
         <Button type="button" variant="ghost" disabled={busy} onClick={descartarRascunho}>Descartar rascunho e recomeçar</Button>
       </div>
-      {estruturante && !modeloPadrao && (
-        <p role="alert">Modelo estruturante não encontrado nesta prefeitura. Peça ao administrador para ativar o modelo CIP antes de concluir o cadastro. Seu rascunho pode ser mantido neste navegador.</p>
-      )}
       <header
         ref={cabecalhoRef}
         className="wizard-head"

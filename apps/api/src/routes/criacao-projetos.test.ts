@@ -32,7 +32,7 @@ function stub(t: TestContext, target: object, method: string, implementation: (.
   t.after(() => { Reflect.set(target, method, original); });
 }
 
-async function setup(t: TestContext, options: { falharEscopo?: boolean } = {}) {
+async function setup(t: TestContext, options: { falharEscopo?: boolean; role?: "analista" | "leitura" } = {}) {
   const iniciativas: Prisma.IniciativaUncheckedCreateInput[] = [];
   const classificacoes: Prisma.IniciativaClassificacaoCreateManyInput[] = [];
   const respostas: Prisma.IniciativaRespostaViabilidadeUncheckedCreateInput[] = [];
@@ -46,9 +46,9 @@ async function setup(t: TestContext, options: { falharEscopo?: boolean } = {}) {
   let emTransacao = false;
   const secretaria = { id: "secretaria", municipioId: "municipio", active: true };
 
-  stub(t, prisma.user, "findUnique", async () => ({ active: true, isPlatformAdmin: true }));
+  stub(t, prisma.user, "findUnique", async () => ({ active: true, isPlatformAdmin: !options.role }));
   stub(t, prisma.municipio, "findFirst", async () => ({ id: "municipio", nome: "Município" }));
-  stub(t, prisma.vinculoUsuarioMunicipio, "findUnique", async () => null);
+  stub(t, prisma.vinculoUsuarioMunicipio, "findUnique", async () => options.role ? { roleCode: options.role, secretariaId: null } : null);
   stub(t, prisma.secretaria, "findFirst", async () => secretaria);
   stub(t, prisma.secretaria, "findMany", async ({ where }: { where: Prisma.SecretariaWhereInput }) => {
     assert.equal(where.municipioId, "municipio");
@@ -72,6 +72,7 @@ async function setup(t: TestContext, options: { falharEscopo?: boolean } = {}) {
   stub(t, prisma.secretariaPessoa, "findFirst", async () => ({ id: "pessoa", nome: "Responsável" }));
   stub(t, prisma.secretariaPessoa, "create", async () => ({ id: "nova-pessoa", nome: "Nova pessoa" }));
   stub(t, prisma.auditLog, "create", async () => ({}));
+  stub(t, prisma.itemGeradoOrigem, "create", async () => ({}));
   stub(t, prisma.iniciativaSecretaria, "create", async () => ({}));
   stub(t, prisma.metaExecucao, "create", async () => {
     assert.fail("Wizard nao pode criar metas de execucao");
@@ -160,7 +161,7 @@ async function setup(t: TestContext, options: { falharEscopo?: boolean } = {}) {
   const token = signAccessToken({
     id: "usuario", email: "qa@example.invalid", name: "QA",
     municipioId: "municipio", municipioNome: "Município",
-    role: "admin", isPlatformAdmin: true, permissions: [],
+    role: options.role || "admin", isPlatformAdmin: !options.role, permissions: [],
   });
   async function request(path: string, body: object, method = "POST") {
     const response = await fetch(`${base}${path}`, {
@@ -630,4 +631,64 @@ test("itens personalizados rejeitam nomes vazios, codigos duplicados e alteracao
   assert.equal(semResposta.status, 422);
   assert.equal(semResposta.json.error.code, "IMPEDIMENTO_NAO_RESPONDIDO");
   assert.equal(ctx.transacoes.length, 0);
+});
+
+for (const classificacaoPrincipal of ["ESTRUTURANTE", "PRIORITARIO"]) {
+  test(`consultor cria ${classificacaoPrincipal} sem modelo ativado, com roteiro completo e tarefas condicionais`, async (t) => {
+    const ctx = await setup(t, { role: "analista" });
+    stub(t, prisma.modeloProjeto, "findUnique", async () => { assert.fail("O roteiro padrão não depende de configuração no banco"); });
+    const body = {
+      ...wizard, classificacaoPrincipal, estruturaOverride: undefined,
+      respostas: [...impedimentosRespondidos.map((r) => r.perguntaCodigo === "desapropriacao_imovel" ? { ...r, valor: "pendente" } : r), { perguntaCodigo: "situacao_imovel", valor: "Precisa desapropriar imóvel" }],
+    };
+    const preview = await ctx.request("/iniciativas/wizard/preview", body);
+    assert.equal(preview.status, 200, JSON.stringify(preview.json));
+    assert.ok(preview.json.data.estrutura.some((task: { codigo: string }) => task.codigo === "TAR_DUP"));
+    assert.ok(preview.json.data.estrutura.some((task: { codigo: string }) => task.codigo === "TAR_ENTREGA"));
+    const response = await ctx.request("/iniciativas/wizard/confirmar", body);
+    assert.equal(response.status, 201, JSON.stringify(response.json));
+    const snapshot = ctx.iniciativas[0].modeloSnapshot as { codigo: string; perguntas: Array<{ codigo: string }> };
+    assert.equal(snapshot.codigo, "PROJETO_ESTRUTURANTE_PADRAO");
+    assert.ok(snapshot.perguntas.some((p) => p.codigo === "situacao_imovel"));
+    assert.equal(ctx.iniciativas[0].modeloProjetoId, undefined);
+    assert.ok(ctx.tarefas.some((tarefa) => tarefa.codigo === "TAR_DUP"));
+  });
+}
+
+test("modelo explícito inexistente ou de outra prefeitura não usa o roteiro padrão para contornar o erro", async (t) => {
+  const ctx = await setup(t, { role: "analista" });
+  let modelo: { id: string; municipioId: string } | null = null;
+  stub(t, prisma.modeloProjeto, "findUnique", async () => modelo);
+  for (const value of [null, { id: "modelo", municipioId: "outra-prefeitura" }]) {
+    modelo = value;
+    for (const path of ["/iniciativas/wizard/preview", "/iniciativas/wizard/confirmar"]) {
+      const response = await ctx.request(path, { ...wizard, classificacaoPrincipal: "ESTRUTURANTE", modeloProjetoId: "modelo" });
+      assert.equal(response.status, modelo ? 403 : 404, JSON.stringify(response.json));
+    }
+  }
+  assert.equal(ctx.iniciativas.length, 0);
+});
+
+test("roteiro integrado não libera criação de projetos para perfil de consulta", async (t) => {
+  const ctx = await setup(t, { role: "leitura" });
+  for (const path of ["/iniciativas/wizard/preview", "/iniciativas/wizard/confirmar"]) {
+    const response = await ctx.request(path, { ...wizard, classificacaoPrincipal: "ESTRUTURANTE" });
+    assert.equal(response.status, 403, JSON.stringify(response.json));
+  }
+  assert.equal(ctx.iniciativas.length, 0);
+});
+
+test("consultor conserva o modelo personalizado da própria prefeitura quando selecionado", async (t) => {
+  const ctx = await setup(t, { role: "analista" });
+  const snapshot = {
+    codigo: "ESTRUTURANTE_PERSONALIZADO", nome: "Roteiro municipal",
+    perguntas: [{ codigo: "custom", texto: "Informação municipal", tipoResposta: "TEXTO", impacto: "INFORMATIVA", ordem: 1 }],
+    estrutura: [{ codigo: "TAR_CUSTOM", nivel: "TAREFA", nome: "Entrega municipal", ordem: 1, sempreIncluir: true }],
+  };
+  stub(t, prisma.modeloProjeto, "findUnique", async () => ({ id: "modelo", municipioId: "municipio", codigo: snapshot.codigo, snapshot, perguntas: [], estrutura: [] }));
+  const response = await ctx.request("/iniciativas/wizard/confirmar", { ...wizard, classificacaoPrincipal: "ESTRUTURANTE", modeloProjetoId: "modelo", estruturaOverride: undefined });
+  assert.equal(response.status, 201, JSON.stringify(response.json));
+  assert.equal(ctx.iniciativas[0].modeloProjetoId, "modelo");
+  assert.equal((ctx.iniciativas[0].modeloSnapshot as { codigo: string }).codigo, snapshot.codigo);
+  assert.ok(ctx.tarefas.some((tarefa) => tarefa.codigo === "TAR_CUSTOM"));
 });
