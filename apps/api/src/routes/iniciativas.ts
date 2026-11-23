@@ -531,7 +531,7 @@ iniciativasRouter.post(
 
 const reprogSchema = z.object({
   dataNova: z.string().datetime({ offset: true }),
-  motivo: z.string().min(5),
+  motivo: z.string().trim().min(5, "Explique o motivo com pelo menos 5 caracteres"),
   autorizacao: z.string().optional(),
 });
 
@@ -543,7 +543,7 @@ iniciativasRouter.post("/marcos/:marcoId/prazo-inicial", requirePermission("marc
     await assertMunicipioAccess(req.user!, marco.iniciativa.municipioId);
     assertMarcoExecutorAccess(req.user!, marco.responsavelUserId);
     const prazo = new Date(body.dataNova);
-    if (prazo.getTime() < Date.now() || marco.concluidoEm) throw new HttpError(422, "INVALID_DATA", "Defina uma data futura para uma tarefa aberta");
+    if (prazo.getTime() < Date.now() || marco.concluidoEm || marco.encerradoSemSolucaoEm) throw new HttpError(422, "INVALID_DATA", "Defina uma data futura para uma tarefa aberta");
     await prisma.$transaction(async (tx) => {
       const result = await tx.marcoEntrega.updateMany({ where: { id: marco.id, prazoOriginal: null, prazoVigente: null, concluidoEm: null }, data: { prazoOriginal: prazo, prazoVigente: prazo } });
       if (result.count !== 1) throw new HttpError(409, "PRAZO_EXISTENTE", "Esta tarefa já possui prazo. Use reprogramar.");
@@ -569,9 +569,10 @@ iniciativasRouter.post(
         "MarcoEntrega",
       );
 
+      assertMarcoExecutorAccess(req.user!, marco.responsavelUserId);
       const body = reprogSchema.parse(req.body);
       const dataNova = new Date(body.dataNova);
-      if (!marco.prazoVigente || marco.concluidoEm) throw new HttpError(422, "INVALID_REPROGRAMACAO", "Defina o primeiro prazo no cadastro. Tarefas concluídas não podem ser reprogramadas.");
+      if (!marco.prazoVigente || marco.concluidoEm || marco.encerradoSemSolucaoEm) throw new HttpError(422, "INVALID_REPROGRAMACAO", "Defina o primeiro prazo no cadastro. Tarefas concluídas não podem ser reprogramadas.");
       if (dataNova.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }) === marco.prazoVigente.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }) || dataNova.getTime() < Date.now()) throw new HttpError(422, "INVALID_DATA", "Informe uma nova data futura, diferente da atual");
 
       const [reprog, updated] = await prisma.$transaction(async (tx) => {
@@ -1136,6 +1137,7 @@ iniciativasRouter.post(
         marco.iniciativa.municipioId,
         "MarcoEntrega",
       );
+      assertTarefaAberta(marco);
       const body = subtarefaSchema.parse(req.body);
       const responsavelUser = await resolverResponsavel(marco.iniciativa.municipioId, body.responsavelUserId);
       const row = await prisma.subtarefa.create({
@@ -1189,6 +1191,7 @@ iniciativasRouter.patch(
         "Subtarefa",
       );
       assertMarcoExecutorAccess(req.user!, existing.responsavelUserId);
+      assertTarefaAberta(existing.marco);
       if (
         bodyWouldConclude(req.body) &&
         !assertExecucaoPermitida(existing.marco.iniciativa.ciclo)
@@ -1227,6 +1230,12 @@ iniciativasRouter.patch(
     }
   },
 );
+
+function assertTarefaAberta(tarefa: { concluidoEm?: Date | null; encerradoSemSolucaoEm?: Date | null }) {
+  if (tarefa.concluidoEm || tarefa.encerradoSemSolucaoEm) {
+    throw new HttpError(422, "TAREFA_ENCERRADA", "Reabra a tarefa principal antes de criar ou alterar suas subtarefas");
+  }
+}
 
 function bodyWouldConclude(body: unknown) {
   if (!body || typeof body !== "object") return false;
@@ -1538,6 +1547,7 @@ iniciativasRouter.post(
             "Projeto aguardando pré-requisito — não é possível concluir tarefas",
         );
       }
+      if (existing.encerradoSemSolucaoEm) throw new HttpError(422, "TAREFA_ENCERRADA", "Reabra a tarefa antes de concluir");
       if (existing.concluidoEm) {
         res.json({ data: existing });
         return;

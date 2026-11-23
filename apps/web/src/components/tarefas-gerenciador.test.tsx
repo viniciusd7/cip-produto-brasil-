@@ -56,3 +56,11 @@ test("modo de consulta não oferece conclusão e projetos vazios têm orientaç�
   assert.match(html, /Ainda não há tarefas cadastradas/);
   assert.doesNotMatch(html, />Concluir</);
 });
+
+test("tarefa concluída oferece reabertura e preserva subtarefas sem ações de edição", () => {
+  const html = renderToStaticMarkup(<AppRouterContext.Provider value={router}>
+    <TarefasGestao tarefas={[{ ...tarefa, status: "CONCLUIDO" }]} token="segredo" modo="PROJETOS" podeEditar usuarioId="u1" administrador responsaveis={[{ id: "u1", name: "Ana" }]} />
+  </AppRouterContext.Provider>);
+  assert.match(html, /Reabrir/);
+  assert.doesNotMatch(html, /Reprogramar prazo|Concluir subtarefa|Reabrir subtarefa|Salvar responsável/);
+});

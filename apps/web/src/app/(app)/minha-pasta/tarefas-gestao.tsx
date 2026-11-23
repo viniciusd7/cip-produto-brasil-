@@ -257,7 +257,7 @@ function TarefaCard({ tarefa, token, gerenciar = false, podeEditar = false, usua
       <div className="gestao-tarefa__details">
         <span className="gestao-tarefa__detail-label">Prazo</span>
         <strong>{dataCurta(tarefa.prazo)}</strong>
-        {gerenciar && aberta && podeEditar && <EditarPrazo token={token} marcoId={tarefa.id} prazo={tarefa.prazo} />}
+        {gerenciar && aberta && podeAtribuir && <EditarPrazo token={token} marcoId={tarefa.id} prazo={tarefa.prazo} />}
       </div>
       {gerenciar && !!tarefa.subtarefas.itens?.length && (
         <div className="gestao-tarefa__subtarefas">
@@ -265,13 +265,13 @@ function TarefaCard({ tarefa, token, gerenciar = false, podeEditar = false, usua
           <ul>
             {tarefa.subtarefas.itens.map((subtarefa) => (
               <li key={subtarefa.id}>
-                {podeEditar && (administrador || !subtarefa.responsavelUserId || subtarefa.responsavelUserId === usuarioId)
+                {aberta && podeEditar && (administrador || !subtarefa.responsavelUserId || subtarefa.responsavelUserId === usuarioId)
                   ? <AlternarSubtarefa token={token} id={subtarefa.id} concluida={subtarefa.concluida} />
                   : <span aria-label={subtarefa.concluida ? "Concluída" : "Em aberto"}>{subtarefa.concluida ? "✓" : "○"}</span>}
                 <span className="tarefa-subtarefa__conteudo">
                   <strong>{subtarefa.descricao}</strong>
                   <small>{subtarefa.concluida ? "Concluída" : "Em aberto"} · {subtarefa.responsavel || "Sem responsável"} · Prazo: {dataCurta(subtarefa.prazo)}</small>
-                  {podeEditar && (administrador || !subtarefa.responsavelUserId || subtarefa.responsavelUserId === usuarioId) &&
+                  {aberta && podeEditar && (administrador || !subtarefa.responsavelUserId || subtarefa.responsavelUserId === usuarioId) &&
                     <EditarResponsavel token={token} endpoint={`/iniciativas/subtarefas/${subtarefa.id}`} atualId={subtarefa.responsavelUserId} pessoas={responsaveis} rotulo="Responsável pela subtarefa" />}
                 </span>
               </li>

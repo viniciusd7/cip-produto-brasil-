@@ -6,6 +6,7 @@ import { Button } from "@cip/ui";
 import { apiFetch } from "@/lib/api";
 import { secretariaLabel } from "@/lib/secretaria-label";
 import { NovaMetaForm } from "./nova-meta-form";
+import { VincularProjeto } from "./vincular-projeto";
 
 export type Indicador = {
   id: string;
@@ -199,6 +200,7 @@ function MetaDetalhes({ meta, token, secretarias, responsaveis, podeEditar }: Ct
           /></div>
         )}
       </section>
+      {podeEditar && <VincularProjeto metaId={meta.id} token={token} />}
       <details className="gp-detalhes">
         <summary>Detalhes da meta</summary>
         {meta.descricao && <p className="dashboard-muted">{meta.descricao}</p>}
