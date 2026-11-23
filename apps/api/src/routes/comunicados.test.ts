@@ -227,3 +227,10 @@ test("falha na auditoria impede persistência parcial da mensagem", async (t) =>
   assert.equal((await ctx.request("/comunicados", envio)).status, 500);
   assert.equal(ctx.mensagens.length, original);
 });
+
+test("link retornado pelo envio abre a conversa do projeto na central", async (t) => {
+  const ctx = await setup(t, "analista");
+  const response = await ctx.request("/comunicados", envio);
+  assert.equal(response.status, 201);
+  assert.equal(response.headers.get("location"), "/comunicados?projeto=ubs");
+});

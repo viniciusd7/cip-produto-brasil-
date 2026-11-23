@@ -134,7 +134,7 @@ comunicadosRouter.post("/", requirePermission("conversa:responder"), async (req,
         await writeAudit({ user, action: "SEND_MESSAGE", entity: "Comunicado", entityId: row.id, after: { iniciativaId: body.iniciativaId, destinatarioId: destino.id }, ip: req.ip }, db);
         return row;
       });
-      res.location(`/comunicados?iniciativaId=${encodeURIComponent(body.iniciativaId)}`).status(201).json({ data });
+      res.location(`/comunicados?projeto=${encodeURIComponent(body.iniciativaId)}`).status(201).json({ data });
     } catch (error) {
       if (id && (error as { code?: string }).code === "P2002") {
         const row = await existente();
