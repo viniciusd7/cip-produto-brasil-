@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { AvisosBadge } from "./avisos-badge";
-import { NotificacoesBadge } from "./notificacoes-badge";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -184,9 +183,8 @@ export function AppShell({
           <div className="app-topbar__context"><strong>{municipioNome || "CIP"}</strong><span>{getRoleLabel(role)}</span></div>
         </div>
         <div className="app-topbar__actions">
-          {!isCentralCip && role !== "leitura" && <NotificacoesBadge token={data?.accessToken} />}
-          {!isCentralCip && ["gestor", "analista", "admin"].includes(role || "") && (
-            <AvisosBadge token={data?.accessToken} compact />
+          {!isCentralCip && (
+            <AvisosBadge key={data?.accessToken} token={data?.accessToken} compact />
           )}
         </div>
       </header>

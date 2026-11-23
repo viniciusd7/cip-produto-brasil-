@@ -1,7 +1,12 @@
 import { getServerSession } from "next-auth";
+import { PageHeader } from "@cip/ui";
 import { authOptions } from "@/lib/auth";
-import { ComunicacaoProjeto } from "@/components/comunicacao-projeto";
-export default async function ComunicadosPage() {
-  const session = await getServerSession(authOptions);
-  return <ComunicacaoProjeto token={session?.accessToken || ""} />;
+import { CentralComunicacao } from "@/components/central-comunicacao";
+
+export default async function ComunicadosPage({ searchParams }: { searchParams: Promise<{ aba?: string; projeto?: string }> }) {
+  const [session, query] = await Promise.all([getServerSession(authOptions), searchParams]);
+  return <div className="stack">
+    <PageHeader eyebrow="Projetos e equipe" title="Comunicação" description="Converse no contexto de cada projeto e acompanhe os avisos que precisam da sua atenção." />
+    <CentralComunicacao token={session?.accessToken || ""} aba={query.aba === "avisos" ? "avisos" : "conversas"} projetoId={typeof query.projeto === "string" ? query.projeto : undefined} />
+  </div>;
 }

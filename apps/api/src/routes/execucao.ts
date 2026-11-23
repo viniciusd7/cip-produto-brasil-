@@ -10,6 +10,7 @@ import {
 } from "../middleware/auth";
 import { writeAudit } from "../services/audit";
 import { notificarConsultores, notificarUsuario } from "../services/notifications";
+import { notificacaoScope } from "../services/comunicacao";
 import { assertExecucaoPermitida } from "../services/wizard-persist";
 
 /**
@@ -371,11 +372,11 @@ execucaoRouter.post(
 );
 
 export const notificacoesRouter = Router();
-notificacoesRouter.use(requireAuth);
+notificacoesRouter.use(requireAuth, requirePermission("iniciativa:read"));
 
 notificacoesRouter.get("/", async (req, res, next) => {
   try {
-    const where = { userId: req.user!.id, municipioId: req.user!.municipioId };
+    const where = await notificacaoScope(req.user!);
     const [data, naoLidas] = await Promise.all([
       prisma.notificacao.findMany({ where, orderBy: { createdAt: "desc" }, take: 50 }),
       prisma.notificacao.count({ where: { ...where, lidaEm: null } }),
@@ -388,8 +389,11 @@ notificacoesRouter.get("/", async (req, res, next) => {
 
 notificacoesRouter.post("/:id/lida", async (req, res, next) => {
   try {
+    const scope = await notificacaoScope(req.user!);
+    const item = await prisma.notificacao.findFirst({ where: { AND: [scope, { id: req.params.id }] }, select: { id: true } });
+    if (!item) throw new HttpError(404, "NOT_FOUND", "Aviso não encontrado para este destinatário");
     await prisma.notificacao.updateMany({
-      where: { id: req.params.id, userId: req.user!.id, lidaEm: null },
+      where: { AND: [scope, { id: item.id, lidaEm: null }] },
       data: { lidaEm: new Date() },
     });
     res.json({ ok: true });
@@ -400,8 +404,9 @@ notificacoesRouter.post("/:id/lida", async (req, res, next) => {
 
 notificacoesRouter.post("/lidas", async (req, res, next) => {
   try {
+    const scope = await notificacaoScope(req.user!);
     await prisma.notificacao.updateMany({
-      where: { userId: req.user!.id, municipioId: req.user!.municipioId, lidaEm: null },
+      where: { AND: [scope, { lidaEm: null }] },
       data: { lidaEm: new Date() },
     });
     res.json({ ok: true });

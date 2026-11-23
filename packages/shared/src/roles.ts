@@ -21,6 +21,7 @@ export const PERMISSIONS = {
   USERS_MANAGE: "users:manage",
   INICIATIVA_READ: "iniciativa:read",
   INICIATIVA_WRITE: "iniciativa:write",
+  CONVERSA_RESPONDER: "conversa:responder",
   CONHECIMENTO_UPLOAD: "conhecimento:upload",
   MARCO_WRITE: "marco:write",
   EVIDENCIA_SUBMIT: "evidencia:submit",
@@ -46,6 +47,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, PermissionCode[]> = {
     PERMISSIONS.AUDIT_READ,
   ],
   gestor: [
+    PERMISSIONS.CONVERSA_RESPONDER,
     PERMISSIONS.INICIATIVA_READ,
     PERMISSIONS.CONHECIMENTO_UPLOAD,
     PERMISSIONS.EVIDENCIA_SUBMIT,
@@ -53,6 +55,7 @@ export const ROLE_PERMISSIONS: Record<RoleCode, PermissionCode[]> = {
     PERMISSIONS.REPORT_EXPORT,
   ],
   analista: [
+    PERMISSIONS.CONVERSA_RESPONDER,
     PERMISSIONS.USERS_MANAGE,
     PERMISSIONS.INICIATIVA_READ,
     PERMISSIONS.INICIATIVA_WRITE,

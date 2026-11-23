@@ -1,222 +1,95 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { linkInternoAviso } from "@/lib/comunicacao";
 import "./notificacoes.css";
 
 type Notificacao = {
-  id: string;
-  tipo: string;
-  titulo: string;
-  texto: string;
-  link?: string | null;
-  lidaEm?: string | null;
-  createdAt: string;
+  id: string; origem: "comunicado" | "notificacao"; tipo: string;
+  titulo: string; texto: string; link?: string | null;
+  lidaEm?: string | null; createdAt: string;
 };
-
-const TIPOS: Record<string, { label: string; plural: string; icone: string; cor: string; acao: string }> = {
-  ATRIBUICAO: { label: "Atribuição", plural: "Atribuídas a você", icone: "📌", cor: "#7c9cff", acao: "Ver tarefa" },
-  VALIDACAO_PENDENTE: { label: "Aguardando validação", plural: "Para validar", icone: "⏳", cor: "#eac78c", acao: "Validar agora" },
-  VALIDACAO_DECIDIDA: { label: "Decisão da consultoria", plural: "Decisões", icone: "✅", cor: "#b4e4a0", acao: "Ver decisão" },
-  REPROGRAMACAO: { label: "Prazo reprogramado", plural: "Prazos alterados", icone: "📅", cor: "#b9a0ff", acao: "Ver prazo" },
+type Pagina = { data: Notificacao[]; naoLidas: number; nextCursor: string | null };
+const TIPOS: Record<string, { label: string; icone: string; cor: string; acao: string }> = {
+  MENSAGEM: { label: "Mensagem do projeto", icone: "💬", cor: "#7c9cff", acao: "Abrir conversa" },
+  ATRIBUICAO: { label: "Atribuição", icone: "📌", cor: "#7c9cff", acao: "Ver atribuição" },
+  VALIDACAO_PENDENTE: { label: "Aguardando validação", icone: "⏳", cor: "#eac78c", acao: "Ver validação" },
+  VALIDACAO_DECIDIDA: { label: "Decisão da consultoria", icone: "✅", cor: "#b4e4a0", acao: "Ver decisão" },
+  REPROGRAMACAO: { label: "Prazo reprogramado", icone: "📅", cor: "#b9a0ff", acao: "Ver prazo" },
 };
-const OUTRO = { label: "Aviso", plural: "Avisos", icone: "🔔", cor: "#929bb4", acao: "Abrir" };
+const OUTRO = { label: "Aviso do projeto", icone: "🔔", cor: "#929bb4", acao: "Abrir origem" };
+const chave = (n: Notificacao) => `${n.origem}:${n.id}`;
 
-const DIA = 86400000;
-const fmtHora = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" });
-const fmtData = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" });
+function ListaAvisos({ token, status }: { token: string; status: "nao-lidas" | "todas" }) {
+  const [itens, setItens] = useState<Notificacao[]>([]);
+  const [naoLidas, setNaoLidas] = useState(0);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [erro, setErro] = useState("");
+  const [carregando, setCarregando] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [marcando, setMarcando] = useState<string | null>(null);
+  const maisCarregadas = useRef(false);
 
-function grupoDoDia(iso: string, hoje0: number) {
-  const t = new Date(iso).getTime();
-  if (t >= hoje0) return "Hoje";
-  if (t >= hoje0 - DIA) return "Ontem";
-  if (t >= hoje0 - 6 * DIA) return "Nesta semana";
-  return "Anteriores";
+  const carregar = useCallback(async (proxima?: string, signal?: AbortSignal) => {
+    try {
+      const query = new URLSearchParams({ naoLidos: status === "nao-lidas" ? "1" : "0" });
+      if (proxima) query.set("cursor", proxima);
+      const r = await apiFetch<Pagina>(`/comunicados/avisos?${query}`, { token, signal });
+      if (signal?.aborted) return;
+      setItens((atuais) => {
+        const mapa = new Map((maisCarregadas.current || proxima ? atuais : []).map((n) => [chave(n), n]));
+        for (const item of r.data) mapa.set(chave(item), item);
+        return [...mapa.values()].filter((n) => status === "todas" || !n.lidaEm)
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || chave(b).localeCompare(chave(a)));
+      });
+      if (proxima || !maisCarregadas.current) setCursor(r.nextCursor);
+      if (proxima) maisCarregadas.current = true;
+      setNaoLidas(r.naoLidas); setErro("");
+    } catch (e) {
+      if (!signal?.aborted) { setItens([]); setErro(e instanceof Error ? e.message : "Falha ao carregar os avisos"); }
+    } finally { if (!signal?.aborted) { setCarregando(false); setBusy(false); } }
+  }, [token, status]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const initial = setTimeout(() => void carregar(undefined, controller.signal), 0);
+    const timer = setInterval(() => void carregar(undefined, controller.signal), 30000);
+    return () => { controller.abort(); clearTimeout(initial); clearInterval(timer); };
+  }, [carregar]);
+
+  async function marcar(n: Notificacao) {
+    if (marcando) return;
+    setMarcando(chave(n));
+    try {
+      const path = n.origem === "comunicado" ? `/comunicados/${encodeURIComponent(n.id)}/lido` : `/notificacoes/${encodeURIComponent(n.id)}/lida`;
+      await apiFetch(path, { token, method: "POST" });
+      setItens((atuais) => atuais.map((a) => chave(a) === chave(n) ? { ...a, lidaEm: new Date().toISOString() } : a));
+      window.dispatchEvent(new Event("cip:avisos-atualizados"));
+      await carregar();
+    } catch (e) { setErro(e instanceof Error ? e.message : "Não foi possível registrar a leitura"); }
+    finally { setMarcando(null); }
+  }
+
+  return <div className="nt stack">
+    <section className="nt-topo"><div className={`nt-sino${naoLidas ? " is-on" : ""}`} aria-hidden="true">🔔{naoLidas > 0 && <b>{naoLidas}</b>}</div><div><h2>{naoLidas ? `${naoLidas} aviso${naoLidas === 1 ? "" : "s"} não lido${naoLidas === 1 ? "" : "s"}` : "Seus avisos"}</h2><p>Mensagens recebidas e atualizações de execução, com acesso à origem.</p></div></section>
+    <p className="dashboard-muted">Marcar leitura registra sua ciência. Tarefas e decisões continuam com seu andamento próprio. Atualização a cada 30 segundos.</p>
+    {erro && <p role="alert" className="nt-erro">{erro} <button type="button" onClick={() => void carregar()}>Tentar novamente</button></p>}
+    {carregando ? <p role="status">Carregando avisos…</p> : !itens.length && !erro ? <div className="nt-vazio"><strong>{status === "nao-lidas" ? "Nenhum aviso não lido" : "Nenhum aviso registrado"}</strong><p>Novas mensagens para você, atribuições e atualizações aparecerão aqui.</p></div> : <section className="nt-grupo" aria-label="Lista de avisos"><ul>{itens.map((n) => {
+      const tipo = TIPOS[n.tipo] || OUTRO;
+      const link = linkInternoAviso(n.link);
+      return <li key={chave(n)} className={`nt-item${n.lidaEm ? "" : " is-nova"}`} style={{ ["--c" as string]: tipo.cor }}>
+        <span className="nt-item__icone" aria-hidden="true">{tipo.icone}</span>
+        <div className="nt-item__corpo"><p className="nt-item__tipo">{tipo.label}{!n.lidaEm && <span className="nt-item__nova">Novo</span>}</p><strong>{n.titulo}</strong><p className="nt-item__texto" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{n.texto}</p></div>
+        <div className="nt-item__lado"><time dateTime={n.createdAt}>{new Date(n.createdAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}</time><div className="nt-item__acoes">{link && <Link className="nt-btn" href={link}>{tipo.acao} →</Link>}{!n.lidaEm && <button type="button" className="nt-btn nt-btn--ghost" disabled={marcando !== null} onClick={() => void marcar(n)}>{marcando === chave(n) ? "Registrando…" : "Marcar como lido"}</button>}</div></div>
+      </li>;
+    })}</ul></section>}
+    {cursor && <button type="button" className="cip-btn cip-btn--secondary" disabled={busy} onClick={() => { setBusy(true); void carregar(cursor); }}>{busy ? "Carregando…" : "Carregar mais avisos"}</button>}
+  </div>;
 }
 
 export function NotificacoesLista({ token }: { token: string }) {
-  const [itens, setItens] = useState<Notificacao[]>([]);
-  const [naoLidas, setNaoLidas] = useState(0);
   const [status, setStatus] = useState<"nao-lidas" | "todas">("nao-lidas");
-  const [tipo, setTipo] = useState("");
-  const [erro, setErro] = useState("");
-  const [carregando, setCarregando] = useState(true);
-  const [hoje0] = useState(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d.getTime();
-  });
-
-  const carregar = useCallback(async () => {
-    try {
-      const r = await apiFetch<{ data: Notificacao[]; naoLidas: number }>("/notificacoes", { token });
-      setItens(r.data);
-      setNaoLidas(r.naoLidas);
-      setErro("");
-    } catch (e) {
-      setErro(e instanceof Error ? e.message : "Falha ao carregar notificações.");
-    } finally {
-      setCarregando(false);
-    }
-  }, [token]);
-
-  useEffect(() => {
-    let ativo = true;
-    apiFetch<{ data: Notificacao[]; naoLidas: number }>("/notificacoes", { token })
-      .then((r) => {
-        if (!ativo) return;
-        setItens(r.data);
-        setNaoLidas(r.naoLidas);
-        if (!r.naoLidas) setStatus("todas");
-      })
-      .catch((e) => {
-        if (ativo) setErro(e instanceof Error ? e.message : "Falha ao carregar notificações.");
-      })
-      .finally(() => {
-        if (ativo) setCarregando(false);
-      });
-    return () => {
-      ativo = false;
-    };
-  }, [token]);
-
-  async function marcar(id: string) {
-    setItens((lista) => lista.map((n) => (n.id === id ? { ...n, lidaEm: new Date().toISOString() } : n)));
-    setNaoLidas((n) => Math.max(0, n - 1));
-    await apiFetch(`/notificacoes/${id}/lida`, { token, method: "POST" }).catch(() => null);
-    void carregar();
-  }
-
-  async function marcarTodas() {
-    await apiFetch("/notificacoes/lidas", { token, method: "POST" }).catch(() => null);
-    void carregar();
-  }
-
-  const base = status === "nao-lidas" ? itens.filter((n) => !n.lidaEm) : itens;
-  const visiveis = tipo ? base.filter((n) => n.tipo === tipo) : base;
-  const contagem = (t: string) => base.filter((n) => n.tipo === t).length;
-
-  const grupos: Array<{ nome: string; itens: Notificacao[] }> = [];
-  for (const n of visiveis) {
-    const nome = grupoDoDia(n.createdAt, hoje0);
-    const g = grupos.find((x) => x.nome === nome);
-    if (g) g.itens.push(n);
-    else grupos.push({ nome, itens: [n] });
-  }
-
-  return (
-    <div className="nt">
-      <section className="nt-topo" aria-live="polite">
-        <div className={`nt-sino${naoLidas ? " is-on" : ""}`} aria-hidden="true">
-          🔔{naoLidas > 0 && <b>{naoLidas}</b>}
-        </div>
-        <div>
-          <h2>{naoLidas ? `Você tem ${naoLidas} aviso${naoLidas === 1 ? "" : "s"} novo${naoLidas === 1 ? "" : "s"}` : "Tudo em dia por aqui"}</h2>
-          <p>Toque em um aviso para ir direto à tarefa, meta ou validação.</p>
-        </div>
-        <div className="nt-topo__acoes">
-          <div className="nt-seg" role="group" aria-label="Mostrar">
-            {(["nao-lidas", "todas"] as const).map((f) => (
-              <button key={f} type="button" aria-pressed={status === f} onClick={() => setStatus(f)}>
-                {f === "todas" ? "Todas" : "Não lidas"}
-              </button>
-            ))}
-          </div>
-          {naoLidas > 0 && (
-            <button type="button" className="nt-btn nt-btn--ghost" onClick={() => void marcarTodas()}>
-              ✓ Marcar todas como lidas
-            </button>
-          )}
-        </div>
-      </section>
-
-      <div className="nt-resumo" role="group" aria-label="Filtrar por tipo">
-        {Object.entries(TIPOS).map(([k, t]) => (
-          <button
-            key={k}
-            type="button"
-            className="nt-resumo__item"
-            aria-pressed={tipo === k}
-            style={{ ["--c" as string]: t.cor }}
-            onClick={() => setTipo((atual) => (atual === k ? "" : k))}
-          >
-            <span aria-hidden="true">{t.icone}</span>
-            <b>{contagem(k)}</b>
-            <small>{t.plural}</small>
-          </button>
-        ))}
-      </div>
-
-      {erro && <p role="alert" className="nt-erro">{erro}</p>}
-
-      {carregando ? (
-        <p className="dashboard-muted">Carregando avisos…</p>
-      ) : visiveis.length === 0 ? (
-        <div className="nt-vazio">
-          <span aria-hidden="true">🎉</span>
-          <strong>{status === "nao-lidas" ? "Nenhum aviso pendente" : "Nenhum aviso por aqui"}</strong>
-          <p>
-            {tipo
-              ? "Não há avisos deste tipo. Limpe o filtro para ver os demais."
-              : "Quando uma tarefa for atribuída a você, ou uma evidência precisar de validação, o aviso aparece aqui."}
-          </p>
-          {(tipo || status === "nao-lidas") && itens.length > 0 && (
-            <button type="button" className="nt-btn nt-btn--ghost" onClick={() => { setTipo(""); setStatus("todas"); }}>
-              Ver todos os avisos
-            </button>
-          )}
-        </div>
-      ) : (
-        grupos.map((g) => (
-          <section key={g.nome} className="nt-grupo" aria-label={g.nome}>
-            <h3>{g.nome}</h3>
-            <ul>
-              {g.itens.map((n) => {
-                const t = TIPOS[n.tipo] || OUTRO;
-                const data = new Date(n.createdAt);
-                return (
-                  <li key={n.id} className={`nt-item${n.lidaEm ? "" : " is-nova"}`} style={{ ["--c" as string]: t.cor }}>
-                    <span className="nt-item__icone" aria-hidden="true">{t.icone}</span>
-                    <div className="nt-item__corpo">
-                      <p className="nt-item__tipo">
-                        {t.label}
-                        {!n.lidaEm && <span className="nt-item__nova">Nova</span>}
-                      </p>
-                      <strong>{n.titulo}</strong>
-                      <p className="nt-item__texto">{n.texto}</p>
-                    </div>
-                    <div className="nt-item__lado">
-                      <time dateTime={n.createdAt}>
-                        {g.nome === "Hoje" || g.nome === "Ontem" ? fmtHora.format(data) : fmtData.format(data)}
-                      </time>
-                      <div className="nt-item__acoes">
-                        {n.link && (
-                          <Link className="nt-btn" href={n.link} onClick={() => !n.lidaEm && void marcar(n.id)}>
-                            {t.acao} →
-                          </Link>
-                        )}
-                        {!n.lidaEm && (
-                          <button type="button" className="nt-btn nt-btn--ghost" onClick={() => void marcar(n.id)} aria-label={`Marcar "${n.titulo}" como lida`}>
-                            ✓
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        ))
-      )}
-
-      <aside className="nt-canais">
-        <span aria-hidden="true">📡</span>
-        <p>
-          <strong>Canais de aviso:</strong> 🖥️ Painel <em>(ativo)</em> · ✉️ E-mail <em>(em breve)</em> · 💬 WhatsApp oficial <em>(em breve)</em>.
-          Os mesmos avisos desta central serão enviados por esses canais.
-        </p>
-      </aside>
-    </div>
-  );
+  return <div className="stack"><div className="nt-seg" role="group" aria-label="Filtrar avisos">{(["nao-lidas", "todas"] as const).map((s) => <button key={s} type="button" aria-pressed={status === s} onClick={() => setStatus(s)}>{s === "todas" ? "Todos os avisos" : "Não lidos"}</button>)}</div><ListaAvisos key={`${token}:${status}`} token={token} status={status} /></div>;
 }

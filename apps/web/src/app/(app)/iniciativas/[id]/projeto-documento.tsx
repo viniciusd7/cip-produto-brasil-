@@ -534,7 +534,7 @@ export function ProjetoDocumento({
           />
           <details className="pj-secao">
             <summary>💬 Avisos e conversa do projeto</summary>
-            <ComunicacaoProjeto token={token} iniciativaId={item.id} canWrite={canWrite} />
+            <ComunicacaoProjeto key={`${token}:${item.id}`} token={token} iniciativaId={item.id} />
           </details>
         </div>
       )}
