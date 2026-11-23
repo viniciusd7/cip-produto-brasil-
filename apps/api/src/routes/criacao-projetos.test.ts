@@ -692,3 +692,38 @@ test("consultor conserva o modelo personalizado da própria prefeitura quando se
   assert.equal((ctx.iniciativas[0].modeloSnapshot as { codigo: string }).codigo, snapshot.codigo);
   assert.ok(ctx.tarefas.some((tarefa) => tarefa.codigo === "TAR_CUSTOM"));
 });
+
+for (const classificacaoPrincipal of ["ESTRUTURANTE", "PRIORITARIO", "PLANO_GOVERNO", "ACAO_DIARIA"]) {
+  test(`consultor: ${classificacaoPrincipal} rejeita orçamento inválido na prévia e na confirmação`, async (t) => {
+    const ctx = await setup(t, { role: "analista" });
+    for (const valor of ["-1", "abc"]) {
+      const body = { ...wizard, classificacaoPrincipal, respostas: impedimentosRespondidos.map((resposta) => resposta.perguntaCodigo === "orcamento_recursos" ? {
+        ...resposta, valor: { codigo: "orcamento_recursos", aplicabilidade: "sim", situacao: "pendente", detalhes: { valor_verba: valor } },
+      } : resposta) };
+      for (const path of ["preview", "confirmar"]) {
+        const response = await ctx.request(`/iniciativas/wizard/${path}`, body);
+        assert.equal(response.status, 422, JSON.stringify(response.json));
+        assert.equal(response.json.error.code, "RESPOSTA_INVALIDA");
+        assert.match(response.json.error.message, /Valor previsto/);
+      }
+    }
+    assert.equal(ctx.iniciativas.length, 0);
+  });
+
+  test(`consultor: ${classificacaoPrincipal} valida nome, código, contato e nomes das tarefas antes de gravar`, async (t) => {
+    const ctx = await setup(t, { role: "analista" });
+    for (const extra of [
+      { nome: "   " }, { codigo: "  " },
+      { responsavelPessoaId: undefined, novaPessoa: { nome: "  ", cargo: "Consultor" } },
+      { responsavelPessoaId: undefined, novaPessoa: { nome: "Pessoa QA", cargo: "  " } },
+      { responsavelPessoaId: undefined, novaPessoa: { nome: "Pessoa QA", cargo: "Consultor", email: "invalido" } },
+      { estruturaOverride: [{ ...escopo[0], nome: "   " }] },
+      { estruturaOverride: [{ ...escopo[0], nome: "AB" }] },
+      { estruturaOverride: [{ ...escopo[0], children: [{ codigo: "sub", nivel: "SUBTAREFA", nome: "  ", children: [] }] }] },
+    ]) {
+      const response = await ctx.request("/iniciativas/wizard/confirmar", { ...wizard, classificacaoPrincipal, ...extra });
+      assert.equal(response.status, 400, JSON.stringify(response.json));
+    }
+    assert.equal(ctx.iniciativas.length, 0);
+  });
+}

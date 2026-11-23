@@ -14,6 +14,7 @@ import {
   usaFluxoEstruturante,
   parseCondicaoResposta,
   visibleQuestions,
+  validarNumerosDoWizard,
   type ModeloSnapshot,
   type RespostaViabilidade,
   type TreeNode,
@@ -86,7 +87,7 @@ const treeNodeSchema: z.ZodType<TreeNode> = z.lazy(() =>
     nivel: z.enum(["TAREFA", "SUBTAREFA"]),
     metaExecucaoId: z.never().optional(),
     metasExecucao: z.never().optional(),
-    nome: z.string().min(2).max(500),
+    nome: z.string().trim().min(3, "Dê um nome com pelo menos 3 caracteres à tarefa ou subtarefa").max(500),
     responsavel: z.string().max(200).nullable().optional(),
     prazo: z
       .string()
@@ -283,6 +284,9 @@ wizardRouter.post(
       modelo = adicionarImpedimentosComuns(modelo);
       modelo = adicionarImpedimentosPersonalizados(modelo, body.impedimentosPersonalizados);
 
+      const erroNumerico = validarNumerosDoWizard(modelo, body.respostas);
+      if (erroNumerico) throw new HttpError(422, "RESPOSTA_INVALIDA", erroNumerico);
+
       const result = evaluateWizard({
         modelo,
         classificacaoPrincipal: body.classificacaoPrincipal,
@@ -304,16 +308,16 @@ wizardRouter.post(
 );
 
 const novaPessoaSchema = z.object({
-  nome: z.string().min(2),
-  cargo: z.string().min(2),
+  nome: z.string().trim().min(2, "Informe o nome do responsável com pelo menos 2 caracteres"),
+  cargo: z.string().trim().min(2, "Informe o cargo do responsável com pelo menos 2 caracteres"),
   telefone: z.string().nullable().optional(),
-  email: z.string().email().nullable().optional().or(z.literal("")),
+  email: z.string().trim().email("Informe um e-mail válido para o responsável").nullable().optional().or(z.literal("")),
   papel: z.enum(["TITULAR", "EQUIPE"]).optional(),
 });
 
 const confirmSchema = previewBaseSchema.extend({
-  codigo: z.string().min(2).optional(),
-  nome: z.string().min(3),
+  codigo: z.string().trim().min(2, "Informe um código com pelo menos 2 caracteres").optional(),
+  nome: z.string().trim().min(3, "Informe o nome do projeto com pelo menos 3 caracteres"),
   descricao: z.string().optional(),
   secretariaPrincipalId: z.string(),
   secretariaIds: z.array(z.string()).optional(),
@@ -417,6 +421,9 @@ wizardRouter.post(
       }
       modeloSnap = adicionarImpedimentosComuns(modeloSnap);
       modeloSnap = adicionarImpedimentosPersonalizados(modeloSnap, body.impedimentosPersonalizados);
+
+      const erroNumerico = validarNumerosDoWizard(modeloSnap, body.respostas);
+      if (erroNumerico) throw new HttpError(422, "RESPOSTA_INVALIDA", erroNumerico);
 
       const respostasPorCodigo = new Map(
         body.respostas.map((resposta) => [resposta.perguntaCodigo, resposta.valor]),

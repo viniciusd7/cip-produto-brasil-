@@ -156,7 +156,7 @@ planejamentoRouter.get(
 );
 
 const planoSchema = z.object({
-  nome: z.string().min(3),
+  nome: z.string().trim().min(3, "Informe um nome com pelo menos 3 caracteres"),
   periodo: z.string().min(4).optional(),
   descricao: z.string().optional(),
   mandatoInicio: z.string().datetime().optional().nullable(),
@@ -198,7 +198,7 @@ const metaSchema = z.object({
   planoId: z.string().min(1),
   secretariaId: z.string().min(1).optional(),
   codigo: z.string().min(1).optional(),
-  nome: z.string().min(3),
+  nome: z.string().trim().min(3, "Informe um nome com pelo menos 3 caracteres"),
   descricao: z.string().optional(),
   indicador: z.string().optional(),
   valorBase: z.string().optional(),

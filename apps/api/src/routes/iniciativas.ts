@@ -459,7 +459,7 @@ iniciativasRouter.post(
 const marcoSchema = z.object({
   metasExecucao: z.never().optional(),
   codigo: z.string().optional(),
-  descricao: z.string().min(3),
+  descricao: z.string().trim().min(3, "Descreva a tarefa ou subtarefa com pelo menos 3 caracteres"),
   responsavel: z.string().optional(),
   responsavelUserId: z.string().nullable().optional(),
   prazoOriginal: z.string().datetime().nullable().optional(),
@@ -1114,7 +1114,7 @@ iniciativasRouter.post(
 );
 
 const subtarefaSchema = z.object({
-  descricao: z.string().min(3),
+  descricao: z.string().trim().min(3, "Descreva a tarefa ou subtarefa com pelo menos 3 caracteres"),
   responsavel: z.string().optional(),
   responsavelUserId: z.string().nullable().optional(),
   prazo: z.string().datetime().nullable().optional(),
@@ -1456,7 +1456,7 @@ const marcoPatchSchema = z.object({
   metasExecucao: z.never().optional(),
   responsavel: z.string().max(200).nullable().optional(),
   responsavelUserId: z.string().nullable().optional(),
-  descricao: z.string().min(3).optional(),
+  descricao: z.string().trim().min(3, "Descreva a tarefa com pelo menos 3 caracteres").optional(),
 });
 
 iniciativasRouter.patch(

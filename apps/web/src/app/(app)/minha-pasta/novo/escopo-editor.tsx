@@ -56,11 +56,11 @@ export function EscopoEditor({ nodes, onChange, equipe, listId }: {
           <div className="form-grid form-grid--2">
             <div>
               <RotuloComAjuda htmlFor={`${tarefa.codigo}-nome`} campo="Nome da tarefa" ajuda="Descreva uma atividade necessária para realizar o projeto." />
-              <input id={`${tarefa.codigo}-nome`} value={tarefa.nome} onChange={(e) => atualizar(ti, { nome: e.target.value })} />
+              <input id={`${tarefa.codigo}-nome`} required minLength={3} maxLength={500} value={tarefa.nome} onChange={(e) => atualizar(ti, { nome: e.target.value })} />
             </div>
             <div>
               <RotuloComAjuda htmlFor={`${tarefa.codigo}-responsavel`} campo="Responsável pela tarefa" ajuda="Informe a pessoa ou equipe responsável pela execução da tarefa." />
-              <input id={`${tarefa.codigo}-responsavel`} list={listId} value={tarefa.responsavel ?? ""} placeholder="Nome da pessoa ou equipe" onChange={(e) => atualizar(ti, { responsavel: e.target.value })} />
+              <input id={`${tarefa.codigo}-responsavel`} list={listId} maxLength={200} value={tarefa.responsavel ?? ""} placeholder="Nome da pessoa ou equipe" onChange={(e) => atualizar(ti, { responsavel: e.target.value })} />
             </div>
             <div>
               <RotuloComAjuda htmlFor={`${tarefa.codigo}-prazo`} campo="Prazo da tarefa" ajuda="Escolha a data prevista para concluir a tarefa. É opcional." />
@@ -72,12 +72,12 @@ export function EscopoEditor({ nodes, onChange, equipe, listId }: {
               <li key={sub.codigo} className="form-grid form-grid--2">
                 <div>
                   <RotuloComAjuda htmlFor={`${sub.codigo}-nome`} campo="Nome da subtarefa" ajuda="Descreva um passo necessário para concluir a tarefa." />
-                  <input id={`${sub.codigo}-nome`} value={sub.nome} onChange={(e) => atualizar(ti, { children: tarefa.children.map((s, i) => i === si ? { ...s, nome: e.target.value } : s) })} />
+                  <input id={`${sub.codigo}-nome`} required minLength={3} maxLength={500} value={sub.nome} onChange={(e) => atualizar(ti, { children: tarefa.children.map((s, i) => i === si ? { ...s, nome: e.target.value } : s) })} />
                 </div>
                 <div>
                   <RotuloComAjuda htmlFor={`${sub.codigo}-responsavel`} campo="Responsável pela subtarefa" ajuda="Informe a pessoa ou equipe responsável pela execução da subtarefa." />
                   <div style={{ display: "flex", gap: 8 }}>
-                    <input id={`${sub.codigo}-responsavel`} list={listId} value={sub.responsavel ?? ""} placeholder="Nome da pessoa ou equipe" onChange={(e) => atualizar(ti, { children: tarefa.children.map((s, i) => i === si ? { ...s, responsavel: e.target.value } : s) })} />
+                    <input id={`${sub.codigo}-responsavel`} list={listId} maxLength={200} value={sub.responsavel ?? ""} placeholder="Nome da pessoa ou equipe" onChange={(e) => atualizar(ti, { children: tarefa.children.map((s, i) => i === si ? { ...s, responsavel: e.target.value } : s) })} />
                     <Button type="button" variant="ghost" aria-label={`Remover subtarefa ${sub.nome}`} onClick={() => atualizar(ti, { children: tarefa.children.filter((_, i) => i !== si) })}>×</Button>
                   </div>
                 </div>

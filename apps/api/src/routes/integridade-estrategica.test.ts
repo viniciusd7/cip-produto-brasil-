@@ -275,3 +275,17 @@ test("conflito serializavel retorna 409 sem sucesso falso", async (t) => {
   assert.equal(response.json.error.code, "ESTRATEGIA_CONCURRENT_UPDATE");
   assert.equal(ctx.escritas(), 0);
 });
+
+test("campos de plano e meta rejeitam nomes vazios após remover espaços", async (t) => {
+  const ctx = await setup(t);
+  for (const [path, body] of [
+    ["/planejamento/planos", { nome: "   " }],
+    ["/planejamento/metas", { nome: "   ", planoId: "plano", secretariaId: "secretaria" }],
+    ["/planejamento/metas", { nome: " AB ", planoId: "plano", secretariaId: "secretaria" }],
+  ] as const) {
+    const response = await ctx.request(path, body);
+    assert.equal(response.status, 400, JSON.stringify(response.json));
+    assert.match(response.json.error.message, /pelo menos 3 caracteres/);
+  }
+  assert.equal(ctx.escritas(), 0);
+});

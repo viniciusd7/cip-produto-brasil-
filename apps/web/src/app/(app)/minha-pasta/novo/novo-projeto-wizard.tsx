@@ -148,6 +148,7 @@ export function NovoProjetoWizard({
   const router = useRouter();
   const [step, setStep] = useState(0);
   const cabecalhoRef = useRef<HTMLElement>(null);
+  const camposRef = useRef<HTMLFieldSetElement>(null);
   const passoAnteriorRef = useRef(step);
   const classificacao = initialClassification;
   const classificacoes: Classificacao[] = [classificacao];
@@ -545,6 +546,13 @@ export function NovoProjetoWizard({
 
   async function next() {
     if (operacaoEmCursoRef.current || concluido.current) return;
+    const campoInvalido = camposRef.current?.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(":invalid");
+    if (campoInvalido) {
+      const rotulo = campoInvalido.labels?.[0]?.textContent?.trim();
+      setError(`${rotulo ? `${rotulo}: ` : ""}${campoInvalido.validationMessage}`);
+      campoInvalido.reportValidity();
+      return;
+    }
     operacaoEmCursoRef.current = true;
     setAdvancing(true);
     setError("");
@@ -604,7 +612,7 @@ export function NovoProjetoWizard({
       const nextLabel = steps[step + 1];
       if (label === "Tarefas") {
         if (!escopo.length) throw new Error("Inclua ao menos uma tarefa antes de continuar");
-        if (escopoComNomeVazio(escopo)) throw new Error("Dê nome a todas as tarefas e subtarefas antes de continuar");
+        if (escopoComNomeVazio(escopo)) throw new Error("Dê um nome com pelo menos 3 caracteres a todas as tarefas e subtarefas antes de continuar");
       }
       if (nextLabel === "Tarefas" || nextLabel === "Prévia") {
         await runPreview(nextLabel === "Tarefas");
@@ -631,7 +639,7 @@ export function NovoProjetoWizard({
   }
 
   function escopoComNomeVazio(nos: EscopoNo[]): boolean {
-    return nos.some((n) => n.nome.trim().length < 2 || escopoComNomeVazio(n.children));
+    return nos.some((n) => n.nome.trim().length < 3 || escopoComNomeVazio(n.children));
   }
 
   async function confirm() {
@@ -649,7 +657,7 @@ export function NovoProjetoWizard({
       if (respErr) throw new Error(respErr);
       validarItensPersonalizados();
       if (escopoComNomeVazio(escopo)) {
-        throw new Error("Dê nome a todas as tarefas e subtarefas");
+        throw new Error("Dê um nome com pelo menos 3 caracteres a todas as tarefas e subtarefas");
       }
       if (!escopo.length) {
         throw new Error("Inclua ao menos uma tarefa antes de concluir");
@@ -834,7 +842,7 @@ export function NovoProjetoWizard({
         </div>
       </header>
 
-      <fieldset className="wizard-fields stack" disabled={busy} aria-label={steps[step]} aria-busy={busy}>
+      <fieldset ref={camposRef} className="wizard-fields stack" disabled={busy} aria-label={steps[step]} aria-busy={busy}>
       {steps[step] === "Identidade" && (
         <Card title="Identidade do projeto">
           <div className="stack">

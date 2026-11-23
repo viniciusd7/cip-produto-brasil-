@@ -13,3 +13,4 @@ export * from "./catalog/impedimentos-comuns";
 export * from "./modelos/triagem-acao-diaria";
 export * from "./secretaria-indicators";
 export * from "./catalog/estruturante";
+export * from "./wizard-validation";
